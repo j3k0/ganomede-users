@@ -6,7 +6,6 @@
 stormpath = require "stormpath"
 authdb = require "authdb"
 restify = require "restify"
-crypto = require "crypto"
 log = require "./log"
 
 sendError = (err, next) ->
@@ -125,6 +124,11 @@ createAccount = (req, res, next) ->
 
   application.createAccount account, onAccountCreated
 
+# Generate a random token
+rand = ->
+  Math.random().toString(36).substr(2)
+genToken = -> rand() + rand()
+
 # Login a user account
 login = (req, res, next) ->
   account =
@@ -139,8 +143,9 @@ login = (req, res, next) ->
     result.getAccount (err, account) ->
       if err
         return sendStormpathError err, next
-      tokenStr = "#{account.username}:#{account.password}"
-      token = crypto.createHash('md5').update(tokenStr).digest('hex')
+      token = genToken()
+      # crypto = require "crypto"
+      # token = crypto.createHash('md5').update(tokenStr).digest('hex')
 
       authdbClient.addAccount token,
         username: account.username
@@ -164,16 +169,29 @@ getAccount = (req, res, next) ->
       return sendError err, next
     res.send account
     next()
-
-#if !authOK
-#  err = new restify.NotAuthorizedError "not authorized"
-#  return sendError err, next
+ 
+# Send a password reset email
+passwordResetEmail = (req, res, next) ->
+  token = req.params.token
+  if !token
+    err = new restify.InvalidContentError "invalid content"
+    return sendError err, next
+  authdbClient.getAccount token, (err, account) ->
+    if err
+      log.error err
+      err = new restify.NotAuthorizedError "not authorized"
+      return sendError err, next
+    application.sendPasswordResetEmail account.email, (err, resetToken) ->
+      log.info "passwordResetToken", resetToken
+      res.send ok:!err
+      next()
 
 # Register routes in the server
 addRoutes = (prefix, server) ->
   server.post "/#{prefix}/accounts", createAccount
   server.post "/#{prefix}/login", login
   server.get "/#{prefix}/:token", getAccount
+  server.post "/#{prefix}/:token/passwordResetEmail", passwordResetEmail
 
 module.exports =
   initialize: initialize
