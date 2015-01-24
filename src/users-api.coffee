@@ -4,7 +4,9 @@
 #
 
 stormpath = require "stormpath"
+authdb = require "authdb"
 restify = require "restify"
+crypto = require "crypto"
 log = require "./log"
 
 sendError = (err, next) ->
@@ -23,6 +25,11 @@ sendStormpathError = (spErr, next) ->
 apiId = process.env.STORMPATH_API_ID
 apiSecret = process.env.STORMPATH_API_SECRET
 appName = process.env.STORMPATH_APP_NAME || "Ganomede"
+
+# Connection to AuthDB
+authdbClient = authdb.createClient
+  host: process.env.REDIS_AUTH_PORT_6379_TCP_ADDR
+  port: process.env.REDIS_AUTH_PORT_6379_TCP_PORT
 
 # Application, once initialized
 application = null
@@ -100,8 +107,6 @@ createApplication = (cb) ->
   client.createApplication app, createDirectory:true, cb
 
 # Create a user account
-# application.createAccount account, (err, account) ->
-
 createAccount = (req, res, next) ->
   account =
     givenName: req.body.givenName
@@ -120,9 +125,55 @@ createAccount = (req, res, next) ->
 
   application.createAccount account, onAccountCreated
 
+# Login a user account
+login = (req, res, next) ->
+  account =
+    username: req.body.username
+    password: req.body.password
+  application.authenticateAccount account, (err, result) ->
+    if err
+      return sendStormpathError err, next
+
+    # if successful, the result will have an account field
+    # with the successfully authenticated account:
+    result.getAccount (err, account) ->
+      if err
+        return sendStormpathError err, next
+      tokenStr = "#{account.username}:#{account.password}"
+      token = crypto.createHash('md5').update(tokenStr).digest('hex')
+
+      authdbClient.addAccount token,
+        username: account.username
+        email: account.email
+        givenName: account.givenName
+        surname: account.surname
+
+      res.send
+        token:token
+      next()
+
+getAccount = (req, res, next) ->
+  token = req.params.token
+  if !token
+    err = new restify.InvalidContentError "invalid content"
+    return sendError err, next
+  authdbClient.getAccount token, (err, account) ->
+    if err
+      log.error err
+      err = new restify.NotAuthorizedError "not authorized"
+      return sendError err, next
+    res.send account
+    next()
+
+#if !authOK
+#  err = new restify.NotAuthorizedError "not authorized"
+#  return sendError err, next
+
 # Register routes in the server
 addRoutes = (prefix, server) ->
   server.post "/#{prefix}/accounts", createAccount
+  server.post "/#{prefix}/login", login
+  server.get "/#{prefix}/:token", getAccount
 
 module.exports =
   initialize: initialize

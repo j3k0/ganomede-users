@@ -42,7 +42,7 @@ See http://docs.stormpath.com/rest/product-guide/#application-accounts when in d
         "email": "tk421@stormpath.com"
     }
 
-## /users/loginAttempt [POST]
+## /users/login [POST]
 
 ### response [200] OK
 
