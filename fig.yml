@@ -3,3 +3,12 @@ app:
     command: make BUNYAN_LEVEL=0 run
     ports:
      - "8000:8000"
+    links:
+     - cache:redis_cache
+    volumes:
+     - src:/home/app/code/src
+    environment:
+     - "STORMPATH_API_ID=6OWYNFQMZS845XUYL1OTKHHWF"
+     - "STORMPATH_API_SECRET=npdPqM6G+BofGsCc7bxer+knkUgEJJC7QEwqcFcBvqQ"
+cache:
+    image: redis:latest
