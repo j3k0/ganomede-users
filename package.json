@@ -1,6 +1,6 @@
 {
   "name": "users",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "users micro service",
   "private": true,
   "main": "index.js",
@@ -22,11 +22,14 @@
     "jshint": "^2.5.10",
     "mocha": "^2.0.1",
     "restify": "^2.8.3",
+    "stormpath": "^0.8.1",
     "vasync": "^1.6.2"
   },
   "config": {
     "blanket": {
-      "pattern": [ "src" ],
+      "pattern": [
+        "src"
+      ],
       "data-cover-never": "node_modules",
       "loader": "./node-loaders/coffee-script"
     }

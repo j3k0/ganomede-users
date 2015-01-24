@@ -28,10 +28,6 @@ else {
     server.use(restify.bodyParser());
     server.use(restify.gzipResponse());
 
-    // Intitialize backend, add routes
-    main.initialize();
-    main.addRoutes(routePrefix, server);
-
     // Handle uncaughtException, kill the worker
     server.on('uncaughtException', function (req, res, route, err) {
 
@@ -65,8 +61,13 @@ else {
         }
     });
 
-    // Start the server
-    server.listen(port, function() {
-        log.info(server.name + " listening at " + server.url);
+    // Intitialize backend, add routes
+    main.initialize(function() {
+        main.addRoutes(routePrefix, server);
+
+        // Start the server
+        server.listen(port, function() {
+            log.info(server.name + " listening at " + server.url);
+        });
     });
 }

@@ -17,7 +17,12 @@ addRoutes = (prefix, server) ->
 
 initialize = (callback) ->
   log.info "initializing backend"
-  callback?()
+  usersApi.initialize (err) ->
+    if err
+      log.error err
+      process.exit 1
+      return
+    callback?()
 
 destroy = ->
   log.info "destroying backend"

@@ -23,4 +23,9 @@ RUN chown -R app /home/app
 WORKDIR /home/app/code
 USER app
 RUN make
+
+ENV STORMPATH_API_ID="your_stormpath_id_here" \
+    STORMPATH_API_SECRET="your_stormpath_api_secret_here" \
+    STORMPATH_APP_NAME="Ganomede"
+
 CMD node_modules/.bin/forever index.js
