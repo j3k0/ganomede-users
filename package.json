@@ -1,6 +1,7 @@
 {
   "name": "users",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "api": "users/v1",
   "description": "users micro service",
   "private": true,
   "main": "index.js",
