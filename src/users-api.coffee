@@ -114,13 +114,18 @@ createAccount = (req, res, next) ->
     email: req.body.email
     password: req.body.password
   log.info "register", account
-  
+
   onAccountCreated = (err, createdAccount) ->
     if err
       return sendStormpathError err, next
     log.info "registered", createdAccount
-    res.send createdAccount
-    next()
+    if createdAccount.status == "ENABLED"
+      login req, res, next
+      # res.send createdAccount
+      # next()
+    else
+      res.send token: null
+      next()
 
   application.createAccount account, onAccountCreated
 
