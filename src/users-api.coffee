@@ -195,7 +195,7 @@ passwordResetEmail = (req, res, next) ->
 addRoutes = (prefix, server) ->
   server.post "/#{prefix}/accounts", createAccount
   server.post "/#{prefix}/login", login
-  server.get "/#{prefix}/auth/:authToken", getAccount
+  server.get "/#{prefix}/auth/:authToken/me", getAccount
 
   endPoint = "/#{prefix}/auth/:authToken/passwordResetEmail"
   server.post endPoint, passwordResetEmail

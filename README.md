@@ -31,7 +31,7 @@ See http://docs.stormpath.com/rest/product-guide/#application-accounts when in d
         token: 'rAnDoM'
     }
 
-## /users/auth/:token [GET]
+## /users/v1/auth/:token/me [GET]
 
 ### response [200] OK
 
@@ -42,7 +42,7 @@ See http://docs.stormpath.com/rest/product-guide/#application-accounts when in d
         "email": "tk421@stormpath.com"
     }
 
-## /users/login [POST]
+## /users/v1/login [POST]
 
 ### body (application/json)
 
@@ -57,7 +57,7 @@ See http://docs.stormpath.com/rest/product-guide/#application-accounts when in d
         "token": "0123456789abcdef012345"
     }
 
-## /users/auth/:token/passwordResetEmail [POST]
+## /users/v1/auth/:token/passwordResetEmail [POST]
 
 ### response [202] Accepted
 
