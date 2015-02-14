@@ -3,9 +3,9 @@ Users' API
 
 # Metadata
 
-## /users/:id/metadata/:id [GET]
+## /users/v1/:id/metadata/:id [GET]
 
-## /users/:id/metadata/:id [POST]
+## /users/v1/:id/metadata/:id [POST]
 
 # User accounts
 
@@ -13,7 +13,7 @@ User accounts API is fully inspired by Stormpath.
 
 See http://docs.stormpath.com/rest/product-guide/#application-accounts when in doubt about a parameter.
 
-## /users/accounts [POST]
+## /users/v1/accounts [POST]
 
 ### body (application/json)
 
@@ -31,7 +31,7 @@ See http://docs.stormpath.com/rest/product-guide/#application-accounts when in d
         token: 'rAnDoM'
     }
 
-## /users/:token [GET]
+## /users/auth/:token [GET]
 
 ### response [200] OK
 
@@ -57,7 +57,7 @@ See http://docs.stormpath.com/rest/product-guide/#application-accounts when in d
         "token": "0123456789abcdef012345"
     }
 
-## /users/:token/passwordResetEmail [POST]
+## /users/auth/:token/passwordResetEmail [POST]
 
 ### response [202] Accepted
 

@@ -158,7 +158,7 @@ login = (req, res, next) ->
       next()
 
 getAccount = (req, res, next) ->
-  token = req.params.token
+  token = req.params.authToken
   if !token
     err = new restify.InvalidContentError "invalid content"
     return sendError err, next
@@ -169,10 +169,10 @@ getAccount = (req, res, next) ->
       return sendError err, next
     res.send account
     next()
- 
+
 # Send a password reset email
 passwordResetEmail = (req, res, next) ->
-  token = req.params.token
+  token = req.params.authToken
   if !token
     err = new restify.InvalidContentError "invalid content"
     return sendError err, next
@@ -190,8 +190,10 @@ passwordResetEmail = (req, res, next) ->
 addRoutes = (prefix, server) ->
   server.post "/#{prefix}/accounts", createAccount
   server.post "/#{prefix}/login", login
-  server.get "/#{prefix}/:token", getAccount
-  server.post "/#{prefix}/:token/passwordResetEmail", passwordResetEmail
+  server.get "/#{prefix}/auth/:authToken", getAccount
+
+  endPoint = "/#{prefix}/auth/:authToken/passwordResetEmail"
+  server.post endPoint, passwordResetEmail
 
 module.exports =
   initialize: initialize
