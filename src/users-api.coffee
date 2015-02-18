@@ -13,6 +13,8 @@ sendError = (err, next) ->
   next err
 
 sendStormpathError = (spErr, next) ->
+  if !spErr.code
+    spErr.code = "Unknown"
   err = new restify.RestError
     restCode: "Stormpath" + spErr.name + spErr.code,
     statusCode: spErr.status,
@@ -159,6 +161,10 @@ login = (req, res, next) ->
         surname: account.surname
 
       res.send
+        username: account.username
+        email: account.email
+        givenName: account.givenName
+        surname: account.surname
         token:token
       next()
 

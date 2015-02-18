@@ -54,6 +54,10 @@ See http://docs.stormpath.com/rest/product-guide/#application-accounts when in d
 ### response [200] OK
 
     {
+        username: 'tk421',
+        email: 'tk421@stormpath.com',
+        givenName: 'Joe',
+        surname: 'Stormtrooper',
         "token": "0123456789abcdef012345"
     }
 
