@@ -19,8 +19,6 @@ See http://docs.stormpath.com/rest/product-guide/#application-accounts when in d
 
     {
         username: 'tk421',
-        givenName: 'Joe',
-        surname: 'Stormtrooper',
         email: 'tk421@stormpath.com',
         password: 'Changeme1'
     }
@@ -29,6 +27,19 @@ See http://docs.stormpath.com/rest/product-guide/#application-accounts when in d
 
     {
         token: 'rAnDoM'
+    }
+
+### body (application/json)
+
+    {
+        "facebookAccessToken": "AccessTokenFromFacebook",
+        "username": "tk421"
+    }
+
+### response [201]
+
+    {
+        "token": "rAnDoM"
     }
 
 ## /users/v1/auth/:token/me [GET]
@@ -51,13 +62,15 @@ See http://docs.stormpath.com/rest/product-guide/#application-accounts when in d
         "password": "0000"
     }
 
+### body (application/json)
+
+    {
+        "facebookAccessToken": "AccessTokenFromFacebook"
+    }
+
 ### response [200] OK
 
     {
-        username: 'tk421',
-        email: 'tk421@stormpath.com',
-        givenName: 'Joe',
-        surname: 'Stormtrooper',
         "token": "0123456789abcdef012345"
     }
 
