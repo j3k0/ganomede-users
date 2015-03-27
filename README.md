@@ -48,8 +48,6 @@ See http://docs.stormpath.com/rest/product-guide/#application-accounts when in d
 
     {
         "username": "tk421",
-        "givenName": "Joe",
-        "surname": "Stormtrooper",
         "email": "tk421@stormpath.com"
     }
 

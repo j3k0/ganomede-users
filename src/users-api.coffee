@@ -110,8 +110,8 @@ createApplication = (cb) ->
 # Create a user account
 createAccount = (req, res, next) ->
   account =
-    givenName: req.body.givenName
-    surname: req.body.surname
+    givenName: req.body.username
+    #surname: req.body.surname
     username: req.body.username
     email: req.body.email
     password: req.body.password
@@ -157,14 +157,14 @@ login = (req, res, next) ->
       authdbClient.addAccount token,
         username: account.username
         email: account.email
-        givenName: account.givenName
-        surname: account.surname
+        #givenName: account.givenName
+        #surname: account.surname
 
       res.send
         username: account.username
         email: account.email
-        givenName: account.givenName
-        surname: account.surname
+        #givenName: account.givenName
+        #surname: account.surname
         token:token
       next()
 
