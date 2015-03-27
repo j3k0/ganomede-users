@@ -111,6 +111,7 @@ createApplication = (cb) ->
 createAccount = (req, res, next) ->
   account =
     givenName: req.body.username
+    surname: req.body.username
     #surname: req.body.surname
     username: req.body.username
     email: req.body.email
