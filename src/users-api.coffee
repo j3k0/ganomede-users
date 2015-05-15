@@ -223,7 +223,7 @@ authMiddleware = (req, res, next) ->
     next()
 
 # Set metadata
-setMetadata = (req, res, next) ->
+postMetadata = (req, res, next) ->
   username = req.params.user.username
   key = req.params.key
   value = req.body.value

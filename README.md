@@ -80,6 +80,8 @@ See http://docs.stormpath.com/rest/product-guide/#application-accounts when in d
 
 Users' custom data. Valid metadata keys can be restricted using the `USERMETA_VALID_KEYS` environment variable. A comma-separated list of keys.
 
+Setting `USERMETA_VALID_KEYS` is recommended to prevent people from using your server as free storage. An additional self imposed limitation is that values can't be above 200 bytes.
+
 ### body (application/json)
 
     {
