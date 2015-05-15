@@ -21,8 +21,10 @@
     "concat-stream": "^1.4.7",
     "eslint": "^0.10.0",
     "forever": "^0.13.0",
+    "ganomede-helpers": "^0.3.3",
     "jshint": "^2.5.10",
     "mocha": "^2.0.1",
+    "redis": "^0.12.1",
     "restify": "^2.8.3",
     "stormpath": "^0.8.1",
     "vasync": "^1.6.2"

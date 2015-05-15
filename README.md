@@ -76,3 +76,29 @@ See http://docs.stormpath.com/rest/product-guide/#application-accounts when in d
 
 ### response [202] Accepted
 
+## /users/v1/auth/:token/metadata/:key [POST]
+
+Users' custom data. Valid metadata keys can be restricted using the `USERMETA_VALID_KEYS` environment variable. A comma-separated list of keys.
+
+### body (application/json)
+
+    {
+        "value": "..."
+    }
+
+(limited to 200 bytes)
+
+### response [200] OK
+
+## /users/v1/:username/metadata/:key [GET]
+
+Users' custom data.
+
+### body (application/json)
+
+### response [200] OK
+
+    {
+        "key": "some-key",
+        "value": "..."
+    }
