@@ -2,7 +2,7 @@ assert = require "assert"
 usermeta = require "../src/usermeta"
 fakeRedis = require 'fakeredis'
 
-describe "ping-api", ->
+describe "usermeta", ->
   redisClient = null
   before ->
     process.env.USERMETA_VALID_KEYS = "k1,ke2,key3"

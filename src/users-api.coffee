@@ -120,6 +120,9 @@ createApplication = (cb) ->
     description: "Ganomede users"
   client.createApplication app, createDirectory:true, cb
 
+  # TODO: Create Facebook Directory
+  # TODO: Provide FACEBOOK_APP_ID and FACEBOOK_APP_SECRET
+
 # Create a user account
 createAccount = (req, res, next) ->
   account =
@@ -128,6 +131,7 @@ createAccount = (req, res, next) ->
     username: req.body.username
     email: req.body.email
     password: req.body.password
+    facebookToken: req.body.facebookToken
   log.info "register", account
 
   onAccountCreated = (err, createdAccount) ->
@@ -151,6 +155,27 @@ genToken = -> rand() + rand()
 
 # Login a user account
 login = (req, res, next) ->
+  if req.body.facebookToken
+    loginFacebook req, res, next
+  else
+    loginDefault req, res, next
+
+loginFacebook = (req, res, next) ->
+  account =
+    accessToken: req.body.facebookToken
+    providerId: req.body.facebook
+  application.createAccount account, (err, account) ->
+    if err
+      return sendStormpathError err, next
+    log.info "logged in:", account
+    if account.status == "ENABLED"
+      authenticateAccountHandler account, res, next
+    else
+      res.send token: null
+      next()
+  # TODO: Change username?
+
+loginDefault = (req, res, next) ->
   account =
     username: req.body.username
     password: req.body.password
@@ -163,23 +188,26 @@ login = (req, res, next) ->
     result.getAccount (err, account) ->
       if err
         return sendStormpathError err, next
-      token = genToken()
-      # crypto = require "crypto"
-      # token = crypto.createHash('md5').update(tokenStr).digest('hex')
+      authenticateAccountHandler account, res, next
 
-      authdbClient.addAccount token,
-        username: account.username
-        email: account.email
-        #givenName: account.givenName
-        #surname: account.surname
+authenticateAccountHandler = (account, res, next) ->
+  token = genToken()
+  # crypto = require "crypto"
+  # token = crypto.createHash('md5').update(tokenStr).digest('hex')
 
-      res.send
-        username: account.username
-        email: account.email
-        #givenName: account.givenName
-        #surname: account.surname
-        token:token
-      next()
+  authdbClient.addAccount token,
+    username: account.username
+    email: account.email
+    #givenName: account.givenName
+    #surname: account.surname
+
+  res.send
+    username: account.username
+    email: account.email
+    #givenName: account.givenName
+    #surname: account.surname
+    token:token
+  next()
 
 getAccount = (req, res, next) ->
   token = req.params.authToken
