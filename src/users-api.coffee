@@ -162,9 +162,10 @@ login = (req, res, next) ->
 
 loginFacebook = (req, res, next) ->
   account =
-    accessToken: req.body.facebookToken
-    providerId: req.body.facebook
-  application.createAccount account, (err, account) ->
+    providerData:
+      providerId: "facebook"
+      accessToken: req.body.facebookToken
+  application.getAccount account, (err, account) ->
     if err
       return sendStormpathError err, next
     log.info "logged in:", account
