@@ -131,7 +131,6 @@ createAccount = (req, res, next) ->
     username: req.body.username
     email: req.body.email
     password: req.body.password
-    facebookToken: req.body.facebookToken
   log.info "register", account
 
   onAccountCreated = (err, createdAccount) ->
@@ -165,12 +164,23 @@ loginFacebook = (req, res, next) ->
     providerData:
       providerId: "facebook"
       accessToken: req.body.facebookToken
-  application.getAccount account, (err, account) ->
+  application.getAccount account, (err, result) ->
     if err
       return sendStormpathError err, next
-    log.info "logged in:", account
-    if account.status == "ENABLED"
-      authenticateAccountHandler account, res, next
+    log.info "logged in:", result
+    if result.account.status == "ENABLED"
+      if result.created && req.body.username && req.body.password
+        client.getAccount result.account.href, (err, account) ->
+          if err
+            return sendStormpathError err, next
+          account.username = req.body.username
+          account.password = req.body.password
+          account.save (err, updatedAccount) ->
+            if err
+              return sendStormpathError err, next
+            authenticateAccountHandler updatedAccount || account, res, next
+      else
+        authenticateAccountHandler result.account, res, next
     else
       res.send token: null
       next()
