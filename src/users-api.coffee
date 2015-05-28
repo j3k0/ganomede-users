@@ -188,6 +188,8 @@ loginFacebook = (req, res, next) ->
         if req.body.username && req.body.password
           fbProcess.create()
         else
+          fbProcess.metaErr =
+            new restify.BadRequestError("username or password not provided")
           fbProcess.delete()
       else
         fbProcess.login()
