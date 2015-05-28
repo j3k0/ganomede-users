@@ -184,8 +184,11 @@ loginFacebook = (req, res, next) ->
     result = fbProcess.accountResult
     log.info "logged in:", result
     if result.account.status == "ENABLED"
-      if result.created && req.body.username
-        fbProcess.create()
+      if result.created
+        if req.body.username && req.body.password
+          fbProcess.create()
+        else
+          fbProcess.fail()
       else
         fbProcess.login()
     else
