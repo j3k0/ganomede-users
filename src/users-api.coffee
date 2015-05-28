@@ -188,7 +188,7 @@ loginFacebook = (req, res, next) ->
         if req.body.username && req.body.password
           fbProcess.create()
         else
-          fbProcess.fail()
+          fbProcess.delete()
       else
         fbProcess.login()
     else
@@ -305,6 +305,7 @@ loginFacebook = (req, res, next) ->
     # After handleAccount, either create an account or login
     .event 'create', 'handleAccount', 'createCoAccount'
     .event 'login', 'handleAccount', 'getAlias'
+    .event 'delete', 'handleAccount', 'deleteFacebookAccount'
     .event 'fail', 'handleAccount', 'reportFailure'
 
     # After retrieving an alias, send auth token
