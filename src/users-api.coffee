@@ -9,6 +9,7 @@ restify = require "restify"
 log = require "./log"
 helpers = require "ganomede-helpers"
 usermeta = require "./usermeta"
+stateMachine = require "state-machine"
 
 sendError = (err, next) ->
   log.error err
@@ -126,8 +127,8 @@ createApplication = (cb) ->
 # Create a user account
 createAccount = (req, res, next) ->
   account =
-    givenName: req.body.username
-    surname: req.body.username
+    givenName: "Email"
+    surname: req.body.surname || req.body.username
     username: req.body.username
     email: req.body.email
     password: req.body.password
@@ -159,32 +160,180 @@ login = (req, res, next) ->
   else
     loginDefault req, res, next
 
+# Login (or register) a facebook user account
 loginFacebook = (req, res, next) ->
-  account =
-    providerData:
-      providerId: "facebook"
-      accessToken: req.body.facebookToken
-  application.getAccount account, (err, result) ->
-    if err
-      return sendStormpathError err, next
+
+  fbProcess = stateMachine()
+
+  # Get / create user account
+  getAccount = ->
+    account =
+      providerData:
+        providerId: "facebook"
+        accessToken: req.body.facebookToken
+    application.getAccount account, (err, result) ->
+      if err
+        fbProcess.err = err
+        fbProcess.fail()
+      else
+        fbProcess.accountResult = result
+        fbProcess.next()
+    
+  # Analyse the account
+  handleAccount = ->
+    result = fbProcess.accountResult
     log.info "logged in:", result
     if result.account.status == "ENABLED"
-      if result.created && req.body.username && req.body.password
-        client.getAccount result.account.href, (err, account) ->
-          if err
-            return sendStormpathError err, next
-          account.username = req.body.username
-          account.password = req.body.password
-          account.save (err, updatedAccount) ->
-            if err
-              return sendStormpathError err, next
-            authenticateAccountHandler updatedAccount || account, res, next
+      if result.created
+        if req.body.username && req.body.password
+          fbProcess.create()
+        else
+          fbProcess.metaErr =
+            new restify.BadRequestError("username or password not provided")
+          fbProcess.delete()
       else
-        authenticateAccountHandler result.account, res, next
+        fbProcess.login()
+    else
+      fbProcess.fail()
+
+  # Delete the account
+  deleteFacebookAccount = ->
+    result = fbProcess.accountResult
+    client.getAccount result.account.href, (err, account) ->
+      if err
+        # Only fail, account is deleted because of an error already
+        fbProcess.fail()
+      else
+        account.delete (err) ->
+          if err
+            fbProcess.fail()
+          else
+            fbProcess.next()
+
+  # Delete the account
+  deleteCoAccount = ->
+    client.getAccount fbProcess.coAccount.href, (err, account) ->
+      if err
+        # Only fail, don't store error.
+        # account is deleted because of an error already
+        log.error err
+        fbProcess.fail()
+      else
+        account.delete (err) ->
+          if err
+            log.error err
+            fbProcess.fail()
+          else
+            fbProcess.next()
+
+  # Retrieve account alias
+  getAlias = ->
+    result = fbProcess.accountResult
+    usermetaClient.get result.account.username, "$alias",
+    (err, value) ->
+      if err
+        fbProcess.metaErr = err
+        fbProcess.fail()
+      else
+        req.body.username = value
+        fbProcess.next()
+
+  # Save the account alias
+  saveAlias = ->
+    # Store alias stormpath username -> co-account username
+    # in usermeta (someone@fovea.cc -> jeko)
+    result = fbProcess.accountResult
+    usermetaClient.set result.account.username, "$alias", req.body.username,
+    (err, reply) ->
+      if err
+        fbProcess.metaErr = err
+        fbProcess.fail()
+      else
+        fbProcess.next()
+        
+  # Create a co-account associated with the facebook account
+  createCoAccount = ->
+    result = fbProcess.accountResult
+    account =
+      givenName: "Facebook"
+      surname: result.account.username
+      username: req.body.username
+      email: req.body.email
+      password: req.body.password
+    log.info "register", account
+    application.createAccount account, (err, account) ->
+      if err
+        fbProcess.err = err
+        fbProcess.fail()
+      else
+        fbProcess.coAccount = account
+        fbProcess.next()
+
+  # Create and send the auth token
+  sendToken = ->
+    result = fbProcess.accountResult
+    addAuth {
+      username: req.body.username
+      email: result.account.email
+    }, res, next
+
+  reportFailure = ->
+    if fbProcess.err
+      sendStormpathError fbProcess.err, next
+    else if fbProcess.metaErr
+      sendError fbProcess.metaErr, next
     else
       res.send token: null
       next()
-  # TODO: Change username?
+
+  fbProcess.build()
+    .state 'start', initial: true
+    .state 'getAccount', enter: getAccount
+    .state 'handleAccount', enter: handleAccount
+    .state 'getAlias', enter: getAlias
+    .state 'createCoAccount', enter: createCoAccount
+    .state 'deleteFacebookAccount', enter: deleteFacebookAccount
+    .state 'saveAlias', enter: saveAlias
+    .state 'deleteCoAccount', enter: deleteCoAccount
+    .state 'reportFailure', enter: reportFailure
+    .state 'sendToken', enter: sendToken
+
+    .event 'start', 'start', 'getAccount'
+
+    # After getAccount we handle the account
+    .event 'next', 'getAccount', 'handleAccount'
+    .event 'fail',   'getAccount', 'reportFailure'
+
+    # After handleAccount, either create an account or login
+    .event 'create', 'handleAccount', 'createCoAccount'
+    .event 'login', 'handleAccount', 'getAlias'
+    .event 'delete', 'handleAccount', 'deleteFacebookAccount'
+    .event 'fail', 'handleAccount', 'reportFailure'
+
+    # After retrieving an alias, send auth token
+    .event 'next', 'getAlias', 'sendToken'
+    .event 'fail', 'getAlias', 'reportFailure'
+
+    # After creating an account, save the alias
+    # In case of failure, delete the account
+    .event 'next', 'createCoAccount', 'saveAlias'
+    .event 'fail', 'createCoAccount' , 'deleteFacebookAccount'
+
+    # After deleting the facebook account, report the failure in any case
+    .event 'next', 'deleteFacebookAccount', 'reportFailure'
+    .event 'fail', 'deleteFacebookAccount', 'reportFailure'
+
+    # After saving the alias, send auth token
+    .event 'next', 'saveAlias', 'sendToken'
+    .event 'fail', 'saveAlias', 'deleteCoAccount'
+
+    # After deleting the facebook account, report the failure in any case
+    .event 'next', 'deleteCoAccount', 'deleteFacebookAccount'
+    .event 'fail', 'deleteCoAccount', 'deleteFacebookAccount'
+
+  fbProcess.onChange = (currentStateName, previousStateName) ->
+    log.info "#{previousStateName} -> #{currentStateName}"
+  fbProcess.start()
 
 loginDefault = (req, res, next) ->
   account =
@@ -199,24 +348,16 @@ loginDefault = (req, res, next) ->
     result.getAccount (err, account) ->
       if err
         return sendStormpathError err, next
-      authenticateAccountHandler account, res, next
+      addAuth account, res, next
 
-authenticateAccountHandler = (account, res, next) ->
+addAuth = (account, res, next) ->
   token = genToken()
-  # crypto = require "crypto"
-  # token = crypto.createHash('md5').update(tokenStr).digest('hex')
-
   authdbClient.addAccount token,
     username: account.username
     email: account.email
-    #givenName: account.givenName
-    #surname: account.surname
-
   res.send
     username: account.username
     email: account.email
-    #givenName: account.givenName
-    #surname: account.surname
     token:token
   next()
 
