@@ -268,12 +268,16 @@ loginFacebook = (req, res, next) ->
   # Create a co-account associated with the facebook account
   createCoAccount = ->
     result = fbProcess.accountResult
+
+    # Check that required body parameters are available
     [ "facebookId", "username", "password" ].forEach (fieldName) ->
       if not req.body[fieldName]
         fbProcess.error = new restify.BadRequestError(
           "missing field: #{fieldName}")
     if fbProcess.error
+      fbProcess.fail()
       return
+
     account =
       givenName: "Facebook"
       middleName: req.body.facebookId
