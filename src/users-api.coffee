@@ -279,13 +279,17 @@ loginFacebook = (req, res, next) ->
       return
 
     account =
+      username:   req.body.username
+      password:   req.body.password
       givenName: "Facebook"
       middleName: req.body.facebookId
-      surname: result.account.username
-      username: req.body.username
-      email: result.account.email
-      password: req.body.password
-    log.info "register", account
+      surname:    result.account.username
+      email:      result.account.email
+
+    log.info "register",
+      coAccount: account
+      account: result.account
+
     application.createAccount account, (err, account) ->
       if err
         fbProcess.stormpathError = err
