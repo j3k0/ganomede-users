@@ -9,6 +9,7 @@ restify = require "restify"
 log = require "./log"
 helpers = require "ganomede-helpers"
 usermeta = require "./usermeta"
+aliases = require "./aliases"
 stateMachine = require "state-machine"
 
 sendError = (err, next) ->
@@ -44,6 +45,9 @@ if redisUsermetaConfig.exists
   log.info "usermeta", redisUsermetaConfig
 else
   log.error "cant create usermeta client, no REDIS_USERMETA database"
+
+aliasesClient = aliases.createClient
+  usermetaClient: usermetaClient
 
 # Application, once initialized
 application = null
@@ -173,7 +177,7 @@ loginFacebook = (req, res, next) ->
         accessToken: req.body.facebookToken
     application.getAccount account, (err, result) ->
       if err
-        fbProcess.err = err
+        fbProcess.stormpathError = err
         fbProcess.fail()
       else
         fbProcess.accountResult = result
@@ -229,10 +233,10 @@ loginFacebook = (req, res, next) ->
   # Retrieve account alias
   getAlias = ->
     result = fbProcess.accountResult
-    usermetaClient.get result.account.username, "$alias",
+    aliasesClient.get result.account.username,
     (err, value) ->
       if err
-        fbProcess.metaErr = err
+        fbProcess.error = err
         fbProcess.fail()
       else
         req.body.username = value
@@ -243,10 +247,20 @@ loginFacebook = (req, res, next) ->
     # Store alias stormpath username -> co-account username
     # in usermeta (someone@fovea.cc -> jeko)
     result = fbProcess.accountResult
-    usermetaClient.set result.account.username, "$alias", req.body.username,
+    aliasesClient.set result.account.username, req.body.username,
     (err, reply) ->
       if err
-        fbProcess.metaErr = err
+        fbProcess.error = err
+        fbProcess.fail()
+      else
+        fbProcess.next()
+
+  # Save the link facebookId => username
+  saveFacebookId = ->
+    aliasesClient.set "fb:#{req.body.facebookId}", req.body.username,
+    (err, reply) ->
+      if err
+        fbProcess.error = err
         fbProcess.fail()
       else
         fbProcess.next()
@@ -254,16 +268,23 @@ loginFacebook = (req, res, next) ->
   # Create a co-account associated with the facebook account
   createCoAccount = ->
     result = fbProcess.accountResult
+    [ "facebookId", "username", "password" ].forEach (fieldName) ->
+      if not req.body[fieldName]
+        fbProcess.error = new restify.BadRequestError(
+          "missing field: #{fieldName}")
+    if fbProcess.error
+      return
     account =
       givenName: "Facebook"
+      middleName: req.body.facebookId
       surname: result.account.username
       username: req.body.username
-      email: req.body.email
+      email: result.account.email
       password: req.body.password
     log.info "register", account
     application.createAccount account, (err, account) ->
       if err
-        fbProcess.err = err
+        fbProcess.stormpathError = err
         fbProcess.fail()
       else
         fbProcess.coAccount = account
@@ -278,10 +299,10 @@ loginFacebook = (req, res, next) ->
     }, res, next
 
   reportFailure = ->
-    if fbProcess.err
-      sendStormpathError fbProcess.err, next
-    else if fbProcess.metaErr
-      sendError fbProcess.metaErr, next
+    if fbProcess.stormpathError
+      sendStormpathError fbProcess.stormpathError, next
+    else if fbProcess.error
+      sendError fbProcess.error, next
     else
       res.send token: null
       next()
@@ -294,6 +315,7 @@ loginFacebook = (req, res, next) ->
     .state 'createCoAccount', enter: createCoAccount
     .state 'deleteFacebookAccount', enter: deleteFacebookAccount
     .state 'saveAlias', enter: saveAlias
+    .state 'saveFacebookId', enter: saveFacebookId
     .state 'deleteCoAccount', enter: deleteCoAccount
     .state 'reportFailure', enter: reportFailure
     .state 'sendToken', enter: sendToken
@@ -323,9 +345,13 @@ loginFacebook = (req, res, next) ->
     .event 'next', 'deleteFacebookAccount', 'reportFailure'
     .event 'fail', 'deleteFacebookAccount', 'reportFailure'
 
-    # After saving the alias, send auth token
-    .event 'next', 'saveAlias', 'sendToken'
+    # After saving the alias, save the facebookId
+    .event 'next', 'saveAlias', 'saveFacebookId'
     .event 'fail', 'saveAlias', 'deleteCoAccount'
+
+    # After saving the facebookId, send auth token
+    .event 'next', 'saveFacebookId', 'sendToken'
+    .event 'fail', 'saveFacebookId', 'deleteCoAccount'
 
     # After deleting the facebook account, report the failure in any case
     .event 'next', 'deleteCoAccount', 'deleteFacebookAccount'

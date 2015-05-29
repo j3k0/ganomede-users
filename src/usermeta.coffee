@@ -13,6 +13,8 @@ class Usermeta
   set: (username, key, value, cb) ->
     if value?.length > 200
       return cb new restify.BadRequestError("Value too large")
+    if !@isValid key
+      return cb new restify.BadRequestError("Forbidden meta")
     @redisClient.set "#{username}:#{key}", value, (err, reply) ->
       cb err, reply
 

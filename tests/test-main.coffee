@@ -1,1 +1,1 @@
-main = require "../src/main"
+#main = require "../src/main"

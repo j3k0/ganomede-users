@@ -5,7 +5,7 @@ fakeRedis = require 'fakeredis'
 describe "usermeta", ->
   redisClient = null
   before ->
-    process.env.USERMETA_VALID_KEYS = "k1,ke2,key3"
+    process.env.USERMETA_VALID_KEYS = "k1,ke2,key3,age,age1"
     redisClient = fakeRedis.createClient(__filename)
 
   it "parse USERMETA_VALID_KEYS", ->
