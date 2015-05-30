@@ -238,6 +238,8 @@ loginFacebook = (req, res, next) ->
       if err
         fbProcess.error = err
         fbProcess.fail()
+      else if !value
+        fbProcess.empty()
       else
         req.body.username = value
         fbProcess.next()
@@ -343,6 +345,7 @@ loginFacebook = (req, res, next) ->
     # After retrieving an alias, send auth token
     .event 'next', 'getAlias', 'sendToken'
     .event 'fail', 'getAlias', 'reportFailure'
+    .enter 'empty', 'getAlias', 'createCoAccount'
 
     # After creating an account, save the alias
     # In case of failure, delete the account
