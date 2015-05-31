@@ -345,7 +345,7 @@ loginFacebook = (req, res, next) ->
     # After retrieving an alias, send auth token
     .event 'next', 'getAlias', 'sendToken'
     .event 'fail', 'getAlias', 'reportFailure'
-    .enter 'empty', 'getAlias', 'createCoAccount'
+    .event 'empty', 'getAlias', 'createCoAccount'
 
     # After creating an account, save the alias
     # In case of failure, delete the account
@@ -445,6 +445,10 @@ postMetadata = (req, res, next) ->
   key = req.params.key
   value = req.body.value
   usermetaClient.set username, key, value, (err, reply) ->
+    if (err)
+      log.error
+        err:err
+        reply:reply
     res.send ok:!err
     next()
 
