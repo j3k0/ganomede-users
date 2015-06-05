@@ -10,6 +10,7 @@ log = require "./log"
 helpers = require "ganomede-helpers"
 usermeta = require "./usermeta"
 aliases = require "./aliases"
+usernameValidator = require "./username-validator"
 stateMachine = require "state-machine"
 
 sendError = (err, next) ->
@@ -130,6 +131,11 @@ createApplication = (cb) ->
 
 # Create a user account
 createAccount = (req, res, next) ->
+
+  usernameError = usernameValidator(username)
+  if usernameError
+    return sendError usernameError
+
   account =
     givenName: "Email"
     surname: req.body.surname || req.body.username
