@@ -92,7 +92,7 @@ getApplicationHref = (cb) ->
 initialize = (cb) ->
 
   if !client
-    return
+    return cb new Error "no stormpath client"
 
   # Find if application already exists
   getApplicationHref (err, appHref) ->
@@ -132,9 +132,9 @@ createApplication = (cb) ->
 # Create a user account
 createAccount = (req, res, next) ->
 
-  usernameError = usernameValidator(username)
+  usernameError = usernameValidator(req.body.username)
   if usernameError
-    return sendError usernameError
+    return sendError usernameError, next
 
   account =
     givenName: "Email"

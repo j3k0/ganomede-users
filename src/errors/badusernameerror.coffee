@@ -3,9 +3,9 @@ util = require 'util'
 
 BadUsernameError = (message) ->
   restify.BadRequestError
-    restCode: 'BadUsernameError',
-    statusCode: 400,
-    message: message,
+    restCode: 'BadUsernameError'
+    statusCode: 400
+    message: message
     constructorOpt: BadUsernameError
   @name = 'BadUsernameError'
 
