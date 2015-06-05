@@ -89,11 +89,18 @@ getApplicationHref = (cb) ->
     cb null, app[0].href
 
 # Initialize the module
-initialize = (cb) ->
+initialize = (cb, options = {}) ->
 
   if !client
     return cb new Error "no stormpath client"
 
+  if options.application
+    application = options.application
+    cb null
+  else
+    loadApplication cb
+
+loadApplication = (cb) ->
   # Find if application already exists
   getApplicationHref (err, appHref) ->
 
@@ -419,6 +426,15 @@ getAccount = (req, res, next) ->
 
 # Send a password reset email
 passwordResetEmail = (req, res, next) ->
+
+  # It's possible to just specify the email address
+  if req.body.email
+    application.sendPasswordResetEmail req.body.email, (err, resetToken) ->
+      res.send ok:!err
+      next()
+    return
+
+  # It's also possible to retrieve the account from the authToken
   token = req.params.authToken
   if !token
     err = new restify.InvalidContentError "invalid content"
@@ -475,6 +491,9 @@ addRoutes = (prefix, server) ->
   server.get "/#{prefix}/auth/:authToken/me", getAccount
 
   endPoint = "/#{prefix}/auth/:authToken/passwordResetEmail"
+  server.post endPoint, passwordResetEmail
+
+  endPoint = "/#{prefix}/passwordResetEmail"
   server.post endPoint, passwordResetEmail
 
   server.post "/#{prefix}/auth/:authToken/metadata/:key",

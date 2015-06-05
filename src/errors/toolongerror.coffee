@@ -2,14 +2,14 @@ restify = require 'restify'
 util = require 'util'
 
 TooLongError = (message) ->
-  restify.BadRequestError
+  restify.RestError.call @,
     restCode: 'TooLongError'
     statusCode: 400
     message: message
     constructorOpt: TooLongError
   @name = 'TooLongError'
 
-util.inherits TooLongError, restify.BadRequestError
+util.inherits TooLongError, restify.RestError
 
 module.exports = TooLongError
 

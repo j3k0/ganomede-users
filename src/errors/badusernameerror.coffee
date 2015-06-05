@@ -2,14 +2,14 @@ restify = require 'restify'
 util = require 'util'
 
 BadUsernameError = (message) ->
-  restify.BadRequestError
+  restify.RestError.call @,
     restCode: 'BadUsernameError'
     statusCode: 400
     message: message
     constructorOpt: BadUsernameError
   @name = 'BadUsernameError'
 
-util.inherits BadUsernameError, restify.BadRequestError
+util.inherits BadUsernameError, restify.RestError
 
 module.exports = BadUsernameError
 

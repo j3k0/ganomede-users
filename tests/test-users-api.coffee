@@ -8,8 +8,17 @@ api = require '../src/users-api'
 PREFIX = 'users/v1'
 
 data =
-  tooshort:
-    username: '01'
+  createAccount:
+    tooshort: username: '01'
+    toolong: username: '01234567890'
+    invalid: username: 'café'
+  passwordReset:
+    email: 'test@fovea.cc'
+
+fakeApp =
+  sendPasswordResetEmail: (email, cb) ->
+    @emailSent = email
+    cb null
 
 describe 'users-api', ->
 
@@ -28,7 +37,7 @@ describe 'users-api', ->
       return "#{host}/#{PREFIX}#{path}"
 
   i = 0
-  beforeEach (done) ->
+  before (done) ->
     @timeout 10000
     i += 1
     server = restify.createServer()
@@ -41,20 +50,57 @@ describe 'users-api', ->
       server.use(restify.bodyParser())
       api.addRoutes(PREFIX, server)
       server.listen(1337, done)
+    ,
+      application: fakeApp
 
-  afterEach (done) ->
+  after (done) ->
     server.close()
     server.once('close', redis.flushdb.bind(redis, done))
 
-  describe 'POST: Create user account', () ->
-    it "should allow to create user accounts", (done) ->
+  describe '/passwordResetEmail [POST] - Reset password', () ->
+    
+    it "should send an email", (done) ->
+      superagent
+        .post endpoint "/passwordResetEmail"
+        .send data.passwordReset
+        .end (err, res) ->
+          assert.equal 200, res.status
+          assert.ok !err
+          assert.equal data.passwordReset.email, fakeApp.emailSent
+          done()
+
+  describe '/accounts [POST] - Create user account', () ->
+
+    it "should refuse short usernames", (done) ->
       @timeout 10000
       superagent
         .post endpoint "/accounts"
-        .send data.tooshort
+        .send data.createAccount.tooshort
         .end (err, res) ->
           assert.equal 400, res.status
           assert.equal 'TooShortError', res.body.code
+          assert.ok err
+          done()
+
+    it "should refuse special characters", (done) ->
+      @timeout 10000
+      superagent
+        .post endpoint "/accounts"
+        .send data.createAccount.invalid
+        .end (err, res) ->
+          assert.equal 400, res.status
+          assert.equal 'BadUsernameError', res.body.code
+          assert.ok err
+          done()
+
+    it "should refuse long usernames", (done) ->
+      @timeout 10000
+      superagent
+        .post endpoint "/accounts"
+        .send data.createAccount.toolong
+        .end (err, res) ->
+          assert.equal 400, res.status
+          assert.equal 'TooLongError', res.body.code
           assert.ok err
           done()
 
