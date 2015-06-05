@@ -31,3 +31,17 @@ node_modules: package.json
 
 clean:
 	rm -fr node_modules
+
+docker-prepare:
+	@mkdir -p doc
+	docker-compose up -d --no-recreate authRedis usermetaRedis usersRedisCache
+
+docker-run: docker-prepare
+	docker-compose run --rm --service-ports users make run BUNYAN_LEVEL=${BUNYAN_LEVEL}
+
+docker-test: docker-prepare
+	docker-compose run --rm users make test BUNYAN_LEVEL=${BUNYAN_LEVEL}
+
+docker-coverage: docker-prepare
+	docker-compose run --rm users make coverage
+

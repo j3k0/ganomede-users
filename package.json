@@ -39,5 +39,8 @@
       "data-cover-never": "node_modules",
       "loader": "./node-loaders/coffee-script"
     }
+  },
+  "devDependencies": {
+    "superagent": "^1.2.0"
   }
 }

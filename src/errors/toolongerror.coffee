@@ -3,9 +3,9 @@ util = require 'util'
 
 TooLongError = (message) ->
   restify.BadRequestError
-    restCode: 'TooLongError',
-    statusCode: 400,
-    message: message,
+    restCode: 'TooLongError'
+    statusCode: 400
+    message: message
     constructorOpt: TooLongError
   @name = 'TooLongError'
 

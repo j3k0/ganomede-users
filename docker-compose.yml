@@ -1,0 +1,29 @@
+users:
+    build: .
+    volumes:
+     - src:/home/app/code/src
+     - tests:/home/app/code/tests
+    command: make run BUNYAN_LEVEL=0
+    links:
+     - usersRedisCache:redis_cache
+     - authRedis:redis_auth
+     - usermetaRedis:redis_usermeta
+    environment:
+     - "STORMPATH_API_ID=6OWYNFQMZS845XUYL1OTKHHWF"
+     - "STORMPATH_API_SECRET=npdPqM6G+BofGsCc7bxer+knkUgEJJC7QEwqcFcBvqQ"
+     - "STORMPATH_APP_NAME=Ganomede"
+    ports:
+     - "8000"
+
+usersRedisCache:
+    image: tutum/redis:latest
+    environment:
+     - "REDIS_PASS=**None**"
+authRedis:
+    image: tutum/redis:latest
+    environment:
+     - "REDIS_PASS=**None**"
+usermetaRedis:
+    image: tutum/redis:latest
+    environment:
+     - "REDIS_PASS=**None**"

@@ -2,14 +2,14 @@ restify = require 'restify'
 util = require 'util'
 
 TooShortError = (message) ->
-  restify.BadRequestError
-    restCode: 'TooShortError',
-    statusCode: 400,
-    message: message,
+  restify.RestError.call @,
+    restCode: 'TooShortError'
+    statusCode: 400
+    message: message
     constructorOpt: TooShortError
   @name = 'TooShortError'
 
-util.inherits TooShortError, restify.BadRequestError
+util.inherits TooShortError, restify.RestError
 
 module.exports = TooShortError
 
