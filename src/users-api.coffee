@@ -427,11 +427,32 @@ getAccount = (req, res, next) ->
 # Send a password reset email
 passwordResetEmail = (req, res, next) ->
 
+  sendEmail = (email) ->
+    log.info "reset password", email:email
+    application.sendPasswordResetEmail email, (err, resetToken) ->
+      if err
+        if err.code == 2016
+          log.error err
+          err = new restify.RestError
+            restCode: "EmailNotFoundError",
+            statusCode: err.status,
+            message: err.userMessage,
+          return sendError err, next
+        else if err.code == 2002
+          log.error err
+          err = new restify.RestError
+            restCode: "EmailBadFormatError",
+            statusCode: err.status,
+            message: err.userMessage,
+          return sendError err, next
+        else
+          return sendStormpathError err, next
+      res.send ok:true
+      next()
+
   # It's possible to just specify the email address
   if req.body.email
-    application.sendPasswordResetEmail req.body.email, (err, resetToken) ->
-      res.send ok:!err
-      next()
+    sendEmail req.body.email
     return
 
   # It's also possible to retrieve the account from the authToken
@@ -444,10 +465,7 @@ passwordResetEmail = (req, res, next) ->
       log.error err
       err = new restify.NotAuthorizedError "not authorized"
       return sendError err, next
-    application.sendPasswordResetEmail account.email, (err, resetToken) ->
-      log.info "passwordResetToken", resetToken
-      res.send ok:!err
-      next()
+    sendEmail account.email
 
 authMiddleware = (req, res, next) ->
   authToken = req.params.authToken
