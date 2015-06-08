@@ -12,6 +12,7 @@ usermeta = require "./usermeta"
 aliases = require "./aliases"
 usernameValidator = require "./username-validator"
 stateMachine = require "state-machine"
+AccountCreator = require "./account-creator"
 
 sendError = (err, next) ->
   log.error err
@@ -96,7 +97,7 @@ initialize = (cb, options = {}) ->
 
   if options.application
     application = options.application
-    cb null
+    initializationDone cb
   else
     loadApplication cb
 
@@ -115,7 +116,7 @@ loadApplication = (cb) ->
 
         # If creation worked, store the application
         application = app
-        cb null
+        initializationDone cb
     else if err
       cb err
     else
@@ -123,7 +124,16 @@ loadApplication = (cb) ->
         if err
           return cb err
         application = app
-        cb null
+        initializationDone cb
+
+initializationDone = (cb) ->
+
+  accountCreator = new AccountCreator
+    application: application
+    log: log
+    loginAccount: loginAccount
+
+  cb null
 
 # Create the stormpath Application
 createApplication = (cb) ->
@@ -151,19 +161,12 @@ createAccount = (req, res, next) ->
     password: req.body.password
   log.info "register", account
 
-  onAccountCreated = (err, createdAccount) ->
+  accountCreator.create account, (err, data) ->
     if err
       return sendStormpathError err, next
-    log.info "registered", createdAccount
-    if createdAccount.status == "ENABLED"
-      login req, res, next
-      # res.send createdAccount
-      # next()
     else
-      res.send token: null
+      res.send data
       next()
-
-  application.createAccount account, onAccountCreated
 
 # Generate a random token
 rand = ->
@@ -316,10 +319,14 @@ loginFacebook = (req, res, next) ->
   # Create and send the auth token
   sendToken = ->
     result = fbProcess.accountResult
-    addAuth {
+    coAuth = addAuth
+      username: fbProcess.coAccount.username
+      email: fbProcess.coAccount.email
+    res.send addAuth
       username: req.body.username
       email: result.account.email
-    }, res, next
+      token: coAuth.token
+    next()
 
   reportFailure = ->
     if fbProcess.stormpathError
@@ -389,27 +396,43 @@ loginDefault = (req, res, next) ->
   account =
     username: req.body.username
     password: req.body.password
-  application.authenticateAccount account, (err, result) ->
+  loginAccount account, (err, data) ->
     if err
       return sendStormpathError err, next
+    res.send data
+    next()
+
+loginAccount = (account, callback) ->
+  application.authenticateAccount account, (err, result) ->
+    if err
+      return callback err
 
     # if successful, the result will have an account field
     # with the successfully authenticated account:
     result.getAccount (err, account) ->
       if err
-        return sendStormpathError err, next
-      addAuth account, res, next
+        return callback err
+      callback null, addAuth(account)
 
-addAuth = (account, res, next) ->
-  token = genToken()
+# Add authentication token in authDB, save 'auth' metadata.
+addAuth = (account) ->
+
+  # Generate and save the token
+  token = account.token || genToken()
   authdbClient.addAccount token,
     username: account.username
     email: account.email
-  res.send
+
+  # Store the auth date (in parallel, ignoring the outcome)
+  timestamp = "" + (new Date().getTime())
+  usermetaClient.set account.username, "auth", timestamp, (err, reply) ->
+
+  # Return REST-ready authentication data
+  {
     username: account.username
     email: account.email
-    token:token
-  next()
+    token: token
+  }
 
 getAccount = (req, res, next) ->
   token = req.params.authToken
