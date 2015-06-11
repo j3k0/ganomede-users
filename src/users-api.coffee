@@ -67,6 +67,9 @@ if redisCacheConfig.exists
     # options:
   log.info "cacheOptions", cacheOptions
 
+# Delegates
+accountCreator = null
+
 log.info "appName", appName
 
 # Create the API key
