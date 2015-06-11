@@ -12,6 +12,8 @@ data =
     tooshort: username: '01'
     toolong: username: '01234567890'
     invalid: username: 'café'
+    valid:
+      username: 'jeko'
   passwordReset:
     email: 'test@fovea.cc'
 
@@ -19,6 +21,11 @@ fakeApp =
   sendPasswordResetEmail: (email, cb) ->
     @emailSent = email
     cb null
+
+fakeAccountCreator =
+  create: (account, cb) ->
+    cb null,
+      username: account.username
 
 describe 'users-api', ->
 
@@ -52,6 +59,7 @@ describe 'users-api', ->
       server.listen(1337, done)
     ,
       application: fakeApp
+      accountCreator: fakeAccountCreator
 
   after (done) ->
     server.close()
@@ -102,6 +110,17 @@ describe 'users-api', ->
           assert.equal 400, res.status
           assert.equal 'TooLongError', res.body.code
           assert.ok err
+          done()
+
+    it "should register valid users", (done) ->
+      @timeout 10000
+      superagent
+        .post endpoint "/accounts"
+        .send data.createAccount.valid
+        .end (err, res) ->
+          assert.equal 200, res.status
+          assert.ok !err
+          assert.equal data.createAccount.valid.username, res.body.username
           done()
 
 # vim: ts=2:sw=2:et:

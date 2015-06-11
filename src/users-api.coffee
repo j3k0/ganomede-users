@@ -98,6 +98,9 @@ initialize = (cb, options = {}) ->
   if !client
     return cb new Error "no stormpath client"
 
+  if options.accountCreator
+    accountCreator = options.accountCreator
+
   if options.application
     application = options.application
     initializationDone cb
@@ -131,10 +134,11 @@ loadApplication = (cb) ->
 
 initializationDone = (cb) ->
 
-  accountCreator = new AccountCreator
-    application: application
-    log: log
-    loginAccount: loginAccount
+  if !accountCreator
+    accountCreator = new AccountCreator
+      application: application
+      log: log
+      loginAccount: loginAccount
 
   cb null
 
