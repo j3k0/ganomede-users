@@ -1,6 +1,8 @@
 errors = require "./errors"
 
 validateUsername = (username) ->
+  if !username
+    return new errors.BadUsernameError "username empty"
   if username.length > 10
     return new errors.TooLongError "username is too long"
   if username.length < 3
