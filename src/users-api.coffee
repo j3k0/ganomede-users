@@ -43,6 +43,8 @@ authdbClient = authdb.createClient
 redisUsermetaConfig = helpers.links.ServiceEnv.config('REDIS_USERMETA', 6379)
 usermetaClient = null
 if redisUsermetaConfig.exists
+  redisUsermetaConfig.options =
+    no_ready_check: true
   usermetaClient = usermeta.create redisUsermetaConfig
   log.info "usermeta", redisUsermetaConfig
 else

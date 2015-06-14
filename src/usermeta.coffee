@@ -30,6 +30,6 @@ module.exports =
     if config.redisClient
       redisClient = config.redisClient
     else
-      redisClient = redis.createClient config.port, config.host
+      redisClient = redis.createClient config.port, config.host, config.options
     return new Usermeta(redisClient)
 # vim: ts=2:sw=2:et:
