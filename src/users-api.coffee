@@ -267,6 +267,9 @@ loginFacebook = (req, res, next) ->
         fbProcess.empty()
       else
         req.body.username = value
+        if !fbProcess.coAccount
+          fbProcess.coAccount =
+            username: value
         fbProcess.next()
 
   # Save the account alias
@@ -330,7 +333,7 @@ loginFacebook = (req, res, next) ->
     result = fbProcess.accountResult
     coAuth = addAuth
       username: fbProcess.coAccount.username
-      email: fbProcess.coAccount.email
+      email: fbProcess.coAccount.email || result.account.email
     res.send addAuth
       username: req.body.username
       email: result.account.email
