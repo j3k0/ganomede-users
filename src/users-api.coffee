@@ -483,7 +483,7 @@ passwordResetEmail = (req, res, next) ->
       next()
 
   # It's possible to just specify the email address
-  if req.body.email
+  if req.body?.email
     sendEmail req.body.email
     return
 
