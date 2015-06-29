@@ -10,6 +10,7 @@ log = require "./log"
 helpers = require "ganomede-helpers"
 usermeta = require "./usermeta"
 aliases = require "./aliases"
+friendsStore = require "./friends-store"
 usernameValidator = require "./username-validator"
 stateMachine = require "state-machine"
 AccountCreator = require "./account-creator"
@@ -50,8 +51,15 @@ if redisUsermetaConfig.exists
 else
   log.error "cant create usermeta client, no REDIS_USERMETA database"
 
+# Aliases
 aliasesClient = aliases.createClient
   usermetaClient: usermetaClient
+
+# Friends
+friendsClient = friendsStore.createClient
+  usermetaClient: usermetaClient
+
+friendsApi = null
 
 # Application, once initialized
 application = null
@@ -93,21 +101,6 @@ getApplicationHref = (cb) ->
     if !app or app.length != 1
       return cb 404
     cb null, app[0].href
-
-# Initialize the module
-initialize = (cb, options = {}) ->
-
-  if !client
-    return cb new Error "no stormpath client"
-
-  if options.accountCreator
-    accountCreator = options.accountCreator
-
-  if options.application
-    application = options.application
-    initializationDone cb
-  else
-    loadApplication cb
 
 loadApplication = (cb) ->
   # Find if application already exists
@@ -537,6 +530,25 @@ getMetadata = (req, res, next) ->
       value: reply
     next()
 
+# Initialize the module
+initialize = (cb, options = {}) ->
+
+  if !client
+    return cb new Error "no stormpath client"
+
+  if options.accountCreator
+    accountCreator = options.accountCreator
+
+  friendsApi = options.friendsApi || require("./friends-api").createApi
+    friendsClient: friendsClient
+    authMiddleware: authMiddleware
+
+  if options.application
+    application = options.application
+    initializationDone cb
+  else
+    loadApplication cb
+
 # Register routes in the server
 addRoutes = (prefix, server) ->
   server.post "/#{prefix}/accounts", createAccount
@@ -552,6 +564,8 @@ addRoutes = (prefix, server) ->
   server.post "/#{prefix}/auth/:authToken/metadata/:key",
     authMiddleware, postMetadata
   server.get "/#{prefix}/:username/metadata/:key", getMetadata
+
+  friendsApi.addRoutes prefix, server
 
 module.exports =
   initialize: initialize
