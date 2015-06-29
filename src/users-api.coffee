@@ -69,6 +69,18 @@ friendsClient = friendsStore.createClient
 
 friendsApi = null
 
+# Facebook friends
+facebookFriends = require "./facebook-friends"
+storeFacebookFriends = (options) ->
+  facebookFriends.storeFriends
+    username: options.username
+    accessToken: options.accessToken
+    callback: options.callback || ->
+    aliasesClient: options.aliasesClient || aliasesClient
+    friendsClient: options.friendsClient || friendsClient
+    facebookClient: options.facebookClient || facebookClient
+
+
 # Application, once initialized
 application = null
 
@@ -333,9 +345,11 @@ loginFacebook = (req, res, next) ->
   sendToken = ->
     result = fbProcess.accountResult
     coAuth = addAuth
+      facebookToken: req.body.facebookToken
       username: fbProcess.coAccount.username
       email: fbProcess.coAccount.email || result.account.email
     res.send addAuth
+      facebookToken: req.body.facebookToken
       username: req.body.username
       email: result.account.email
       token: coAuth.token
@@ -348,11 +362,8 @@ loginFacebook = (req, res, next) ->
     fbProcess.next()
 
     # Get friends from facebook
-    facebookFriends.storeFriends
+    storeFacebookFriends
       username: req.body.username
-      facebookClient: facebookClient
-      friendsClient: friendsClient
-      aliasesClient: aliasesClient
       accessToken: req.body.facebookToken
       callback: (err, usernames) ->
         if err
@@ -474,11 +485,22 @@ addAuth = (account) ->
     token: token
   }
 
+# Load account details. This call most generally made by a client connecting
+# to the server, using a restored session. It's a good place to check
+# and refresh a few things, namely facebook friends for now.
 getAccount = (req, res, next) ->
+
+  # We're loading the account from a token (required)
   token = req.params.authToken
   if !token
     err = new restify.InvalidContentError "invalid content"
     return sendError err, next
+
+  # Use the authentication database to retrieve more about the user.
+  # see `addAuth` for details of what's in the account, for now:
+  #  - username
+  #  - email
+  #  - facebookToken (optionally)
   authdbClient.getAccount token, (err, account) ->
     if err
       log.error err
@@ -486,6 +508,16 @@ getAccount = (req, res, next) ->
       return sendError err, next
     res.send account
     next()
+
+    # Reload facebook friends in the background
+    # (next has been called)
+    if account.facebookToken
+      storeFacebookFriends
+        username: account.username
+        accessToken: account.facebookToken
+        callback: (err) ->
+          if err
+            log.error "Failed to store friends for #{account.username}", err
 
 # Send a password reset email
 passwordResetEmail = (req, res, next) ->
@@ -523,6 +555,7 @@ passwordResetEmail = (req, res, next) ->
   if !token
     err = new restify.InvalidContentError "invalid content"
     return sendError err, next
+
   authdbClient.getAccount token, (err, account) ->
     if err
       log.error err
