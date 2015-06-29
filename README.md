@@ -7,6 +7,17 @@ User accounts API is fully inspired by Stormpath.
 
 See http://docs.stormpath.com/rest/product-guide/#application-accounts when in doubt about a parameter.
 
+## Configuration
+
+ * `STORMPATH_API_ID`
+ * `STORMPATH_API_SECRET`
+ * `STORMPATH_APP_NAME`
+ * `REDIS_AUTH_PORT_6379_TCP_ADDR`
+ * `REDIS_AUTH_PORT_6379_TCP_PORT`
+ * `REDIS_USERMETA_PORT_6379_TCP_ADDR`
+ * `REDIS_USERMETA_PORT_6379_TCP_PORT`
+ * `FACEBOOK_APP_SECRET`
+
 ## /users/v1/accounts [POST]
 
 ### body (application/json)

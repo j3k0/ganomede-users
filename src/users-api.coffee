@@ -11,6 +11,7 @@ helpers = require "ganomede-helpers"
 usermeta = require "./usermeta"
 aliases = require "./aliases"
 friendsStore = require "./friends-store"
+facebook = require "./facebook"
 usernameValidator = require "./username-validator"
 stateMachine = require "state-machine"
 AccountCreator = require "./account-creator"
@@ -35,6 +36,11 @@ sendStormpathError = (spErr, next) ->
 apiId = process.env.STORMPATH_API_ID
 apiSecret = process.env.STORMPATH_API_SECRET
 appName = process.env.STORMPATH_APP_NAME || "Ganomede"
+
+# Facebook
+facebookAppSecret = process.env.FACEBOOK_APP_SECRET
+facebookClient = facebook.createClient
+  facebookAppSecret: facebookAppSecret
 
 # Connection to AuthDB
 redisAuthConfig = helpers.links.ServiceEnv.config('REDIS_AUTH', 6379)
@@ -202,7 +208,7 @@ loginFacebook = (req, res, next) ->
       else
         fbProcess.accountResult = result
         fbProcess.next()
-    
+
   # Analyse the account
   handleAccount = ->
     result = fbProcess.accountResult
@@ -333,7 +339,26 @@ loginFacebook = (req, res, next) ->
       username: req.body.username
       email: result.account.email
       token: coAuth.token
-    next()
+    fbProcess.next()
+
+  # Store the list of facebook friends
+  storeFriends = ->
+
+    # Let's retrieve friends asynchronously, no need to delay login
+    fbProcess.next()
+
+    # Get friends from facebook
+    facebookFriends.storeFriends
+      username: req.body.username
+      facebookClient: facebookClient
+      friendsClient: friendsClient
+      aliasesClient: aliasesClient
+      accessToken: req.body.facebookToken
+      callback: (err, usernames) ->
+        if err
+          log.error "Failed to store friends", err
+        else
+          log.info "Friends stored", usernames
 
   reportFailure = ->
     if fbProcess.stormpathError
@@ -356,6 +381,8 @@ loginFacebook = (req, res, next) ->
     .state 'deleteCoAccount', enter: deleteCoAccount
     .state 'reportFailure', enter: reportFailure
     .state 'sendToken', enter: sendToken
+    .state 'storeFriends', enter: storeFriends
+    .state 'done', enter: (-> next()) # next with no arguments
 
     .event 'start', 'start', 'getAccount'
 
@@ -394,6 +421,12 @@ loginFacebook = (req, res, next) ->
     # After deleting the facebook account, report the failure in any case
     .event 'next', 'deleteCoAccount', 'deleteFacebookAccount'
     .event 'fail', 'deleteCoAccount', 'deleteFacebookAccount'
+
+    # After sending the token, store friends
+    .event 'next', 'sendToken', 'storeFriends'
+
+    # After storing friends, we're done
+    .event 'next', 'storeFriends', 'done'
 
   fbProcess.onChange = (currentStateName, previousStateName) ->
     log.info "#{previousStateName} -> #{currentStateName}"
