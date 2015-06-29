@@ -21,6 +21,8 @@ sendError = (err, next) ->
 sendStormpathError = (spErr, next) ->
   if !spErr.code
     spErr.code = "Unknown"
+  if spErr.code == 7100
+    spErr.status = 401
   err = new restify.RestError
     restCode: "Stormpath" + spErr.name + spErr.code,
     statusCode: spErr.status,
