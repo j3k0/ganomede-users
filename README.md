@@ -1,12 +1,6 @@
 Users' API
 ----------
 
-# Metadata
-
-## /users/v1/:id/metadata/:id [GET]
-
-## /users/v1/:id/metadata/:id [POST]
-
 # User accounts
 
 User accounts API is fully inspired by Stormpath.
@@ -104,3 +98,28 @@ Users' custom data.
         "key": "some-key",
         "value": "..."
     }
+
+# Metadata
+
+## /users/v1/:username/metadata/:id [GET]
+
+## /users/v1/auth/:authToken/metadata/:id [POST]
+
+# Friends [/users/v1/auth/:authToken/friends]
+
+List of friends
+
+## List friends [GET]
+
+### response [200] OK
+
+    [ "jeko", "sousou", "willy" ]
+
+## Add friends [POST]
+
+    [ "harry", "potter" ]
+
+### response [200] OK
+
+    [ "jeko", "sousou", "willy", "harry", "potter" ]
+
