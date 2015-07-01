@@ -36,6 +36,7 @@ sendStormpathError = (spErr, next) ->
 apiId = process.env.STORMPATH_API_ID
 apiSecret = process.env.STORMPATH_API_SECRET
 appName = process.env.STORMPATH_APP_NAME || "Ganomede"
+apiSecret = process.env.API_SECRET || null
 
 # Facebook
 facebookAppSecret = process.env.FACEBOOK_APP_SECRET
@@ -335,11 +336,29 @@ loginFacebook = (req, res, next) ->
 
     application.createAccount account, (err, account) ->
       if err
+        if err.code == 2001
+          # account already exists. link it with the facebook account
+          fbProcess.link()
+        else
+          fbProcess.stormpathError = err
+          fbProcess.fail()
+      else
+        fbProcess.coAccount = account
+        fbProcess.next()
+
+  # Load
+  loadCoAccount = ->
+    account =
+      username:   req.body.username
+      password:   req.body.password
+    client.getAccount account.href, (err, account) ->
+      if err
         fbProcess.stormpathError = err
         fbProcess.fail()
       else
         fbProcess.coAccount = account
         fbProcess.next()
+
 
   # Create and send the auth token
   sendToken = ->
@@ -386,6 +405,7 @@ loginFacebook = (req, res, next) ->
     .state 'handleAccount', enter: handleAccount
     .state 'getAlias', enter: getAlias
     .state 'createCoAccount', enter: createCoAccount
+    .state 'loadCoAccount', enter: loadCoAccount
     .state 'deleteFacebookAccount', enter: deleteFacebookAccount
     .state 'saveAlias', enter: saveAlias
     .state 'saveFacebookId', enter: saveFacebookId
@@ -414,8 +434,15 @@ loginFacebook = (req, res, next) ->
 
     # After creating an account, save the alias
     # In case of failure, delete the account
+    # If it already exists, link it with facebook
     .event 'next', 'createCoAccount', 'saveAlias'
-    .event 'fail', 'createCoAccount' , 'deleteFacebookAccount'
+    .event 'fail', 'createCoAccount', 'deleteFacebookAccount'
+    .event 'link', 'createCoAccount', 'loadCoAccount'
+
+    # If loading the coaccount succeeded, save the alias
+    # In case of failed, delete the facebook account
+    .event 'next', 'loadCoAccount', 'saveAlias'
+    .event 'fail', 'loadCoAccount', 'deleteFacebookAccount'
 
     # After deleting the facebook account, report the failure in any case
     .event 'next', 'deleteFacebookAccount', 'reportFailure'
@@ -567,6 +594,17 @@ authMiddleware = (req, res, next) ->
   authToken = req.params.authToken
   if !authToken
     return sendError(new restify.InvalidContentError('invalid content'), next)
+
+  if apiSecret
+    separatorIndex = authToken.indexOf ":"
+    if separatorIndex > 0
+      reqApiSecret = authToken.substr(0, separatorIndex)
+      username = authToken.substr(separatorIndex + 1, authToken.length)
+      if apiSecret == reqApiSecret
+        req.params.user =
+          username: username
+      next()
+      return
 
   authdbClient.getAccount authToken, (err, account) ->
     if err || !account
