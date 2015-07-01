@@ -348,16 +348,18 @@ loginFacebook = (req, res, next) ->
 
   # Load
   loadCoAccount = ->
-    account =
+    result = fbProcess.accountResult
+    fbProcess.coAccount =
       username:   req.body.username
-      password:   req.body.password
-    client.getAccount account.href, (err, account) ->
-      if err
-        fbProcess.stormpathError = err
-        fbProcess.fail()
-      else
-        fbProcess.coAccount = account
-        fbProcess.next()
+      email:      result.account.email
+    fbProcess.next()
+    #client.getAccount account.href, (err, account) ->
+    #  if err
+    #    fbProcess.stormpathError = err
+    #    fbProcess.fail()
+    #  else
+    #    fbProcess.coAccount = account
+    #    fbProcess.next()
 
 
   # Create and send the auth token
