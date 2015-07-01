@@ -10,8 +10,8 @@ class Api
     @log = options.log || log.child(module: "friends-api")
 
   addRoutes: (prefix, server) ->
-    endpoint = @options.endpoint ||
-      "/#{prefix}/auth/:authToken/friends"
+
+    endpoint = "/#{prefix}/auth/:authToken/friends"
     server.post endpoint, @authMiddleware, @post.bind(@)
     server.get endpoint, @authMiddleware, @get.bind(@)
 
