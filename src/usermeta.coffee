@@ -1,6 +1,8 @@
 redis = require "redis"
 restify = require "restify"
 
+DEFAULT_MAX_LENGTH = 200
+
 class Usermeta
   constructor: (@redisClient) ->
     @validKeys = null
@@ -10,8 +12,8 @@ class Usermeta
       for key in keys
         @validKeys[key] = true
 
-  set: (username, key, value, cb) ->
-    if value?.length > 200
+  set: (username, key, value, cb, maxLength = DEFAULT_MAX_LENGTH) ->
+    if maxLength > 0 and value?.length > maxLength
       return cb new restify.BadRequestError("Value too large")
     if !@isValid key
       return cb new restify.BadRequestError("Forbidden meta")
