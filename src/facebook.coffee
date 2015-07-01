@@ -7,7 +7,7 @@ class FacebookClient
       graph.setAppSecret options.facebookAppSecret
     @log = options.log || log.child(module:"facebook")
 
-  _getFriendsPage: (uri, list, cb) ->
+  _getFriendsPage: (accessToken, uri, list, cb) ->
     graph.get "#{uri}&access_token=#{accessToken}", (err, res) =>
 
       # Add new friends to the list
@@ -17,12 +17,12 @@ class FacebookClient
 
       # Go to the next page, if any
       if res?.paging?.next
-        _getFriendsPage res.paging.next, cb
+        _getFriendsPage accessToken, res.paging.next, cb
       else
         cb err, list
 
   getFriends: (accessToken, cb) ->
-    @_getFriendsPage "/me/friends?limit=50", [], (err, list) =>
+    @_getFriendsPage accessToken, "/me/friends?limit=50", [], (err, list) =>
       if err
         @log.error "Failed to retrieve friends", err
       cb err, list
