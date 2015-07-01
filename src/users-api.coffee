@@ -33,9 +33,9 @@ sendStormpathError = (spErr, next) ->
   next err
 
 # Retrieve Stormpath configuration from environment
-apiId = process.env.STORMPATH_API_ID
-apiSecret = process.env.STORMPATH_API_SECRET
-appName = process.env.STORMPATH_APP_NAME || "Ganomede"
+stormpathApiId = process.env.STORMPATH_API_ID
+stormpathApiSecret = process.env.STORMPATH_API_SECRET
+stormpathAppName = process.env.STORMPATH_APP_NAME || "Ganomede"
 apiSecret = process.env.API_SECRET || null
 
 # Facebook
@@ -101,13 +101,13 @@ if redisCacheConfig.exists
 # Delegates
 accountCreator = null
 
-log.info "appName", appName
+log.info "storpath AppName", stormpathAppName
 
 # Create the API key
-apiKey = new stormpath.ApiKey apiId, apiSecret
+apiKey = new stormpath.ApiKey stormpathApiId, stormpathApiSecret
 
 # Create the stormpath Client
-if apiId and apiSecret
+if stormpathApiId and stormpathApiSecret
   client = new stormpath.Client
     apiKey: apiKey
     cacheOptions: cacheOptions
@@ -118,7 +118,7 @@ getApplicationHref = (cb) ->
   client.getApplications (err, apps) ->
     if err
       return cb? err
-    app = (app for app in apps.items when app.name == appName)
+    app = (app for app in apps.items when app.name == stormpathAppName)
     if !app or app.length != 1
       return cb 404
     cb null, app[0].href
@@ -162,7 +162,7 @@ initializationDone = (cb) ->
 createApplication = (cb) ->
   log.info "stormpath.createApplication"
   app =
-    name: appName
+    name: stormpathAppName
     description: "Ganomede users"
   client.createApplication app, createDirectory:true, cb
 
