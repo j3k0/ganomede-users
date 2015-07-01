@@ -17,7 +17,7 @@ class FacebookClient
 
       # Go to the next page, if any
       if res?.paging?.next
-        _getFriendsPage accessToken, res.paging.next, cb
+        @_getFriendsPage accessToken, res.paging.next, cb
       else
         cb err, list
 
