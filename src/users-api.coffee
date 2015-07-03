@@ -451,7 +451,7 @@ loginFacebook = (req, res, next) ->
     .event 'fail', 'handleAccount', 'reportFailure'
 
     # After retrieving an alias, send auth token
-    .event 'next', 'getAlias', 'sendToken'
+    .event 'next', 'getAlias', 'saveFullName'
     .event 'fail', 'getAlias', 'reportFailure'
     .event 'empty', 'getAlias', 'createCoAccount'
 
