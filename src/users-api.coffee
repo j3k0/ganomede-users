@@ -473,14 +473,28 @@ loginFacebook = (req, res, next) ->
   fbProcess.start()
 
 loginDefault = (req, res, next) ->
+
   account =
     username: req.body.username
     password: req.body.password
   loginAccount account, (err, data) ->
     if err
       return sendStormpathError err, next
-    res.send data
-    next()
+
+    # login successful.
+    # however, there may be an an alias for this account.
+    # in this case, we need to log the user as the alias!
+    aliasesClient.get account.username, (err, alias) ->
+
+      if err
+        log.warn "Error retrieving alias", err
+
+      # No alias found, return the source user.
+      if err || !alias
+        res.send data
+      else
+        res.send addAuth(alias)
+      next()
 
 loginAccount = (account, callback) ->
   application.authenticateAccount account, (err, result) ->
@@ -547,6 +561,11 @@ getAccount = (req, res, next) ->
         callback: (err) ->
           if err
             log.error "Failed to store friends for #{account.username}", err
+
+    # Update the "auth" metadata
+    if account.username
+      timestamp = "" + (new Date().getTime())
+      usermetaClient.set account.username, "auth", timestamp, (err, reply) ->
 
 # Send a password reset email
 passwordResetEmail = (req, res, next) ->
