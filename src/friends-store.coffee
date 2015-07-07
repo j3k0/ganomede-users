@@ -1,5 +1,13 @@
 log = require("./log").child(module:"friends-store")
 
+uniq = (a) ->
+  has = {}
+  a.filter (item) ->
+    if has.hasOwnProperty(item)
+      return false
+    else
+      return has[item] = true
+
 createStore = (options) ->
 
   # Constants
@@ -27,18 +35,10 @@ createStore = (options) ->
     # Retrieve account friends
     get: (username, cb) ->
       done = (err, result) ->
-        log.info
-          method: "friends-store.get"
-          username: username
-          result: result
-          err: err
         if result
           cb err, result.split(SEPARATOR)
         else
           cb err, EMPTY_SET
-      log.info
-        method: "friends-store.get"
-        username: username
       usermetaClient.get username, KEY_NAME, done
 
     # Save the account friends
@@ -50,17 +50,16 @@ createStore = (options) ->
     add: (username, newFriends, cb) ->
 
       if typeof newFriends == "string"
-        return add username, [ friends ], cb
+        return @add(username, [ newFriends ], cb)
 
       @get username, (err, friends) =>
         if err
           return cb err
         if friends == EMPTY_SET
-          friends = []
-        for friend in newFriends
-          if friends.indexOf friend < 0
-            friends.push friend
-        @set username, friends, cb
+          friends = newFriends
+        else
+          friends = friends.concat(newFriends)
+        @set username, uniq(friends), cb
   }
 
 module.exports =
