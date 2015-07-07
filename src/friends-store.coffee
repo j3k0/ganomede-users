@@ -1,3 +1,5 @@
+log = require("./log").child(module:"friends-store")
+
 createStore = (options) ->
 
   # Constants
@@ -16,14 +18,27 @@ createStore = (options) ->
   EMPTY_SET = []
   SEPARATOR = ","
 
+  log.info "Initialized",
+    keyName: KEY_NAME
+    maxFriends: MAX_FRIENDS
+    separator: SEPARATOR
+
   {
     # Retrieve account friends
     get: (username, cb) ->
       done = (err, result) ->
+        log.info
+          method: "friends-store.get"
+          username: username
+          result: result
+          err: err
         if result
           cb err, result.split(SEPARATOR)
         else
           cb err, EMPTY_SET
+      log.info
+        method: "friends-store.get"
+        username: username
       usermetaClient.get username, KEY_NAME, done
 
     # Save the account friends
