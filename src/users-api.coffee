@@ -10,6 +10,7 @@ log = require "./log"
 helpers = require "ganomede-helpers"
 usermeta = require "./usermeta"
 aliases = require "./aliases"
+fullnames = require "./fullnames"
 friendsStore = require "./friends-store"
 facebook = require "./facebook"
 usernameValidator = require "./username-validator"
@@ -62,6 +63,10 @@ else
 
 # Aliases
 aliasesClient = aliases.createClient
+  usermetaClient: usermetaClient
+
+# Full names
+fullnamesClient = fullnames.createClient
   usermetaClient: usermetaClient
 
 # Friends
@@ -308,7 +313,22 @@ loginFacebook = (req, res, next) ->
         fbProcess.fail()
       else
         fbProcess.next()
-        
+
+  # Save the accounts fullname
+  saveFullName = ->
+    fbProcess.next()
+    username = result.body.username
+    fullname = result.account.fullName
+    log.info "storing fullname",
+      username: username
+      fullname: fullname
+    if username and fullname
+      fullnamesClient.set username, fullname, (err, reply) ->
+        if err
+          log.warn "failed to store fullname", err,
+            username: username
+            fullname: fullname
+
   # Create a co-account associated with the facebook account
   createCoAccount = ->
     result = fbProcess.accountResult
@@ -411,6 +431,7 @@ loginFacebook = (req, res, next) ->
     .state 'deleteFacebookAccount', enter: deleteFacebookAccount
     .state 'saveAlias', enter: saveAlias
     .state 'saveFacebookId', enter: saveFacebookId
+    .state 'saveFullName', enter: saveFullName
     .state 'deleteCoAccount', enter: deleteCoAccount
     .state 'reportFailure', enter: reportFailure
     .state 'sendToken', enter: sendToken
@@ -430,7 +451,7 @@ loginFacebook = (req, res, next) ->
     .event 'fail', 'handleAccount', 'reportFailure'
 
     # After retrieving an alias, send auth token
-    .event 'next', 'getAlias', 'sendToken'
+    .event 'next', 'getAlias', 'saveFullName'
     .event 'fail', 'getAlias', 'reportFailure'
     .event 'empty', 'getAlias', 'createCoAccount'
 
@@ -454,9 +475,13 @@ loginFacebook = (req, res, next) ->
     .event 'next', 'saveAlias', 'saveFacebookId'
     .event 'fail', 'saveAlias', 'deleteCoAccount'
 
-    # After saving the facebookId, send auth token
-    .event 'next', 'saveFacebookId', 'sendToken'
+    # After saving the facebookId, save the full name
+    .event 'next', 'saveFacebookId', 'saveFullName'
     .event 'fail', 'saveFacebookId', 'deleteCoAccount'
+
+    # After saving the fullname, send auth token
+    .event 'next', 'saveFullName', 'sendToken'
+    .event 'fail', 'saveFullName', 'deleteCoAccount'
 
     # After deleting the facebook account, report the failure in any case
     .event 'next', 'deleteCoAccount', 'deleteFacebookAccount'
@@ -473,14 +498,28 @@ loginFacebook = (req, res, next) ->
   fbProcess.start()
 
 loginDefault = (req, res, next) ->
+
   account =
     username: req.body.username
     password: req.body.password
   loginAccount account, (err, data) ->
     if err
       return sendStormpathError err, next
-    res.send data
-    next()
+
+    # login successful.
+    # however, there may be an an alias for this account.
+    # in this case, we need to log the user as the alias!
+    aliasesClient.get account.username, (err, alias) ->
+
+      if err
+        log.warn "Error retrieving alias", err
+
+      # No alias found, return the source user.
+      if err || !alias
+        res.send data
+      else
+        res.send addAuth(alias)
+      next()
 
 loginAccount = (account, callback) ->
   application.authenticateAccount account, (err, result) ->
@@ -547,6 +586,11 @@ getAccount = (req, res, next) ->
         callback: (err) ->
           if err
             log.error "Failed to store friends for #{account.username}", err
+
+    # Update the "auth" metadata
+    if account.username
+      timestamp = "" + (new Date().getTime())
+      usermetaClient.set account.username, "auth", timestamp, (err, reply) ->
 
 # Send a password reset email
 passwordResetEmail = (req, res, next) ->
