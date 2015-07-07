@@ -318,7 +318,7 @@ loginFacebook = (req, res, next) ->
   saveFullName = ->
     fbProcess.next()
     result = fbProcess.accountResult
-    username = result.body.username
+    username = req.body.username
     fullname = result.account.fullName
     log.info "storing fullname",
       username: username
