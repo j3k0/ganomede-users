@@ -1,6 +1,6 @@
 {
   "name": "users",
-  "version": "1.2.11",
+  "version": "1.2.12",
   "api": "users/v1",
   "description": "users micro service",
   "private": true,
