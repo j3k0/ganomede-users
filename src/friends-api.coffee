@@ -17,7 +17,7 @@ class Api
 
   get: (req, res, next) ->
 
-    username = req.params.username
+    username = req.params.user?.username
 
     @friendsClient.get username, (err, friends) =>
       if (err)
@@ -40,7 +40,7 @@ class Api
   post: (req, res, next) ->
 
     # Retrieve input parameters
-    username = req.params.username
+    username = req.params.user?.username
     friends = req.body
 
     # Check parameters validity
