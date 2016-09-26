@@ -16,6 +16,7 @@ facebook = require "./facebook"
 usernameValidator = require "./username-validator"
 stateMachine = require "state-machine"
 AccountCreator = require "./account-creator"
+{Bans} = require('./bans')
 
 sendError = (err, next) ->
   log.error err
@@ -53,10 +54,12 @@ authdbClient = authdb.createClient
 # Extra user data
 redisUsermetaConfig = helpers.links.ServiceEnv.config('REDIS_USERMETA', 6379)
 usermetaClient = null
+bansClient = null
 if redisUsermetaConfig.exists
   redisUsermetaConfig.options =
     no_ready_check: true
   usermetaClient = usermeta.create redisUsermetaConfig
+  bans = new Bans({redis: usermetaClient.redisClient})
   log.info "usermeta", redisUsermetaConfig
 else
   log.error "cant create usermeta client, no REDIS_USERMETA database"
@@ -557,8 +560,7 @@ addAuth = (account) ->
 # Load account details. This call most generally made by a client connecting
 # to the server, using a restored session. It's a good place to check
 # and refresh a few things, namely facebook friends for now.
-getAccount = (req, res, next) ->
-
+getAccountFromAuthDb = (req, res, next) ->
   # We're loading the account from a token (required)
   token = req.params.authToken
   if !token
@@ -575,23 +577,33 @@ getAccount = (req, res, next) ->
       log.error err
       err = new restify.NotAuthorizedError "not authorized"
       return sendError err, next
-    res.send account
+
+    req._store = {account}
     next()
 
-    # Reload facebook friends in the background
-    # (next has been called)
-    if account.facebookToken
-      storeFacebookFriends
-        username: account.username
-        accessToken: account.facebookToken
-        callback: (err) ->
-          if err
-            log.error "Failed to store friends for #{account.username}", err
+getAccountCheckBan = (req, res, next) ->
+  account = req._store.account
+  console.log('cchecking ban for %s…', account.username)
+  next()
 
-    # Update the "auth" metadata
-    if account.username
-      timestamp = "" + (new Date().getTime())
-      usermetaClient.set account.username, "auth", timestamp, (err, reply) ->
+getAccountSend = (req, res, next) ->
+  # Respond to request.
+  res.send(req._store.account)
+
+  # Reload facebook friends in the background
+  # (next has been called)
+  if account.facebookToken
+    storeFacebookFriends
+      username: account.username
+      accessToken: account.facebookToken
+      callback: (err) ->
+        if err
+          log.error "Failed to store friends for #{account.username}", err
+
+  # Update the "auth" metadata
+  if account.username
+    timestamp = "" + (new Date().getTime())
+    usermetaClient.set account.username, "auth", timestamp, (err, reply) ->
 
 # Send a password reset email
 passwordResetEmail = (req, res, next) ->
@@ -702,11 +714,58 @@ initialize = (cb, options = {}) ->
   else
     loadApplication cb
 
+validateSecret = (req, res, next) ->
+  present = apiSecret && req.body && req.body.apiSecret
+  ok = if present then apiSecret == req.body.apiSecret else false
+
+  if ok then next() else res.send(403)
+
+banAdd = (req, res, next) ->
+  {username} = req.body
+  bans.ban username, (err) ->
+    if (err)
+      log.error('banAdd() failed', {err, username})
+      return next(err)
+
+    res.send(200)
+
+banRemove = (req, res, next) ->
+  {username} = req.params
+  bans.unban username, (err) ->
+    if (err)
+      log.error('banRemove() failed', {err, username})
+      return next(err)
+
+    res.send(200)
+
+banStatus = (req, res, next) ->
+  {username} = req.params
+  bans.get username, (err, ban) ->
+    if (err)
+      log.error('banStatus() failed', {err, username})
+      return next(err)
+
+    # FIXME:
+    #
+    # Not really sure how to send down JSON of a number,
+    # maybe it is on restify, maybe on superagent…
+    # Let's tend to this when implementing UI in ganomede-admin.
+    res.send(200, String(if ban.exists then ban.createdAt else 0))
+
 # Register routes in the server
 addRoutes = (prefix, server) ->
   server.post "/#{prefix}/accounts", createAccount
   server.post "/#{prefix}/login", login
-  server.get "/#{prefix}/auth/:authToken/me", getAccount
+  server.get(
+    "/#{prefix}/auth/:authToken/me",
+    getAccountFromAuthDb,
+    getAccountCheckBan,
+    getAccountSend
+  )
+
+  server.post("#{prefix}/banned-users", validateSecret, banAdd)
+  server.del("#{prefix}/banned-users/:username", validateSecret, banRemove)
+  server.get("#{prefix}/banned-users/:username", banStatus)
 
   endPoint = "/#{prefix}/auth/:authToken/passwordResetEmail"
   server.post endPoint, passwordResetEmail

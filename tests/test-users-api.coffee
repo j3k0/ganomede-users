@@ -4,6 +4,7 @@ fakeRedis = require "fakeredis"
 fakeAuthdb = require "./fake-authdb"
 restify = require 'restify'
 api = require '../src/users-api'
+{expect} = require 'chai'
 
 PREFIX = 'users/v1'
 
@@ -66,7 +67,7 @@ describe 'users-api', ->
     server.once('close', redis.flushdb.bind(redis, done))
 
   describe '/passwordResetEmail [POST] - Reset password', () ->
-    
+
     it "should send an email", (done) ->
       superagent
         .post endpoint "/passwordResetEmail"
@@ -122,5 +123,65 @@ describe 'users-api', ->
           assert.ok !err
           assert.equal data.createAccount.valid.username, res.body.username
           done()
+
+  describe '/banned-users Banning Users', () ->
+    username = data.createAccount.valid.username
+    started = Date.now()
+
+    describe 'POST', () ->
+      it 'bans people', (done) ->
+        superagent
+          .post endpoint('/banned-users')
+          .send({username, apiSecret: process.env.API_SECRET})
+          .end (err, res) ->
+            expect(err).to.be.null
+            expect(res.status).to.equal(200)
+            done()
+
+      it 'banned users can\'t login'
+      it 'banned users can\'t /me'
+
+      it 'requires apiSecret', (done) ->
+        superagent
+          .post endpoint('/banned-users')
+          .send({username})
+          .end (err, res) ->
+            expect(err).to.be.instanceof(Error)
+            expect(res.status).to.equal(403)
+            done()
+
+    describe 'GET /banned-users/:username', () ->
+      it 'returns ban timestamp', (done) ->
+        superagent
+          .get endpoint("/banned-users/#{username}")
+          .end (err, res) ->
+            expect(err).to.be.null
+            expect(res.status).to.equal(200)
+            expect(res.body).to.be.within(started, Date.now())
+            done()
+
+    describe 'DELETE', () ->
+      it 'removes bans', (done) ->
+        superagent
+          .del endpoint("/banned-users/#{username}")
+          .send({apiSecret: process.env.API_SECRET})
+          .end (err, res) ->
+            expect(err).to.be.null
+
+            superagent
+              .get endpoint("/banned-users/#{username}")
+              .end (err, res) ->
+                expect(err).to.be.null
+                expect(res.status).to.equal(200)
+                expect(res.body).to.equal('0')
+                done()
+
+      it 'requires apiSecret', (done) ->
+        superagent
+          .del endpoint("/banned-users/#{username}")
+          .end (err, res) ->
+            expect(err).to.be.instanceof(Error)
+            expect(res.status).to.equal(403)
+            done()
 
 # vim: ts=2:sw=2:et:
