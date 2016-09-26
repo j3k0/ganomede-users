@@ -8,7 +8,8 @@
   "scripts": {
     "start": "./node_modules/.bin/forever start index.js",
     "stop": "./node_modules/.bin/forever stop index.js",
-    "test": "API_SECRET=42 make test"
+    "test": "API_SECRET=42 make test",
+    "testw": "API_SECRET=42 make testw"
   },
   "author": "Jean-Christophe Hoelt <hoelt@fovea.cc>",
   "license": "Private",
