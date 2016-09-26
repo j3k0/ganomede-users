@@ -207,9 +207,13 @@ genToken = -> rand() + rand()
 # Login a user account
 login = (req, res, next) ->
   if req.body.facebookToken
-    loginFacebook req, res, next
-  else
-    loginDefault req, res, next
+    return loginFacebook req, res, next
+
+  checkBanMiddleware req, res, (err) ->
+    if (err)
+      return next(err)
+
+    loginDefault(req, res, next)
 
 # Login (or register) a facebook user account
 loginFacebook = (req, res, next) ->
@@ -386,6 +390,20 @@ loginFacebook = (req, res, next) ->
     #    fbProcess.next()
 
 
+  # Only reply to not banned users
+  checkBanState = ->
+    username = req.body.username
+    checkBan username, (err, exists) ->
+      if (err)
+        fbProcess.error = err
+        return fbProcess.fail()
+
+      if (exists)
+        res.send(403)
+        return next()
+
+      fbProcess.next()
+
   # Create and send the auth token
   sendToken = ->
     result = fbProcess.accountResult
@@ -438,6 +456,7 @@ loginFacebook = (req, res, next) ->
     .state 'saveFullName', enter: saveFullName
     .state 'deleteCoAccount', enter: deleteCoAccount
     .state 'reportFailure', enter: reportFailure
+    .state 'checkBanState', enter: checkBanState
     .state 'sendToken', enter: sendToken
     .state 'storeFriends', enter: storeFriends
     .state 'done', enter: (-> next()) # next with no arguments
@@ -483,9 +502,14 @@ loginFacebook = (req, res, next) ->
     .event 'next', 'saveFacebookId', 'saveFullName'
     .event 'fail', 'saveFacebookId', 'deleteCoAccount'
 
-    # After saving the fullname, send auth token
-    .event 'next', 'saveFullName', 'sendToken'
+    # After saving the fullname, check whether username is banned…
+    #   - if so, reply with 403;
+    #   - send auth token otherwise.
+    .event 'next', 'saveFullName', 'checkBanState'
     .event 'fail', 'saveFullName', 'deleteCoAccount'
+
+    .event 'next', 'checkBanState', 'sendToken'
+    .event 'fail', 'checkBanState', 'reportFailure'
 
     # After deleting the facebook account, report the failure in any case
     .event 'next', 'deleteCoAccount', 'deleteFacebookAccount'
@@ -557,6 +581,35 @@ addAuth = (account) ->
     token: token
   }
 
+# callback(error, isBannedBoolean)
+checkBan = (username, callback) ->
+  bans.get username, (err, ban) ->
+    if (err)
+      log.error('checkBan() failed', {err, username})
+      return callback(err)
+
+    callback(null, ban.exists)
+
+# next() - no error, no ban
+# next(err) - error
+# res.send(403) - no error, ban
+checkBanMiddleware = (req, res, next) ->
+  username = (req.params && req.params.username) ||
+             (req.body && req.body.username) ||
+             null
+
+  if (!username)
+    return sendError(new restify.BadRequestError, next)
+
+  checkBan username, (err, exists) ->
+    if (err)
+      return next(err)
+
+    if (exists)
+      return res.send(403)
+
+    next()
+
 # Load account details. This call most generally made by a client connecting
 # to the server, using a restored session. It's a good place to check
 # and refresh a few things, namely facebook friends for now.
@@ -579,12 +632,8 @@ getAccountFromAuthDb = (req, res, next) ->
       return sendError err, next
 
     req._store = {account}
+    req.body.username = req.body.username ||
     next()
-
-getAccountCheckBan = (req, res, next) ->
-  account = req._store.account
-  console.log('cchecking ban for %s…', account.username)
-  next()
 
 getAccountSend = (req, res, next) ->
   # Respond to request.
@@ -755,11 +804,12 @@ banStatus = (req, res, next) ->
 # Register routes in the server
 addRoutes = (prefix, server) ->
   server.post "/#{prefix}/accounts", createAccount
+
   server.post "/#{prefix}/login", login
+
   server.get(
     "/#{prefix}/auth/:authToken/me",
     getAccountFromAuthDb,
-    getAccountCheckBan,
     getAccountSend
   )
 

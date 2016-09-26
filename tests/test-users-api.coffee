@@ -138,9 +138,6 @@ describe 'users-api', ->
             expect(res.status).to.equal(200)
             done()
 
-      it 'banned users can\'t login'
-      it 'banned users can\'t /me'
-
       it 'requires apiSecret', (done) ->
         superagent
           .post endpoint('/banned-users')
@@ -149,6 +146,19 @@ describe 'users-api', ->
             expect(err).to.be.instanceof(Error)
             expect(res.status).to.equal(403)
             done()
+
+    describe 'Banned users…', () ->
+      it 'can\'t login', (done) ->
+        superagent
+          .post endpoint('/login')
+          .send({username, password: 'wever'})
+          .end (err, res) ->
+            expect(err).to.be.instanceof(Error)
+            expect(res.status).to.be.equal(403)
+            expect(res.text).to.be.equal('')
+            done()
+
+      it 'can\'t access profile at /me'
 
     describe 'GET /banned-users/:username', () ->
       it 'returns ban timestamp', (done) ->
