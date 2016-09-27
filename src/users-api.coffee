@@ -632,7 +632,8 @@ getAccountFromAuthDb = (req, res, next) ->
       return sendError err, next
 
     req._store = {account}
-    req.body.username = req.body.username ||
+    req.body = req.body || {}
+    req.body.username = req.body.username || account.username
     next()
 
 getAccountSend = (req, res, next) ->
@@ -753,6 +754,9 @@ initialize = (cb, options = {}) ->
   if options.accountCreator
     accountCreator = options.accountCreator
 
+  if options.authdbClient
+    authdbClient = options.authdbClient
+
   friendsApi = options.friendsApi || require("./friends-api").createApi
     friendsClient: friendsClient
     authMiddleware: authMiddleware
@@ -810,6 +814,7 @@ addRoutes = (prefix, server) ->
   server.get(
     "/#{prefix}/auth/:authToken/me",
     getAccountFromAuthDb,
+    checkBanMiddleware,
     getAccountSend
   )
 
