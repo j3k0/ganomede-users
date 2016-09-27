@@ -17,6 +17,10 @@ data =
       username: 'jeko'
   passwordReset:
     email: 'test@fovea.cc'
+  tokens: [{
+    createAccountKey: 'valid'
+    token: 'deadbeef'
+  }]
 
 fakeApp =
   sendPasswordResetEmail: (email, cb) ->
@@ -52,6 +56,11 @@ describe 'users-api', ->
     redis  = fakeRedis.createClient("test-usermeta-#{i}")
     authdb = fakeAuthdb.createClient()
 
+    data.tokens.forEach (info) ->
+      authdb.addAccount(info.token, {
+        username: data.createAccount[info.createAccountKey].username
+      })
+
     api.initialize (err) ->
       if err
         throw err
@@ -60,7 +69,8 @@ describe 'users-api', ->
       server.listen(1337, done)
     ,
       application: fakeApp
-      accountCreator: fakeAccountCreator
+      accountCreator: fakeAccountCreator,
+      authdbClient: authdb
 
   after (done) ->
     server.close()
@@ -158,7 +168,14 @@ describe 'users-api', ->
             expect(res.text).to.be.equal('')
             done()
 
-      it 'can\'t access profile at /me'
+      it 'can\'t access profile at /me', (done) ->
+        superagent
+          .get endpoint('/auth/deadbeef/me')
+          .end (err, res) ->
+            expect(err).to.be.instanceof(Error)
+            expect(res.status).to.be.equal(403)
+            expect(res.text).to.be.equal('')
+            done()
 
     describe 'GET /banned-users/:username', () ->
       it 'returns ban timestamp', (done) ->
