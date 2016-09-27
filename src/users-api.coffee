@@ -606,6 +606,10 @@ checkBanMiddleware = (req, res, next) ->
       return next(err)
 
     if (exists)
+      # Remove authToken of banned accounts
+      if (req.params.authToken)
+        authdbClient.addAccount(req.params.authToken, null, () ->)
+
       return res.send(403)
 
     next()

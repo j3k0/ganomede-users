@@ -7,7 +7,7 @@ api = require '../src/users-api'
 {expect} = require 'chai'
 
 PREFIX = 'users/v1'
-
+VALID_AUTH_TOKEN = 'deadbeef'
 data =
   createAccount:
     tooshort: username: '01'
@@ -19,7 +19,7 @@ data =
     email: 'test@fovea.cc'
   tokens: [{
     createAccountKey: 'valid'
-    token: 'deadbeef'
+    token: VALID_AUTH_TOKEN
   }]
 
 fakeApp =
@@ -170,11 +170,24 @@ describe 'users-api', ->
 
       it 'can\'t access profile at /me', (done) ->
         superagent
-          .get endpoint('/auth/deadbeef/me')
+          .get endpoint(VALID_AUTH_TOKEN, '/me')
           .end (err, res) ->
             expect(err).to.be.instanceof(Error)
             expect(res.status).to.be.equal(403)
             expect(res.text).to.be.equal('')
+            done()
+
+      it 'nullifies authdb accounts after banned username
+          tries to access any :authToken endpoint', (done) ->
+        superagent
+          .get endpoint(VALID_AUTH_TOKEN, '/me')
+          .end (err, res) ->
+            expect(err).to.be.instanceof(Error)
+            expect(res.status).to.be.equal(403)
+
+            # make sure this is not "BANNED" 403
+            expect(res.text).to.include("not authorized")
+
             done()
 
     describe 'GET /banned-users/:username', () ->
