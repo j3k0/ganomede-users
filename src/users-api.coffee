@@ -802,12 +802,7 @@ banStatus = (req, res, next) ->
       log.error('banStatus() failed', {err, username})
       return next(err)
 
-    # FIXME:
-    #
-    # Not really sure how to send down JSON of a number,
-    # maybe it is on restify, maybe on superagent…
-    # Let's tend to this when implementing UI in ganomede-admin.
-    res.send(200, String(if ban.exists then ban.createdAt else 0))
+    res.json(ban)
 
 # Register routes in the server
 addRoutes = (prefix, server) ->
