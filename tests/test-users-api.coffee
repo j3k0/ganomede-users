@@ -197,7 +197,11 @@ describe 'users-api', ->
           .end (err, res) ->
             expect(err).to.be.null
             expect(res.status).to.equal(200)
-            expect(res.body).to.be.within(started, Date.now())
+            expect(res.body).to.be.instanceof(Object)
+            expect(res.body).to.be.ok
+            expect(res.body.username).to.equal(username)
+            expect(res.body.exists).to.be.true
+            expect(res.body.createdAt).to.be.within(started, Date.now())
             done()
 
     describe 'DELETE', () ->
@@ -213,7 +217,11 @@ describe 'users-api', ->
               .end (err, res) ->
                 expect(err).to.be.null
                 expect(res.status).to.equal(200)
-                expect(res.body).to.equal('0')
+                expect(res.body).to.eql({
+                  username,
+                  exists: false,
+                  createdAt: 0
+                })
                 done()
 
       it 'requires apiSecret', (done) ->
