@@ -134,3 +134,57 @@ List of friends
 
     [ "jeko", "sousou", "willy", "harry", "potter" ]
 
+
+# Bans `/users/v1/banned-users/`
+
+## Check ban status `/users/v1/banned-users/:username [GET]`
+
+Returns `BanInfo` object describing account standing of `:username`.
+
+### response [200] OK
+
+``` js
+{ "username": "alice",       // Username
+  "exists": true,            // true if banned, false otherwise
+  "createdAt": 1476531925454 // timestamp of ban creation, 0 if no ban.
+}
+```
+
+## Ban user `/users/v1/banned-users/ [POST]`
+
+### body (application/json)
+
+``` json
+{ "username": "who-to-ban",
+  "apiSecret": "process.env.API_SECRET"
+}
+```
+
+### response [200]
+
+Ban created successfully.
+
+### response [403]
+
+Invalid or missing API secret.
+
+## Unban user `/users/v1/banned-users/:username [DELETE]`
+
+### body (application/json)
+
+``` json
+{ "apiSecret": "process.env.API_SECRET" }
+```
+
+### response [200]
+
+Ban removed successfully or does not exist.
+
+### response [403]
+
+Invalid or missing API secret.
+
+
+
+
+

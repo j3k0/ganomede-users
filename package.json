@@ -8,11 +8,13 @@
   "scripts": {
     "start": "./node_modules/.bin/forever start index.js",
     "stop": "./node_modules/.bin/forever stop index.js",
-    "test": "make test"
+    "test": "API_SECRET=42 make test",
+    "testw": "API_SECRET=42 make testw"
   },
   "author": "Jean-Christophe Hoelt <hoelt@fovea.cc>",
   "license": "Private",
   "dependencies": {
+    "async": "^2.0.1",
     "authdb": "^0.2.1",
     "blanket": "^1.1.6",
     "bunyan": "^1.2.3",
@@ -43,6 +45,7 @@
     }
   },
   "devDependencies": {
+    "chai": "^3.5.0",
     "superagent": "^1.2.0"
   }
 }
