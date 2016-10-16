@@ -1,4 +1,6 @@
 BUNYAN_LEVEL?=1000
+MOCHA_ARGS=--bail --compilers coffee:coffee-script/register tests
+BUNYAN=./node_modules/.bin/bunyan -l ${BUNYAN_LEVEL}
 
 all: install test
 
@@ -7,7 +9,10 @@ check: install
 	./node_modules/.bin/coffeelint -q src tests
 
 test: check
-	./node_modules/.bin/mocha -b --compilers coffee:coffee-script/register tests | ./node_modules/.bin/bunyan -l ${BUNYAN_LEVEL}
+	./node_modules/.bin/mocha ${MOCHA_ARGS} | ${BUNYAN}
+
+testw:
+	./node_modules/.bin/mocha --watch ${MOCHA_ARGS} | ${BUNYAN}
 
 coverage: test
 	@mkdir -p doc

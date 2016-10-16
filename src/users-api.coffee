@@ -16,6 +16,7 @@ facebook = require "./facebook"
 usernameValidator = require "./username-validator"
 stateMachine = require "state-machine"
 AccountCreator = require "./account-creator"
+{Bans} = require('./bans')
 
 sendError = (err, next) ->
   log.error err
@@ -53,10 +54,12 @@ authdbClient = authdb.createClient
 # Extra user data
 redisUsermetaConfig = helpers.links.ServiceEnv.config('REDIS_USERMETA', 6379)
 usermetaClient = null
+bansClient = null
 if redisUsermetaConfig.exists
   redisUsermetaConfig.options =
     no_ready_check: true
   usermetaClient = usermeta.create redisUsermetaConfig
+  bans = new Bans({redis: usermetaClient.redisClient})
   log.info "usermeta", redisUsermetaConfig
 else
   log.error "cant create usermeta client, no REDIS_USERMETA database"
@@ -204,9 +207,13 @@ genToken = -> rand() + rand()
 # Login a user account
 login = (req, res, next) ->
   if req.body.facebookToken
-    loginFacebook req, res, next
-  else
-    loginDefault req, res, next
+    return loginFacebook req, res, next
+
+  checkBanMiddleware req, res, (err) ->
+    if (err)
+      return next(err)
+
+    loginDefault(req, res, next)
 
 # Login (or register) a facebook user account
 loginFacebook = (req, res, next) ->
@@ -383,6 +390,20 @@ loginFacebook = (req, res, next) ->
     #    fbProcess.next()
 
 
+  # Only reply to not banned users
+  checkBanState = ->
+    username = req.body.username
+    checkBan username, (err, exists) ->
+      if (err)
+        fbProcess.error = err
+        return fbProcess.fail()
+
+      if (exists)
+        res.send(403)
+        return next()
+
+      fbProcess.next()
+
   # Create and send the auth token
   sendToken = ->
     result = fbProcess.accountResult
@@ -435,6 +456,7 @@ loginFacebook = (req, res, next) ->
     .state 'saveFullName', enter: saveFullName
     .state 'deleteCoAccount', enter: deleteCoAccount
     .state 'reportFailure', enter: reportFailure
+    .state 'checkBanState', enter: checkBanState
     .state 'sendToken', enter: sendToken
     .state 'storeFriends', enter: storeFriends
     .state 'done', enter: (-> next()) # next with no arguments
@@ -480,9 +502,14 @@ loginFacebook = (req, res, next) ->
     .event 'next', 'saveFacebookId', 'saveFullName'
     .event 'fail', 'saveFacebookId', 'deleteCoAccount'
 
-    # After saving the fullname, send auth token
-    .event 'next', 'saveFullName', 'sendToken'
+    # After saving the fullname, check whether username is banned…
+    #   - if so, reply with 403;
+    #   - send auth token otherwise.
+    .event 'next', 'saveFullName', 'checkBanState'
     .event 'fail', 'saveFullName', 'deleteCoAccount'
+
+    .event 'next', 'checkBanState', 'sendToken'
+    .event 'fail', 'checkBanState', 'reportFailure'
 
     # After deleting the facebook account, report the failure in any case
     .event 'next', 'deleteCoAccount', 'deleteFacebookAccount'
@@ -554,11 +581,43 @@ addAuth = (account) ->
     token: token
   }
 
+# callback(error, isBannedBoolean)
+checkBan = (username, callback) ->
+  bans.get username, (err, ban) ->
+    if (err)
+      log.error('checkBan() failed', {err, username})
+      return callback(err)
+
+    callback(null, ban.exists)
+
+# next() - no error, no ban
+# next(err) - error
+# res.send(403) - no error, ban
+checkBanMiddleware = (req, res, next) ->
+  username = (req.params && req.params.username) ||
+             (req.body && req.body.username) ||
+             null
+
+  if (!username)
+    return sendError(new restify.BadRequestError, next)
+
+  checkBan username, (err, exists) ->
+    if (err)
+      return next(err)
+
+    if (exists)
+      # Remove authToken of banned accounts
+      if (req.params.authToken)
+        authdbClient.addAccount(req.params.authToken, null, () ->)
+
+      return res.send(403)
+
+    next()
+
 # Load account details. This call most generally made by a client connecting
 # to the server, using a restored session. It's a good place to check
 # and refresh a few things, namely facebook friends for now.
-getAccount = (req, res, next) ->
-
+getAccountFromAuthDb = (req, res, next) ->
   # We're loading the account from a token (required)
   token = req.params.authToken
   if !token
@@ -575,23 +634,30 @@ getAccount = (req, res, next) ->
       log.error err
       err = new restify.NotAuthorizedError "not authorized"
       return sendError err, next
-    res.send account
+
+    req._store = {account}
+    req.body = req.body || {}
+    req.body.username = req.body.username || account.username
     next()
 
-    # Reload facebook friends in the background
-    # (next has been called)
-    if account.facebookToken
-      storeFacebookFriends
-        username: account.username
-        accessToken: account.facebookToken
-        callback: (err) ->
-          if err
-            log.error "Failed to store friends for #{account.username}", err
+getAccountSend = (req, res, next) ->
+  # Respond to request.
+  res.send(req._store.account)
 
-    # Update the "auth" metadata
-    if account.username
-      timestamp = "" + (new Date().getTime())
-      usermetaClient.set account.username, "auth", timestamp, (err, reply) ->
+  # Reload facebook friends in the background
+  # (next has been called)
+  if account.facebookToken
+    storeFacebookFriends
+      username: account.username
+      accessToken: account.facebookToken
+      callback: (err) ->
+        if err
+          log.error "Failed to store friends for #{account.username}", err
+
+  # Update the "auth" metadata
+  if account.username
+    timestamp = "" + (new Date().getTime())
+    usermetaClient.set account.username, "auth", timestamp, (err, reply) ->
 
 # Send a password reset email
 passwordResetEmail = (req, res, next) ->
@@ -692,6 +758,9 @@ initialize = (cb, options = {}) ->
   if options.accountCreator
     accountCreator = options.accountCreator
 
+  if options.authdbClient
+    authdbClient = options.authdbClient
+
   friendsApi = options.friendsApi || require("./friends-api").createApi
     friendsClient: friendsClient
     authMiddleware: authMiddleware
@@ -702,11 +771,55 @@ initialize = (cb, options = {}) ->
   else
     loadApplication cb
 
+validateSecret = (req, res, next) ->
+  present = apiSecret && req.body && req.body.apiSecret
+  ok = if present then apiSecret == req.body.apiSecret else false
+
+  if ok then next() else res.send(403)
+
+banAdd = (req, res, next) ->
+  {username} = req.body
+  bans.ban username, (err) ->
+    if (err)
+      log.error('banAdd() failed', {err, username})
+      return next(err)
+
+    res.send(200)
+
+banRemove = (req, res, next) ->
+  {username} = req.params
+  bans.unban username, (err) ->
+    if (err)
+      log.error('banRemove() failed', {err, username})
+      return next(err)
+
+    res.send(200)
+
+banStatus = (req, res, next) ->
+  {username} = req.params
+  bans.get username, (err, ban) ->
+    if (err)
+      log.error('banStatus() failed', {err, username})
+      return next(err)
+
+    res.json(ban)
+
 # Register routes in the server
 addRoutes = (prefix, server) ->
   server.post "/#{prefix}/accounts", createAccount
+
   server.post "/#{prefix}/login", login
-  server.get "/#{prefix}/auth/:authToken/me", getAccount
+
+  server.get(
+    "/#{prefix}/auth/:authToken/me",
+    getAccountFromAuthDb,
+    checkBanMiddleware,
+    getAccountSend
+  )
+
+  server.post("#{prefix}/banned-users", validateSecret, banAdd)
+  server.del("#{prefix}/banned-users/:username", validateSecret, banRemove)
+  server.get("#{prefix}/banned-users/:username", banStatus)
 
   endPoint = "/#{prefix}/auth/:authToken/passwordResetEmail"
   server.post endPoint, passwordResetEmail
