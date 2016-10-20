@@ -642,7 +642,8 @@ getAccountFromAuthDb = (req, res, next) ->
 
 getAccountSend = (req, res, next) ->
   # Respond to request.
-  res.send(req._store.account)
+  { account } = req._store
+  res.send(account)
 
   # Reload facebook friends in the background
   # (next has been called)
