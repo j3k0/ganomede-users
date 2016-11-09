@@ -34,6 +34,8 @@ sendStormpathError = (spErr, next) ->
   log.error spErr
   next err
 
+stats = require('./statsd-wrapper')
+
 # Retrieve Stormpath configuration from environment
 stormpathApiId = process.env.STORMPATH_API_ID
 stormpathApiSecret = process.env.STORMPATH_API_SECRET
@@ -116,14 +118,15 @@ apiKey = new stormpath.ApiKey stormpathApiId, stormpathApiSecret
 
 # Create the stormpath Client
 if stormpathApiId and stormpathApiSecret
-  client = new stormpath.Client
+  stormpathClient = new stormpath.Client
     apiKey: apiKey
     cacheOptions: cacheOptions
 
 # Retrieve the stormpath Application
 getApplicationHref = (cb) ->
   log.info "stormpath.getApplications"
-  client.getApplications (err, apps) ->
+  stats.increment 'stormpath.client.applications.get'
+  stormpathClient.getApplications (err, apps) ->
     if err
       return cb? err
     app = (app for app in apps.items when app.name == stormpathAppName)
@@ -150,7 +153,8 @@ loadApplication = (cb) ->
     else if err
       cb err
     else
-      client.getApplication appHref, (err, app) ->
+      stats.increment 'stormpath.client.application.get'
+      stormpathClient.getApplication appHref, (err, app) ->
         if err
           return cb err
         application = app
@@ -163,6 +167,7 @@ initializationDone = (cb) ->
       application: application
       log: log
       loginAccount: loginAccount
+      stats: stats
 
   cb null
 
@@ -172,7 +177,8 @@ createApplication = (cb) ->
   app =
     name: stormpathAppName
     description: "Ganomede users"
-  client.createApplication app, createDirectory:true, cb
+  stats.increment 'stormpath.client.application.create'
+  stormpathClient.createApplication app, createDirectory:true, cb
 
   # TODO: Create Facebook Directory
   # TODO: Provide FACEBOOK_APP_ID and FACEBOOK_APP_SECRET
@@ -226,6 +232,7 @@ loginFacebook = (req, res, next) ->
       providerData:
         providerId: "facebook"
         accessToken: req.body.facebookToken
+    stats.increment 'stormpath.application.account.get'
     application.getAccount account, (err, result) ->
       if err
         fbProcess.stormpathError = err
@@ -254,11 +261,13 @@ loginFacebook = (req, res, next) ->
   # Delete the account
   deleteFacebookAccount = ->
     result = fbProcess.accountResult
-    client.getAccount result.account.href, (err, account) ->
+    stats.increment 'stormpath.client.account.get'
+    stormpathClient.getAccount result.account.href, (err, account) ->
       if err
         # Only fail, account is deleted because of an error already
         fbProcess.fail()
       else
+        stats.increment 'stormpath.account.delete'
         account.delete (err) ->
           if err
             fbProcess.fail()
@@ -267,13 +276,15 @@ loginFacebook = (req, res, next) ->
 
   # Delete the account
   deleteCoAccount = ->
-    client.getAccount fbProcess.coAccount.href, (err, account) ->
+    stats.increment 'stormpath.client.account.get'
+    stormpathClient.getAccount fbProcess.coAccount.href, (err, account) ->
       if err
         # Only fail, don't store error.
         # account is deleted because of an error already
         log.error err
         fbProcess.fail()
       else
+        stats.increment 'stormpath.account.delete'
         account.delete (err) ->
           if err
             log.error err
@@ -362,6 +373,7 @@ loginFacebook = (req, res, next) ->
       coAccount: account
       account: result.account
 
+    stats.increment 'stormpath.application.account.create'
     application.createAccount account, (err, account) ->
       if err
         if err.code == 2001
@@ -381,7 +393,7 @@ loginFacebook = (req, res, next) ->
       username:   req.body.username
       email:      result.account.email
     fbProcess.next()
-    #client.getAccount account.href, (err, account) ->
+    #stormpathClient.getAccount account.href, (err, account) ->
     #  if err
     #    fbProcess.stormpathError = err
     #    fbProcess.fail()
@@ -550,12 +562,14 @@ loginDefault = (req, res, next) ->
       next()
 
 loginAccount = (account, callback) ->
+  stats.increment 'stormpath.application.account.authenticate'
   application.authenticateAccount account, (err, result) ->
     if err
       return callback err
 
     # if successful, the result will have an account field
     # with the successfully authenticated account:
+    stats.increment 'stormpath.auth.account.get'
     result.getAccount (err, account) ->
       if err
         return callback err
@@ -665,6 +679,7 @@ passwordResetEmail = (req, res, next) ->
 
   sendEmail = (email) ->
     log.info "reset password", email:email
+    stats.increment 'stormpath.application.passwordreset'
     application.sendPasswordResetEmail email, (err, resetToken) ->
       if err
         if err.code == 2016
@@ -753,7 +768,7 @@ getMetadata = (req, res, next) ->
 # Initialize the module
 initialize = (cb, options = {}) ->
 
-  if !client
+  if !stormpathClient
     return cb new Error "no stormpath client"
 
   if options.accountCreator
