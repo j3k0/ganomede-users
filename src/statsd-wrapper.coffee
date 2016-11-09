@@ -14,13 +14,11 @@ env = process.env
 requiredEnv = [ 'STATSD_HOST', 'STATSD_PORT', 'STATSD_PREFIX' ]
 
 missingEnv = () ->
-  requiredEnv.reduce (missing, e) ->
-    if !env[e]
-      if missing
-        return missing + ',' + e
-      else
-        return e
-    return missing
+  for e in requiredEnv
+    log.info e + "=" + process.env[e]
+    if !process.env[e]
+      return e
+  return undefined
 
 createClient = () ->
   log = logMod.child(module: "statsd")
