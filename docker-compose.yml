@@ -1,9 +1,9 @@
 users:
     build: .
     volumes:
-     - src:/home/app/code/src
-     - tests:/home/app/code/tests
-    command: make run BUNYAN_LEVEL=0
+     - ./src:/home/app/code/src
+     - ./tests:/home/app/code/tests
+     - ./run_tests.sh:/home/app/code/run_tests.sh
     links:
      - usersRedisCache:redis_cache
      - authRedis:redis_auth
