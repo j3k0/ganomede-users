@@ -10,12 +10,10 @@ dummyClient = () ->
   set:       () ->
   unique:    () ->
 
-env = process.env
 requiredEnv = [ 'STATSD_HOST', 'STATSD_PORT', 'STATSD_PREFIX' ]
 
 missingEnv = () ->
   for e in requiredEnv
-    log.info e + "=" + process.env[e]
     if !process.env[e]
       return e
   return undefined
@@ -26,9 +24,9 @@ createClient = () ->
     log.warn "Can't initialize statsd, missing env: " + missingEnv()
     return dummyClient()
   client = new StatsD
-    host: env.STATSD_HOST
-    port: env.STATSD_PORT
-    prefix: env.STATSD_PREFIX
+    host: process.env.STATSD_HOST
+    port: process.env.STATSD_PORT
+    prefix: process.env.STATSD_PREFIX
   client.socket.on 'error', (error) ->
     log.error "error in socket", error
   return client
