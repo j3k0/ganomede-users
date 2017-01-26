@@ -39,6 +39,8 @@ clean:
 
 docker-prepare:
 	@mkdir -p doc
+	cp Dockerfile Dockerfile.dev
+	echo RUN npm install >> Dockerfile.dev
 	docker-compose up -d --no-recreate authRedis usermetaRedis usersRedisCache
 
 docker-run: docker-prepare
