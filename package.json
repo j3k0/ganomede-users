@@ -5,35 +5,38 @@
   "description": "users micro service",
   "private": true,
   "main": "index.js",
+  "engines": {
+    "node": ">=6"
+  },
   "scripts": {
     "start": "./node_modules/.bin/forever start index.js",
     "stop": "./node_modules/.bin/forever stop index.js",
-    "test": "API_SECRET=42 make test",
+    "test": "./run_tests.sh",
     "testw": "API_SECRET=42 make testw"
   },
   "author": "Jean-Christophe Hoelt <hoelt@fovea.cc>",
   "license": "Private",
   "dependencies": {
     "async": "^2.0.1",
-    "authdb": "^0.2.1",
+    "authdb": "^0.3.0",
     "blanket": "^1.1.6",
     "bunyan": "^1.2.3",
     "coffee-script": "^1.8.0",
     "coffeelint": "^1.6.1",
     "concat-stream": "^1.4.7",
-    "eslint": "^0.10.0",
-    "fakeredis": "^0.3.1",
+    "eslint": "^3.14.1",
+    "fakeredis": "^1.0.3",
     "fbgraph": "^1.0.0",
-    "forever": "^0.13.0",
-    "ganomede-helpers": "^0.3.3",
+    "forever": "^0.15.3",
+    "ganomede-helpers": "^1.0.2",
     "jshint": "^2.5.10",
-    "mocha": "^2.0.1",
+    "mocha": "^3.2.0",
     "newrelic": "^1.20.2",
     "node-statsd": "^0.1.1",
-    "redis": "^0.12.1",
-    "restify": "^2.8.3",
+    "redis": "^2.6.5",
+    "restify": "^4.3.0",
     "state-machine": "0.0.3",
-    "stormpath": "^0.8.1",
+    "stormpath": "^0.20.0",
     "vasync": "^1.6.2"
   },
   "config": {
@@ -47,6 +50,6 @@
   },
   "devDependencies": {
     "chai": "^3.5.0",
-    "superagent": "^1.2.0"
+    "superagent": "^3.4.0"
   }
 }

@@ -1,5 +1,5 @@
 async = require 'async'
-redis = require 'redis'
+redis = require 'fakeredis'
 {expect} = require 'chai'
 {BanInfo, Bans} = require '../src/bans'
 

@@ -1,13 +1,12 @@
-Users' API
-----------
+Users
+-----
 
-# User accounts
-
-User accounts API is fully inspired by Stormpath.
+Users accounts API initially inspired by Stormpath.
 
 See http://docs.stormpath.com/rest/product-guide/#application-accounts when in doubt about a parameter.
 
-## Configuration
+Configuration
+-------------
 
  * `STORMPATH_API_ID`
  * `STORMPATH_API_SECRET`
@@ -17,6 +16,9 @@ See http://docs.stormpath.com/rest/product-guide/#application-accounts when in d
  * `REDIS_USERMETA_PORT_6379_TCP_ADDR`
  * `REDIS_USERMETA_PORT_6379_TCP_PORT`
  * `FACEBOOK_APP_SECRET`
+
+API
+---
 
 ## /users/v1/accounts [POST]
 

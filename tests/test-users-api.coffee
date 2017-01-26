@@ -2,6 +2,8 @@ assert = require "assert"
 superagent = require 'superagent'
 fakeRedis = require "fakeredis"
 fakeAuthdb = require "./fake-authdb"
+fakeUsermeta = require "./fake-usermeta"
+fakeStormpath = require "./fake-stormpath"
 restify = require 'restify'
 api = require '../src/users-api'
 {expect} = require 'chai'
@@ -36,7 +38,7 @@ describe 'users-api', ->
 
   server = null
   authdb = null
-  redis = null
+  # redis = null
 
   endpoint = (token, path) ->
     if !path
@@ -55,6 +57,8 @@ describe 'users-api', ->
     server = restify.createServer()
     redis  = fakeRedis.createClient("test-usermeta-#{i}")
     authdb = fakeAuthdb.createClient()
+    usermeta = fakeUsermeta.createClient(redis)
+    stormpath = fakeStormpath.createClient()
 
     data.tokens.forEach (info) ->
       authdb.addAccount(info.token, {
@@ -71,10 +75,13 @@ describe 'users-api', ->
       application: fakeApp
       accountCreator: fakeAccountCreator,
       authdbClient: authdb
+      usermetaClient: usermeta
+      stormpathClient: stormpath
 
   after (done) ->
     server.close()
-    server.once('close', redis.flushdb.bind(redis, done))
+    # server.once('close', redis.flushdb.bind(redis, done))
+    done()
 
   describe '/passwordResetEmail [POST] - Reset password', () ->
 
@@ -87,6 +94,7 @@ describe 'users-api', ->
           assert.ok !err
           assert.equal data.passwordReset.email, fakeApp.emailSent
           done()
+      return
 
   describe '/accounts [POST] - Create user account', () ->
 
@@ -100,6 +108,7 @@ describe 'users-api', ->
           assert.equal 'TooShortError', res.body.code
           assert.ok err
           done()
+      return
 
     it "should refuse special characters", (done) ->
       @timeout 10000
@@ -111,6 +120,7 @@ describe 'users-api', ->
           assert.equal 'BadUsernameError', res.body.code
           assert.ok err
           done()
+      return
 
     it "should refuse long usernames", (done) ->
       @timeout 10000
@@ -122,6 +132,7 @@ describe 'users-api', ->
           assert.equal 'TooLongError', res.body.code
           assert.ok err
           done()
+      return
 
     it "should register valid users", (done) ->
       @timeout 10000
@@ -133,6 +144,7 @@ describe 'users-api', ->
           assert.ok !err
           assert.equal data.createAccount.valid.username, res.body.username
           done()
+      return
 
   describe '/banned-users Banning Users', () ->
     username = data.createAccount.valid.username
@@ -147,6 +159,7 @@ describe 'users-api', ->
             expect(err).to.be.null
             expect(res.status).to.equal(200)
             done()
+        return
 
       it 'requires apiSecret', (done) ->
         superagent
@@ -156,6 +169,7 @@ describe 'users-api', ->
             expect(err).to.be.instanceof(Error)
             expect(res.status).to.equal(403)
             done()
+        return
 
     describe 'Banned users…', () ->
       it 'can\'t login', (done) ->
@@ -167,6 +181,7 @@ describe 'users-api', ->
             expect(res.status).to.be.equal(403)
             expect(res.text).to.be.equal('')
             done()
+        return
 
       it 'can\'t access profile at /me', (done) ->
         superagent
@@ -176,6 +191,7 @@ describe 'users-api', ->
             expect(res.status).to.be.equal(403)
             expect(res.text).to.be.equal('')
             done()
+        return
 
       it 'nullifies authdb accounts after banned username
           tries to access any :authToken endpoint', (done) ->
@@ -189,6 +205,7 @@ describe 'users-api', ->
             expect(res.text).to.include("not authorized")
 
             done()
+        return
 
     describe 'GET /banned-users/:username', () ->
       it 'returns ban timestamp', (done) ->
@@ -203,6 +220,7 @@ describe 'users-api', ->
             expect(res.body.exists).to.be.true
             expect(res.body.createdAt).to.be.within(started, Date.now())
             done()
+        return
 
     describe 'DELETE', () ->
       it 'removes bans', (done) ->
@@ -223,6 +241,7 @@ describe 'users-api', ->
                   createdAt: 0
                 })
                 done()
+        return
 
       it 'requires apiSecret', (done) ->
         superagent
@@ -231,5 +250,6 @@ describe 'users-api', ->
             expect(err).to.be.instanceof(Error)
             expect(res.status).to.equal(403)
             done()
+        return
 
 # vim: ts=2:sw=2:et:

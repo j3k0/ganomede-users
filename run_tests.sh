@@ -1,4 +1,10 @@
-#!/bin/sh
+#!/bin/bash
+
+# ugly fix for circleci
+export PATH="$HOME/nvm/versions/node/v6.9.4/bin:$PATH"
+
+set -e
+export API_SECRET=secret
 ./node_modules/.bin/eslint src/
 ./node_modules/.bin/coffeelint -q src tests
 BUNYAN_LEVEL=1000

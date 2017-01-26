@@ -9,7 +9,8 @@ class AccountCreator
 
   create: (account, callback) ->
     @log.info "register", account
-    @stats.increment 'stormpath.application.account.create'
+    if @stats
+      @stats.increment 'stormpath.application.account.create'
     @application.createAccount account, (err, createdAccount) =>
       if err
         return callback err

@@ -1,5 +1,6 @@
 users:
     build: .
+    dockerfile: Dockerfile.dev
     volumes:
      - ./src:/home/app/code/src
      - ./tests:/home/app/code/tests

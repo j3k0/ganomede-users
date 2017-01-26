@@ -8,6 +8,7 @@ authdb = require "authdb"
 restify = require "restify"
 log = require "./log"
 helpers = require "ganomede-helpers"
+serviceConfig = helpers.links.ServiceEnv.config
 usermeta = require "./usermeta"
 aliases = require "./aliases"
 fullnames = require "./fullnames"
@@ -48,55 +49,22 @@ facebookClient = facebook.createClient
   facebookAppSecret: facebookAppSecret
 
 # Connection to AuthDB
-redisAuthConfig = helpers.links.ServiceEnv.config('REDIS_AUTH', 6379)
-authdbClient = authdb.createClient
-  host: redisAuthConfig.host
-  port: redisAuthConfig.port
+authdbClient = null
 
 # Extra user data
-redisUsermetaConfig = helpers.links.ServiceEnv.config('REDIS_USERMETA', 6379)
 usermetaClient = null
 bansClient = null
-if redisUsermetaConfig.exists
-  redisUsermetaConfig.options =
-    no_ready_check: true
-  usermetaClient = usermeta.create redisUsermetaConfig
-  bans = new Bans({redis: usermetaClient.redisClient})
-  log.info "usermeta", redisUsermetaConfig
-else
-  log.error "cant create usermeta client, no REDIS_USERMETA database"
-
-# Aliases
-aliasesClient = aliases.createClient
-  usermetaClient: usermetaClient
-
-# Full names
-fullnamesClient = fullnames.createClient
-  usermetaClient: usermetaClient
-
-# Friends
-friendsClient = friendsStore.createClient
-  usermetaClient: usermetaClient
-
+aliasesClient = null
+fullnamesClient = null
+friendsClient = null
 friendsApi = null
-
-# Facebook friends
-facebookFriends = require "./facebook-friends"
-storeFacebookFriends = (options) ->
-  facebookFriends.storeFriends
-    username: options.username
-    accessToken: options.accessToken
-    callback: options.callback || ->
-    aliasesClient: options.aliasesClient || aliasesClient
-    friendsClient: options.friendsClient || friendsClient
-    facebookClient: options.facebookClient || facebookClient
-
+bans = null
 
 # Application, once initialized
 application = null
 
 # Caching
-redisCacheConfig = helpers.links.ServiceEnv.config('REDIS_CACHE', 6379)
+redisCacheConfig = serviceConfig('REDIS_CACHE', 6379)
 if redisCacheConfig.exists
   cacheOptions =
     store: "redis"
@@ -111,7 +79,7 @@ if redisCacheConfig.exists
 # Delegates
 accountCreator = null
 
-log.info "storpath AppName", stormpathAppName
+log.info "stormpath AppName", stormpathAppName
 
 # Create the API key
 apiKey = new stormpath.ApiKey stormpathApiId, stormpathApiSecret
@@ -768,6 +736,9 @@ getMetadata = (req, res, next) ->
 # Initialize the module
 initialize = (cb, options = {}) ->
 
+  if options.stormpathClient
+    stormpathClient = options.stormpathClient
+
   if !stormpathClient
     return cb new Error "no stormpath client"
 
@@ -776,6 +747,51 @@ initialize = (cb, options = {}) ->
 
   if options.authdbClient
     authdbClient = options.authdbClient
+  else
+    redisAuthConfig = serviceConfig('REDIS_AUTH', 6379)
+    authdbClient = authdb.createClient
+      host: redisAuthConfig.host
+      port: redisAuthConfig.port
+
+  if options.usermetaClient
+    usermetaClient = options.usermetaClient
+  else
+    redisUsermetaConfig = serviceConfig('REDIS_USERMETA', 6379)
+    if redisUsermetaConfig.exists
+      redisUsermetaConfig.options =
+        no_ready_check: true
+      usermetaClient = usermeta.create redisUsermetaConfig
+      log.info "usermeta", redisUsermetaConfig
+    else
+      log.error "cant create usermeta client, no REDIS_USERMETA database"
+
+  if options.bans
+    bans = options.bans
+  else
+    bans = new Bans({redis: usermetaClient.redisClient})
+
+  # Aliases
+  aliasesClient = aliases.createClient
+    usermetaClient: usermetaClient
+
+  # Full names
+  fullnamesClient = fullnames.createClient
+    usermetaClient: usermetaClient
+
+  # Friends
+  friendsClient = friendsStore.createClient
+    usermetaClient: usermetaClient
+
+  # Facebook friends
+  facebookFriends = require "./facebook-friends"
+  storeFacebookFriends = (options) ->
+    facebookFriends.storeFriends
+      username: options.username
+      accessToken: options.accessToken
+      callback: options.callback || ->
+      aliasesClient: options.aliasesClient || aliasesClient
+      friendsClient: options.friendsClient || friendsClient
+      facebookClient: options.facebookClient || facebookClient
 
   friendsApi = options.friendsApi || require("./friends-api").createApi
     friendsClient: friendsClient
