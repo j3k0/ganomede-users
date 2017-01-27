@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "chai": "^3.5.0",
-    "superagent": "^3.4.0"
+    "superagent": "^3.4.0",
+    "testdouble": "^1.11.0"
   }
 }
