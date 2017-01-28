@@ -9,9 +9,10 @@ defaultLog = require '../log'
 createClient = ({
   client, application, aliasesClient, facebookFriends,
   fullnamesClient, facebookClient, authenticator,
-  friendsClient, stats = statsWrapper.createClient(),
+  friendsClient, stats,
   log = defaultLog, checkBan
 }) ->
+  stats = stats || statsWrapper.createClient log
 
   # Login (or register) a facebook user account
   login: (body, cb) ->
