@@ -3,8 +3,9 @@
 # Implements the users API using Stormpath
 #
 
-stormpath = require "stormpath"
+# stormpath = require "stormpath"
 authdb = require "authdb"
+authentication = require "./authentication"
 restify = require "restify"
 log = require "./log"
 helpers = require "ganomede-helpers"
@@ -15,32 +16,20 @@ fullnames = require "./fullnames"
 friendsStore = require "./friends-store"
 facebook = require "./facebook"
 usernameValidator = require "./username-validator"
-stateMachine = require "state-machine"
+backend = require "./backend/stormpath"
 AccountCreator = require "./account-creator"
 {Bans} = require('./bans')
 
 sendError = (err, next) ->
-  log.error err
+  if err.rawError
+    log.error err.rawError
+  else
+    log.error err
   next err
 
-sendStormpathError = (spErr, next) ->
-  if !spErr.code
-    spErr.code = "Unknown"
-  if spErr.code == 7100
-    spErr.status = 401
-  err = new restify.RestError
-    restCode: "Stormpath" + spErr.name + spErr.code,
-    statusCode: spErr.status,
-    message: spErr.userMessage,
-  log.error spErr
-  next err
-
-stats = require('./statsd-wrapper')
+stats = require('./statsd-wrapper').createClient()
 
 # Retrieve Stormpath configuration from environment
-stormpathApiId = process.env.STORMPATH_API_ID
-stormpathApiSecret = process.env.STORMPATH_API_SECRET
-stormpathAppName = process.env.STORMPATH_APP_NAME || "Ganomede"
 apiSecret = process.env.API_SECRET || null
 
 # Facebook
@@ -59,124 +48,30 @@ fullnamesClient = null
 friendsClient = null
 friendsApi = null
 bans = null
+authenticator = null
 
-# Application, once initialized
-application = null
-
-# Caching
-redisCacheConfig = serviceConfig('REDIS_CACHE', 6379)
-if redisCacheConfig.exists
-  cacheOptions =
-    store: "redis"
-    connection:
-      host: redisCacheConfig.host
-      port: redisCacheConfig.port
-    ttl: 3600
-    tti: 3600
-    # options:
-  log.info "cacheOptions", cacheOptions
-
-# Delegates
-accountCreator = null
-
-log.info "stormpath AppName", stormpathAppName
-
-# Create the API key
-apiKey = new stormpath.ApiKey stormpathApiId, stormpathApiSecret
-
-# Create the stormpath Client
-if stormpathApiId and stormpathApiSecret
-  stormpathClient = new stormpath.Client
-    apiKey: apiKey
-    cacheOptions: cacheOptions
-
-# Retrieve the stormpath Application
-getApplicationHref = (cb) ->
-  log.info "stormpath.getApplications"
-  stats.increment 'stormpath.client.applications.get'
-  stormpathClient.getApplications (err, apps) ->
-    if err
-      return cb? err
-    app = (app for app in apps.items when app.name == stormpathAppName)
-    if !app or app.length != 1
-      return cb 404
-    cb null, app[0].href
-
-loadApplication = (cb) ->
-  # Find if application already exists
-  getApplicationHref (err, appHref) ->
-
-    # If not, create it
-    if err == 404
-      createApplication (err, app) ->
-
-        # If it didn't work, try again
-        if err
-          log.warn err
-          return initialize cb
-
-        # If creation worked, store the application
-        application = app
-        initializationDone cb
-    else if err
-      cb err
-    else
-      stats.increment 'stormpath.client.application.get'
-      stormpathClient.getApplication appHref, (err, app) ->
-        if err
-          return cb err
-        application = app
-        initializationDone cb
-
-initializationDone = (cb) ->
-
-  if !accountCreator
-    accountCreator = new AccountCreator
-      application: application
-      log: log
-      loginAccount: loginAccount
-      stats: stats
-
-  cb null
-
-# Create the stormpath Application
-createApplication = (cb) ->
-  log.info "stormpath.createApplication"
-  app =
-    name: stormpathAppName
-    description: "Ganomede users"
-  stats.increment 'stormpath.client.application.create'
-  stormpathClient.createApplication app, createDirectory:true, cb
-
-  # TODO: Create Facebook Directory
-  # TODO: Provide FACEBOOK_APP_ID and FACEBOOK_APP_SECRET
+# backend, once initialized
+backend = null
 
 # Create a user account
 createAccount = (req, res, next) ->
 
-  usernameError = usernameValidator(req.body.username)
-  if usernameError
+  if usernameError = usernameValidator(req.body.username)
     return sendError usernameError, next
 
   account =
-    givenName: "Email"
-    surname: req.body.surname || req.body.username
+    id:       req.body.username
     username: req.body.username
-    email: req.body.email
+    email:    req.body.email
     password: req.body.password
   log.info "register", account
 
-  accountCreator.create account, (err, data) ->
+  backend.createAccount account, (err, data) ->
     if err
-      return sendStormpathError err, next
+      return sendError err, next
     else
       res.send data
       next()
-
-# Generate a random token
-rand = ->
-  Math.random().toString(36).substr(2)
-genToken = -> rand() + rand()
 
 # Login a user account
 login = (req, res, next) ->
@@ -184,326 +79,24 @@ login = (req, res, next) ->
     return loginFacebook req, res, next
 
   checkBanMiddleware req, res, (err) ->
-    if (err)
-      return next(err)
+    if err
+      return next err
 
-    loginDefault(req, res, next)
+    loginDefault req, res, next
 
 # Login (or register) a facebook user account
 loginFacebook = (req, res, next) ->
-
-  fbProcess = stateMachine()
-
-  # Get / create user account
-  getAccount = ->
-    account =
-      providerData:
-        providerId: "facebook"
-        accessToken: req.body.facebookToken
-    stats.increment 'stormpath.application.account.get'
-    application.getAccount account, (err, result) ->
-      if err
-        fbProcess.stormpathError = err
-        fbProcess.fail()
-      else
-        fbProcess.accountResult = result
-        fbProcess.next()
-
-  # Analyse the account
-  handleAccount = ->
-    result = fbProcess.accountResult
-    log.info "logged in:", result
-    if result.account.status == "ENABLED"
-      if result.created
-        if req.body.username && req.body.password
-          fbProcess.create()
-        else
-          fbProcess.metaErr =
-            new restify.BadRequestError("username or password not provided")
-          fbProcess.delete()
-      else
-        fbProcess.login()
-    else
-      fbProcess.fail()
-
-  # Delete the account
-  deleteFacebookAccount = ->
-    result = fbProcess.accountResult
-    stats.increment 'stormpath.client.account.get'
-    stormpathClient.getAccount result.account.href, (err, account) ->
-      if err
-        # Only fail, account is deleted because of an error already
-        fbProcess.fail()
-      else
-        stats.increment 'stormpath.account.delete'
-        account.delete (err) ->
-          if err
-            fbProcess.fail()
-          else
-            fbProcess.next()
-
-  # Delete the account
-  deleteCoAccount = ->
-    stats.increment 'stormpath.client.account.get'
-    stormpathClient.getAccount fbProcess.coAccount.href, (err, account) ->
-      if err
-        # Only fail, don't store error.
-        # account is deleted because of an error already
-        log.error err
-        fbProcess.fail()
-      else
-        stats.increment 'stormpath.account.delete'
-        account.delete (err) ->
-          if err
-            log.error err
-            fbProcess.fail()
-          else
-            fbProcess.next()
-
-  # Retrieve account alias
-  getAlias = ->
-    result = fbProcess.accountResult
-    aliasesClient.get result.account.username,
-    (err, value) ->
-      if err
-        fbProcess.error = err
-        fbProcess.fail()
-      else if !value
-        fbProcess.empty()
-      else
-        req.body.username = value
-        if !fbProcess.coAccount
-          fbProcess.coAccount =
-            username: value
-        fbProcess.next()
-
-  # Save the account alias
-  saveAlias = ->
-    # Store alias stormpath username -> co-account username
-    # in usermeta (someone@fovea.cc -> jeko)
-    result = fbProcess.accountResult
-    aliasesClient.set result.account.username, req.body.username,
-    (err, reply) ->
-      if err
-        fbProcess.error = err
-        fbProcess.fail()
-      else
-        fbProcess.next()
-
-  # Save the link facebookId => username
-  saveFacebookId = ->
-    aliasesClient.set "fb:#{req.body.facebookId}", req.body.username,
-    (err, reply) ->
-      if err
-        fbProcess.error = err
-        fbProcess.fail()
-      else
-        fbProcess.next()
-
-  # Save the accounts fullname
-  saveFullName = ->
-    fbProcess.next()
-    result = fbProcess.accountResult
-    username = req.body.username
-    fullname = result.account.fullName
-    log.info "storing fullname",
-      username: username
-      fullname: fullname
-    if username and fullname
-      fullnamesClient.set username, fullname, (err, reply) ->
-        if err
-          log.warn "failed to store fullname", err,
-            username: username
-            fullname: fullname
-
-  # Create a co-account associated with the facebook account
-  createCoAccount = ->
-    result = fbProcess.accountResult
-
-    # Check that required body parameters are available
-    [ "facebookId", "username", "password" ].forEach (fieldName) ->
-      if not req.body[fieldName]
-        fbProcess.error = new restify.BadRequestError(
-          "missing field: #{fieldName}")
-    if fbProcess.error
-      fbProcess.fail()
-      return
-
-    account =
-      username:   req.body.username
-      password:   req.body.password
-      givenName: "Facebook"
-      middleName: req.body.facebookId
-      surname:    result.account.username
-      email:      result.account.email
-
-    log.info "register",
-      coAccount: account
-      account: result.account
-
-    stats.increment 'stormpath.application.account.create'
-    application.createAccount account, (err, account) ->
-      if err
-        if err.code == 2001
-          # account already exists. link it with the facebook account
-          fbProcess.link()
-        else
-          fbProcess.stormpathError = err
-          fbProcess.fail()
-      else
-        fbProcess.coAccount = account
-        fbProcess.next()
-
-  # Load
-  loadCoAccount = ->
-    result = fbProcess.accountResult
-    fbProcess.coAccount =
-      username:   req.body.username
-      email:      result.account.email
-    fbProcess.next()
-    #stormpathClient.getAccount account.href, (err, account) ->
-    #  if err
-    #    fbProcess.stormpathError = err
-    #    fbProcess.fail()
-    #  else
-    #    fbProcess.coAccount = account
-    #    fbProcess.next()
-
-
-  # Only reply to not banned users
-  checkBanState = ->
-    username = req.body.username
-    checkBan username, (err, exists) ->
-      if (err)
-        fbProcess.error = err
-        return fbProcess.fail()
-
-      if (exists)
-        res.send(403)
-        return next()
-
-      fbProcess.next()
-
-  # Create and send the auth token
-  sendToken = ->
-    result = fbProcess.accountResult
-    coAuth = addAuth
-      facebookToken: req.body.facebookToken
-      username: fbProcess.coAccount.username
-      email: fbProcess.coAccount.email || result.account.email
-    res.send addAuth
-      facebookToken: req.body.facebookToken
-      username: req.body.username
-      email: result.account.email
-      token: coAuth.token
-    fbProcess.next()
-
-  # Store the list of facebook friends
-  storeFriends = ->
-
-    # Let's retrieve friends asynchronously, no need to delay login
-    fbProcess.next()
-
-    # Get friends from facebook
-    storeFacebookFriends
-      username: req.body.username
-      accessToken: req.body.facebookToken
-      callback: (err, usernames) ->
-        if err
-          log.error "Failed to store friends", err
-        else
-          log.info "Friends stored", usernames
-
-  reportFailure = ->
-    if fbProcess.stormpathError
-      sendStormpathError fbProcess.stormpathError, next
-    else if fbProcess.error
-      sendError fbProcess.error, next
-    else
-      res.send token: null
-      next()
-
-  fbProcess.build()
-    .state 'start', initial: true
-    .state 'getAccount', enter: getAccount
-    .state 'handleAccount', enter: handleAccount
-    .state 'getAlias', enter: getAlias
-    .state 'createCoAccount', enter: createCoAccount
-    .state 'loadCoAccount', enter: loadCoAccount
-    .state 'deleteFacebookAccount', enter: deleteFacebookAccount
-    .state 'saveAlias', enter: saveAlias
-    .state 'saveFacebookId', enter: saveFacebookId
-    .state 'saveFullName', enter: saveFullName
-    .state 'deleteCoAccount', enter: deleteCoAccount
-    .state 'reportFailure', enter: reportFailure
-    .state 'checkBanState', enter: checkBanState
-    .state 'sendToken', enter: sendToken
-    .state 'storeFriends', enter: storeFriends
-    .state 'done', enter: (-> next()) # next with no arguments
-
-    .event 'start', 'start', 'getAccount'
-
-    # After getAccount we handle the account
-    .event 'next', 'getAccount', 'handleAccount'
-    .event 'fail',   'getAccount', 'reportFailure'
-
-    # After handleAccount, either create an account or login
-    .event 'create', 'handleAccount', 'createCoAccount'
-    .event 'login', 'handleAccount', 'getAlias'
-    .event 'delete', 'handleAccount', 'deleteFacebookAccount'
-    .event 'fail', 'handleAccount', 'reportFailure'
-
-    # After retrieving an alias, send auth token
-    .event 'next', 'getAlias', 'saveFacebookId'
-    .event 'fail', 'getAlias', 'reportFailure'
-    .event 'empty', 'getAlias', 'createCoAccount'
-
-    # After creating an account, save the alias
-    # In case of failure, delete the account
-    # If it already exists, link it with facebook
-    .event 'next', 'createCoAccount', 'saveAlias'
-    .event 'fail', 'createCoAccount', 'deleteFacebookAccount'
-    .event 'link', 'createCoAccount', 'loadCoAccount'
-
-    # If loading the coaccount succeeded, save the alias
-    # In case of failed, delete the facebook account
-    .event 'next', 'loadCoAccount', 'saveAlias'
-    .event 'fail', 'loadCoAccount', 'deleteFacebookAccount'
-
-    # After deleting the facebook account, report the failure in any case
-    .event 'next', 'deleteFacebookAccount', 'reportFailure'
-    .event 'fail', 'deleteFacebookAccount', 'reportFailure'
-
-    # After saving the alias, save the facebookId
-    .event 'next', 'saveAlias', 'saveFacebookId'
-    .event 'fail', 'saveAlias', 'deleteCoAccount'
-
-    # After saving the facebookId, save the full name
-    .event 'next', 'saveFacebookId', 'saveFullName'
-    .event 'fail', 'saveFacebookId', 'deleteCoAccount'
-
-    # After saving the fullname, check whether username is banned…
-    #   - if so, reply with 403;
-    #   - send auth token otherwise.
-    .event 'next', 'saveFullName', 'checkBanState'
-    .event 'fail', 'saveFullName', 'deleteCoAccount'
-
-    .event 'next', 'checkBanState', 'sendToken'
-    .event 'fail', 'checkBanState', 'reportFailure'
-
-    # After deleting the facebook account, report the failure in any case
-    .event 'next', 'deleteCoAccount', 'deleteFacebookAccount'
-    .event 'fail', 'deleteCoAccount', 'deleteFacebookAccount'
-
-    # After sending the token, store friends
-    .event 'next', 'sendToken', 'storeFriends'
-
-    # After storing friends, we're done
-    .event 'next', 'storeFriends', 'done'
-
-  fbProcess.onChange = (currentStateName, previousStateName) ->
-    log.info "#{previousStateName} -> #{currentStateName}"
-  fbProcess.start()
+  account =
+    accessToken: req.body.facebookToken
+    username: req.body.username
+    password: req.body.password
+    facebookId: req.body.facebookId
+  backend.loginFacebook account, (err, result) ->
+    if err
+      return next err
+    if typeof result != 'undefined'
+      res.send result
+    next()
 
 loginDefault = (req, res, next) ->
 
@@ -545,23 +138,24 @@ loginAccount = (account, callback) ->
 
 # Add authentication token in authDB, save 'auth' metadata.
 addAuth = (account) ->
+  authenticator.add account
 
-  # Generate and save the token
-  token = account.token || genToken()
-  authdbClient.addAccount token,
-    username: account.username
-    email: account.email
+  ## Generate and save the token
+  #token = account.token || genToken()
+  #authdbClient.addAccount token,
+  #  username: account.username
+  #  email: account.email
 
-  # Store the auth date (in parallel, ignoring the outcome)
-  timestamp = "" + (new Date().getTime())
-  usermetaClient.set account.username, "auth", timestamp, (err, reply) ->
+  ## Store the auth date (in parallel, ignoring the outcome)
+  #timestamp = "" + (new Date().getTime())
+  #usermetaClient.set account.username, "auth", timestamp, (err, reply) ->
 
-  # Return REST-ready authentication data
-  {
-    username: account.username
-    email: account.email
-    token: token
-  }
+  ## Return REST-ready authentication data
+  #{
+  #  username: account.username
+  #  email: account.email
+  #  token: token
+  #}
 
 # callback(error, isBannedBoolean)
 checkBan = (username, callback) ->
@@ -742,9 +336,6 @@ initialize = (cb, options = {}) ->
   if !stormpathClient
     return cb new Error "no stormpath client"
 
-  if options.accountCreator
-    accountCreator = options.accountCreator
-
   if options.authdbClient
     authdbClient = options.authdbClient
   else
@@ -771,16 +362,20 @@ initialize = (cb, options = {}) ->
     bans = new Bans({redis: usermetaClient.redisClient})
 
   # Aliases
-  aliasesClient = aliases.createClient
-    usermetaClient: usermetaClient
+  aliasesClient = aliases.createClient {
+    usermetaClient }
 
   # Full names
-  fullnamesClient = fullnames.createClient
-    usermetaClient: usermetaClient
+  fullnamesClient = fullnames.createClient {
+    usermetaClient }
 
   # Friends
-  friendsClient = friendsStore.createClient
-    usermetaClient: usermetaClient
+  friendsClient = friendsStore.createClient {
+    usermetaClient }
+
+  # Authenticator
+  authenticator = authentication.createAuthenticator {
+    authdbClient, usermetaClient }
 
   # Facebook friends
   facebookFriends = require "./facebook-friends"
@@ -793,15 +388,23 @@ initialize = (cb, options = {}) ->
       friendsClient: options.friendsClient || friendsClient
       facebookClient: options.facebookClient || facebookClient
 
-  friendsApi = options.friendsApi || require("./friends-api").createApi
-    friendsClient: friendsClient
-    authMiddleware: authMiddleware
+  friendsApi = options.friendsApi || require("./friends-api").createApi {
+    friendsClient, authMiddleware }
 
-  if options.application
-    application = options.application
-    initializationDone cb
-  else
-    loadApplication cb
+  backendOpts = {
+    apiId: options.stormpathApiId
+    apiSecret: options.stormpathApiSecret
+    appName: options.stormpathAppName
+    aliasesClient
+    fullnamesClient
+    checkBan
+    facebookClient
+  }
+  createBackend backendOpts, (err, be) ->
+    if err
+      log.error err, "failed to create backend"
+    be = value
+    process.nextTick cb
 
 validateSecret = (req, res, next) ->
   present = apiSecret && req.body && req.body.apiSecret
