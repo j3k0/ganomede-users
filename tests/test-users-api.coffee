@@ -3,10 +3,11 @@ superagent = require 'superagent'
 fakeRedis = require "fakeredis"
 fakeAuthdb = require "./fake-authdb"
 fakeUsermeta = require "./fake-usermeta"
-fakeStormpath = require "./fake-stormpath"
 restify = require 'restify'
 api = require '../src/users-api'
 {expect} = require 'chai'
+{BanInfo} = require '../src/bans'
+td = require 'testdouble'
 
 PREFIX = 'users/v1'
 VALID_AUTH_TOKEN = 'deadbeef'
@@ -24,23 +25,32 @@ data =
     token: VALID_AUTH_TOKEN
   }]
 
-fakeApp =
-  sendPasswordResetEmail: (email, cb) ->
-    @emailSent = email
-    cb null
+baseTest = ->
+  log = td.object [ 'info', 'warn', 'error' ]
+  usermetaClient = td.object [ 'get', 'set', 'isValid' ]
+  usermetaClient.redisClient = td.object []
+  usermetaClient.validKeys = {}
+  backend = td.object [
+    'initialize'
+    'createAccount'
+    'sendPasswordResetEmail'
+  ]
+  createBackend = td.function 'createBackend'
+  td.when(createBackend(td.matchers.isA Object))
+    .thenReturn backend
+  callback = td.function 'callback'
+  authdbClient = fakeAuthdb.createClient()
+  options = { log, usermetaClient, createBackend, authdbClient }
+  { callback, options,
+    createBackend, backend, usermetaClient,
+    authdbClient }
 
-fakeAccountCreator =
-  create: (account, cb) ->
-    cb null,
-      username: account.username
+i = 0
+restTest = (done) ->
+  ret = baseTest()
+  td.when(ret.backend.initialize()).thenCallback null, ret.backend
 
-describe 'users-api', ->
-
-  server = null
-  authdb = null
-  # redis = null
-
-  endpoint = (token, path) ->
+  ret.endpoint = (token, path) ->
     if !path
       path = token
       token = null
@@ -50,206 +60,248 @@ describe 'users-api', ->
     else
       return "#{host}/#{PREFIX}#{path}"
 
-  i = 0
-  before (done) ->
-    @timeout 10000
-    i += 1
-    server = restify.createServer()
-    redis  = fakeRedis.createClient("test-usermeta-#{i}")
-    authdb = fakeAuthdb.createClient()
-    usermeta = fakeUsermeta.createClient(redis)
-    stormpath = fakeStormpath.createClient()
+  i += 1
+  server = restify.createServer()
+  redis  = td.object [] # fakeRedis.createClient("test-usermeta-#{i}")
+  usermeta = fakeUsermeta.createClient(redis)
+  ret.bans = td.object require('../src/bans').Bans
 
-    data.tokens.forEach (info) ->
-      authdb.addAccount(info.token, {
-        username: data.createAccount[info.createAccountKey].username
-      })
+  data.tokens.forEach (info) ->
+    ret.authdbClient.addAccount(info.token, {
+      username: data.createAccount[info.createAccountKey].username
+    })
 
+  ret.close = (done) ->
+    server.close()
+    done()
+
+  ret.start = (cb) ->
+    options =
+      # log: td.object [ 'info', 'warn', 'error' ]
+      usermetaClient: usermeta
+      authdbClient: ret.authdbClient
+      createBackend: ret.createBackend
+      bans: ret.bans
     api.initialize (err) ->
       if err
         throw err
       server.use(restify.bodyParser())
       api.addRoutes(PREFIX, server)
-      server.listen(1337, done)
-    ,
-      application: fakeApp
-      accountCreator: fakeAccountCreator,
-      authdbClient: authdb
-      usermetaClient: usermeta
-      stormpathClient: stormpath
+      server.listen(1337, cb)
+    , options
 
-  after (done) ->
-    server.close()
-    # server.once('close', redis.flushdb.bind(redis, done))
-    done()
+  ret
 
-  describe '/passwordResetEmail [POST] - Reset password', () ->
+describe 'users-api', ->
 
-    it "should send an email", (done) ->
-      superagent
-        .post endpoint "/passwordResetEmail"
-        .send data.passwordReset
-        .end (err, res) ->
-          assert.equal 200, res.status
-          assert.ok !err
-          assert.equal data.passwordReset.email, fakeApp.emailSent
-          done()
-      return
+  describe 'initialize()', ->
 
-  describe '/accounts [POST] - Create user account', () ->
+    it 'callbacks when done', ->
+      { callback, options, backend } = baseTest()
+      td.when(backend.initialize()).thenCallback null
+      api.initialize callback, options
+      td.verify callback()
 
-    it "should refuse short usernames", (done) ->
-      @timeout 10000
-      superagent
-        .post endpoint "/accounts"
-        .send data.createAccount.tooshort
-        .end (err, res) ->
-          assert.equal 400, res.status
-          assert.equal 'TooShortError', res.body.code
-          assert.ok err
-          done()
-      return
+    it 'fails when backend initialization fails', ->
+      err = new Error("failed")
+      { callback, options, backend } = baseTest()
+      td.when(backend.initialize()).thenCallback err
+      api.initialize callback, options
+      td.verify callback(err)
 
-    it "should refuse special characters", (done) ->
-      @timeout 10000
-      superagent
-        .post endpoint "/accounts"
-        .send data.createAccount.invalid
-        .end (err, res) ->
-          assert.equal 400, res.status
-          assert.equal 'BadUsernameError', res.body.code
-          assert.ok err
-          done()
-      return
+  describe 'REST API', ->
 
-    it "should refuse long usernames", (done) ->
-      @timeout 10000
-      superagent
-        .post endpoint "/accounts"
-        .send data.createAccount.toolong
-        .end (err, res) ->
-          assert.equal 400, res.status
-          assert.equal 'TooLongError', res.body.code
-          assert.ok err
-          done()
-      return
+    test = null
+    endpoint = null
+    beforeEach (done) ->
+      test = restTest()
+      endpoint = test.endpoint
+      test.start done
+    afterEach (done) ->
+      test.close done
 
-    it "should register valid users", (done) ->
-      @timeout 10000
-      superagent
-        .post endpoint "/accounts"
-        .send data.createAccount.valid
-        .end (err, res) ->
-          assert.equal 200, res.status
-          assert.ok !err
-          assert.equal data.createAccount.valid.username, res.body.username
-          done()
-      return
+    noError = (err) ->
+      if err
+        if err.response
+          console.dir err.response.error
+        else
+          console.dir err
+      assert.ok !err
 
-  describe '/banned-users Banning Users', () ->
-    username = data.createAccount.valid.username
-    started = Date.now()
+    describe '/passwordResetEmail [POST] - Reset password', () ->
 
-    describe 'POST', () ->
-      it 'bans people', (done) ->
+      it "should send an email", (done) ->
+        { backend } = test
+        td.when(backend.sendPasswordResetEmail data.passwordReset.email)
+          .thenCallback null
         superagent
-          .post endpoint('/banned-users')
-          .send({username, apiSecret: process.env.API_SECRET})
+          .post endpoint "/passwordResetEmail"
+          .send data.passwordReset
           .end (err, res) ->
-            expect(err).to.be.null
-            expect(res.status).to.equal(200)
+            noError err
+            assert.equal 200, res.status
+            expect(res.body).to.eql(ok:true)
             done()
         return
 
-      it 'requires apiSecret', (done) ->
+    describe '/accounts [POST] - Create user account', () ->
+
+      it "should refuse short usernames", (done) ->
         superagent
-          .post endpoint('/banned-users')
-          .send({username})
+          .post endpoint "/accounts"
+          .send data.createAccount.tooshort
           .end (err, res) ->
-            expect(err).to.be.instanceof(Error)
-            expect(res.status).to.equal(403)
+            assert.equal 400, res.status
+            assert.equal 'TooShortError', res.body.code
+            assert.ok err
             done()
         return
 
-    describe 'Banned users…', () ->
-      it 'can\'t login', (done) ->
+      it "should refuse special characters", (done) ->
         superagent
-          .post endpoint('/login')
-          .send({username, password: 'wever'})
+          .post endpoint "/accounts"
+          .send data.createAccount.invalid
           .end (err, res) ->
-            expect(err).to.be.instanceof(Error)
-            expect(res.status).to.be.equal(403)
-            expect(res.text).to.be.equal('')
+            assert.equal 400, res.status
+            assert.equal 'BadUsernameError', res.body.code
+            assert.ok err
             done()
         return
 
-      it 'can\'t access profile at /me', (done) ->
+      it "should refuse long usernames", (done) ->
         superagent
-          .get endpoint(VALID_AUTH_TOKEN, '/me')
+          .post endpoint "/accounts"
+          .send data.createAccount.toolong
           .end (err, res) ->
-            expect(err).to.be.instanceof(Error)
-            expect(res.status).to.be.equal(403)
-            expect(res.text).to.be.equal('')
+            assert.equal 400, res.status
+            assert.equal 'TooLongError', res.body.code
+            assert.ok err
             done()
         return
 
-      it 'nullifies authdb accounts after banned username
-          tries to access any :authToken endpoint', (done) ->
+      it "should register valid users", (done) ->
+
+        # Backend's create account will be called with this
+        { backend } = test
+        createAccountData =
+          id:       data.createAccount.valid.username
+          username: data.createAccount.valid.username
+          email:    data.createAccount.valid.email
+          password: data.createAccount.valid.password
+        td.when(backend.createAccount createAccountData)
+          .thenCallback null, data.createAccount.valid
+
         superagent
-          .get endpoint(VALID_AUTH_TOKEN, '/me')
+          .post endpoint "/accounts"
+          .send data.createAccount.valid
           .end (err, res) ->
-            expect(err).to.be.instanceof(Error)
-            expect(res.status).to.be.equal(403)
-
-            # make sure this is not "BANNED" 403
-            expect(res.text).to.include("not authorized")
-
+            noError err
+            assert.equal 200, res.status
+            assert.equal data.createAccount.valid.username, res.body.username
             done()
         return
 
-    describe 'GET /banned-users/:username', () ->
-      it 'returns ban timestamp', (done) ->
-        superagent
-          .get endpoint("/banned-users/#{username}")
-          .end (err, res) ->
-            expect(err).to.be.null
-            expect(res.status).to.equal(200)
-            expect(res.body).to.be.instanceof(Object)
-            expect(res.body).to.be.ok
-            expect(res.body.username).to.equal(username)
-            expect(res.body.exists).to.be.true
-            expect(res.body.createdAt).to.be.within(started, Date.now())
-            done()
-        return
+    describe '/banned-users Banning Users', () ->
 
-    describe 'DELETE', () ->
-      it 'removes bans', (done) ->
-        superagent
-          .del endpoint("/banned-users/#{username}")
-          .send({apiSecret: process.env.API_SECRET})
-          .end (err, res) ->
-            expect(err).to.be.null
+      username = data.createAccount.valid.username
+      BAN_TIMESTAMP=123
+      beforeEach ->
+        td.when(test.bans.get username)
+          .thenCallback null, new BanInfo(username, ''+BAN_TIMESTAMP)
 
-            superagent
-              .get endpoint("/banned-users/#{username}")
-              .end (err, res) ->
-                expect(err).to.be.null
-                expect(res.status).to.equal(200)
-                expect(res.body).to.eql({
-                  username,
-                  exists: false,
-                  createdAt: 0
-                })
-                done()
-        return
+      describe 'POST', () ->
 
-      it 'requires apiSecret', (done) ->
-        superagent
-          .del endpoint("/banned-users/#{username}")
-          .end (err, res) ->
-            expect(err).to.be.instanceof(Error)
-            expect(res.status).to.equal(403)
-            done()
-        return
+        it 'bans people', (done) ->
+          td.when(test.bans.ban username).thenCallback null
+          superagent
+            .post endpoint('/banned-users')
+            .send({username, apiSecret: process.env.API_SECRET})
+            .end (err, res) ->
+              noError err
+              expect(res.status).to.equal(200)
+              done()
+          return
+
+        it 'requires apiSecret', (done) ->
+          superagent
+            .post endpoint('/banned-users')
+            .send({username})
+            .end (err, res) ->
+              expect(err).to.be.instanceof(Error)
+              expect(res.status).to.equal(403)
+              done()
+          return
+
+      describe 'Banned users…', () ->
+
+        it 'can\'t login', (done) ->
+          superagent
+            .post endpoint('/login')
+            .send({username, password: 'wever'})
+            .end (err, res) ->
+              expect(err).to.be.instanceof(Error)
+              expect(res.status).to.be.equal(403)
+              expect(res.text).to.be.equal('')
+              done()
+          return
+
+        it 'can\'t access profile at /me', (done) ->
+          superagent
+            .get endpoint(VALID_AUTH_TOKEN, '/me')
+            .end (err, res) ->
+              expect(err).to.be.instanceof(Error)
+              expect(res.status).to.be.equal(403)
+              expect(res.text).to.be.equal('')
+              done()
+          return
+
+        it 'nullifies authdb accounts after banned username
+            tries to access any :authToken endpoint', (done) ->
+          expect(test.authdbClient.store[VALID_AUTH_TOKEN]).to.be.ok
+          superagent
+            .get endpoint(VALID_AUTH_TOKEN, '/me')
+            .end (err, res) ->
+              expect(err).to.be.instanceof(Error)
+              expect(res.status).to.be.equal(403)
+              expect(test.authdbClient.store[VALID_AUTH_TOKEN]).to.be.null
+              done()
+          return
+
+      describe 'GET /banned-users/:username', () ->
+        it 'returns ban timestamp', (done) ->
+          superagent
+            .get endpoint("/banned-users/#{username}")
+            .end (err, res) ->
+              expect(err).to.be.null
+              expect(res.status).to.equal(200)
+              expect(res.body).to.be.instanceof(Object)
+              expect(res.body).to.be.ok
+              expect(res.body.username).to.equal(username)
+              expect(res.body.exists).to.be.true
+              expect(res.body.createdAt).to.equal(BAN_TIMESTAMP)
+              done()
+          return
+
+      describe 'DELETE', () ->
+        it 'removes bans', (done) ->
+          td.when(test.bans.unban td.matchers.isA String)
+            .thenCallback null
+          superagent
+            .del endpoint("/banned-users/#{username}")
+            .send({apiSecret: process.env.API_SECRET})
+            .end (err, res) ->
+              noError err
+              td.verify(test.bans.unban username, td.callback)
+              done()
+          return
+
+        it 'requires apiSecret', (done) ->
+          superagent
+            .del endpoint("/banned-users/#{username}")
+            .end (err, res) ->
+              expect(err).to.be.instanceof(Error)
+              expect(res.status).to.equal(403)
+              done()
+          return
 
 # vim: ts=2:sw=2:et:
