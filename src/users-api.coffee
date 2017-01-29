@@ -3,7 +3,6 @@
 # Implements the users API using Stormpath
 #
 
-# stormpath = require "stormpath"
 authdb = require "authdb"
 authentication = require "./authentication"
 restify = require "restify"
@@ -16,8 +15,6 @@ fullnames = require "./fullnames"
 friendsStore = require "./friends-store"
 facebook = require "./facebook"
 usernameValidator = require "./username-validator"
-backend = require "./backend/stormpath"
-AccountCreator = require "./account-creator"
 {Bans} = require('./bans')
 
 sendError = (err, next) ->
@@ -119,43 +116,8 @@ loginDefault = (req, res, next) ->
       if err || !alias
         res.send data
       else
-        res.send addAuth(alias)
+        res.send authenticator.add(alias)
       next()
-
-loginAccount = (account, callback) ->
-  stats.increment 'stormpath.application.account.authenticate'
-  application.authenticateAccount account, (err, result) ->
-    if err
-      return callback err
-
-    # if successful, the result will have an account field
-    # with the successfully authenticated account:
-    stats.increment 'stormpath.auth.account.get'
-    result.getAccount (err, account) ->
-      if err
-        return callback err
-      callback null, addAuth(account)
-
-# Add authentication token in authDB, save 'auth' metadata.
-addAuth = (account) ->
-  authenticator.add account
-
-  ## Generate and save the token
-  #token = account.token || genToken()
-  #authdbClient.addAccount token,
-  #  username: account.username
-  #  email: account.email
-
-  ## Store the auth date (in parallel, ignoring the outcome)
-  #timestamp = "" + (new Date().getTime())
-  #usermetaClient.set account.username, "auth", timestamp, (err, reply) ->
-
-  ## Return REST-ready authentication data
-  #{
-  #  username: account.username
-  #  email: account.email
-  #  token: token
-  #}
 
 # callback(error, isBannedBoolean)
 checkBan = (username, callback) ->
@@ -239,29 +201,17 @@ getAccountSend = (req, res, next) ->
 # Send a password reset email
 passwordResetEmail = (req, res, next) ->
 
+  # Send emails using backend, check for failure
   sendEmail = (email) ->
     log.info "reset password", email:email
     stats.increment 'stormpath.application.passwordreset'
-    application.sendPasswordResetEmail email, (err, resetToken) ->
+    backend.sendPasswordResetEmail email, (err) ->
       if err
-        if err.code == 2016
-          log.error err
-          err = new restify.RestError
-            restCode: "EmailNotFoundError",
-            statusCode: err.status,
-            message: err.userMessage,
-          return sendError err, next
-        else if err.code == 2002
-          log.error err
-          err = new restify.RestError
-            restCode: "EmailBadFormatError",
-            statusCode: err.status,
-            message: err.userMessage,
-          return sendError err, next
-        else
-          return sendStormpathError err, next
-      res.send ok:true
-      next()
+        log.error err
+        sendError err, next
+      else
+        res.send ok:true
+        next()
 
   # It's possible to just specify the email address
   if req.body?.email
@@ -330,11 +280,8 @@ getMetadata = (req, res, next) ->
 # Initialize the module
 initialize = (cb, options = {}) ->
 
-  if options.stormpathClient
-    stormpathClient = options.stormpathClient
-
-  if !stormpathClient
-    return cb new Error "no stormpath client"
+  if options.log
+    log = options.log
 
   if options.authdbClient
     authdbClient = options.authdbClient
@@ -371,7 +318,7 @@ initialize = (cb, options = {}) ->
 
   # Friends
   friendsClient = friendsStore.createClient {
-    usermetaClient }
+    log, usermetaClient }
 
   # Authenticator
   authenticator = authentication.createAuthenticator {
@@ -395,16 +342,24 @@ initialize = (cb, options = {}) ->
     apiId: options.stormpathApiId
     apiSecret: options.stormpathApiSecret
     appName: options.stormpathAppName
+    log
     aliasesClient
     fullnamesClient
     checkBan
     facebookClient
   }
-  createBackend backendOpts, (err, be) ->
+
+  createBackend = options.createBackend ||
+    require("./backend/stormpath").createBackend
+
+  be = createBackend backendOpts
+  be.initialize (err, be) ->
     if err
       log.error err, "failed to create backend"
-    be = value
-    process.nextTick cb
+      cb err
+    else
+      backend = be
+      cb()
 
 validateSecret = (req, res, next) ->
   present = apiSecret && req.body && req.body.apiSecret
