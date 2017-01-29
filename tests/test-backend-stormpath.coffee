@@ -35,7 +35,9 @@ baseTest = ->
 
 initTest = ->
   ret = baseTest()
-  ret.application = td.object [ 'authenticateAccount' ]
+  ret.application = td.object [
+    'authenticateAccount'
+    'sendPasswordResetEmail' ]
 
   td.when(ret.client.getApplications())
     .thenCallback null, items: [ name: APP_NAME, href: APP_HREF ]
@@ -103,5 +105,24 @@ describe 'backend/stormpath', ->
       { backend, callback } = authTest()
       backend.loginAccount validAccount, callback
       td.verify callback null, token:AUTH_TOKEN
+
+  describe 'backend.createAccount()', ->
+
+  describe 'backend.sendPasswordResetEmail()', ->
+
+    it 'calls stormpath\'s sendPasswordResetEmail with email', ->
+      { backend, application, callback } = backendTest()
+      email = 'user@email.com'
+      backend.sendPasswordResetEmail email, callback
+      td.verify application.sendPasswordResetEmail({
+        email }, td.callback)
+
+    it 'calls the callback', ->
+      { backend, application, callback } = backendTest()
+      email = 'user@email.com'
+      td.when(application.sendPasswordResetEmail { email })
+        .thenCallback null
+      backend.sendPasswordResetEmail email, callback
+      td.verify callback null
 
 # vim: ts=2:sw=2:et:

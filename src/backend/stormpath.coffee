@@ -172,21 +172,23 @@ createBackend = ({
 
       # TODO: unit test
       sendPasswordResetEmail: (email, cb) ->
-        if err
-          if err.code == 2016
-            cb new restify.RestError
-              restCode: "EmailNotFoundError",
-              statusCode: err.status,
-              message: err.userMessage,
-          else if err.code == 2002
-            cb new restify.RestError
-              restCode: "EmailBadFormatError",
-              statusCode: err.status,
-              message: err.userMessage,
+        req = { email }
+        application.sendPasswordResetEmail req, (err) ->
+          if err
+            if err.code == 2016
+              cb new restify.RestError
+                restCode: "EmailNotFoundError",
+                statusCode: err.status,
+                message: err.userMessage,
+            else if err.code == 2002
+              cb new restify.RestError
+                restCode: "EmailBadFormatError",
+                statusCode: err.status,
+                message: err.userMessage,
+            else
+              cb convertedError err
           else
-            cb convertedError err
-        else
-          cb null
+            cb null
 
   initialize = (cb) ->
     loadApplication (err, app) ->
