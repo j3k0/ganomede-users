@@ -6,32 +6,11 @@ tagizer = require 'ganomede-tagizer'
 
 directory = require '../src/backend/directory'
 
-# test data
-EXISTING_USER =
-  id: 'ex1sTING'
-  username: 'ex1sTING'
-  email: 'user@email.com'
-  password: '123456'
-  token: 'auth-token'
-  facebook_id: '6777'
-  facebook_access_token: 'access-token'
-
-NEW_USER =
-  id: '1newUser'
-  username: '1newUser'
-  password: '123456'
-  email: 'newuser@email.com'
-
-picker = (fields) -> (obj) -> _.pick obj, fields
-
-credentials   = picker [ 'username', 'password' ]
-publicAccount = picker [ 'username', 'email' ]
-authResult    = picker [ 'token' ]
-account       = picker [ 'username', 'email', 'password' ]
-authAccount   = picker [ 'username', 'email', 'token' ]
-facebookAccount = picker [
-  'username', 'password', 'facebookId', 'accessToken' ]
-directoryAccount = picker [ 'id', 'password' ]
+{ EXISTING_USER, NEW_USER,
+  credentials, publicAccount, authResult,
+  account, authAccount, facebookAccount,
+  directoryAccount
+} = require './directory-data.coffee'
 
 # testdouble for the directory client
 directoryClientTD = ->
