@@ -2,18 +2,14 @@ restify = require 'restify'
 td = require 'testdouble'
 directoryClientMod = require '../src/directory-client'
 
-API_SECRET = 'my-api-secret'
-CREDS =
-  id: 'myuserid'
-  password: 'mypassword'
-WRONG_CREDS =
-  id: 'myuserid'
-  password: 'badpasswd'
-TOKEN = 'mytoken'
-ADD_ACCOUNT =
-  secret: API_SECRET
-  id: CREDS.id
-  password: CREDS.password
+{ EXISTING_USER, NEW_USER, API_SECRET,
+  authResult, directoryAccount
+} = require './directory-data.coffee'
+
+CREDS = directoryAccount(EXISTING_USER)
+WRONG_CREDS = directoryAccount(NEW_USER)
+ADD_ACCOUNT = directoryAccount(NEW_USER)
+ADD_ACCOUNT.secret = API_SECRET
 
 jsonClientTD = ->
   jsonClient = td.object [ 'post' ]
@@ -27,8 +23,9 @@ jsonClientTD = ->
 
   # attempt to authenticate with valid credentials
   td.when(jsonClient.post(
-    '/users/auth', td.matchers.contains(CREDS)))
-      .thenCallback null, null, status(200), token:TOKEN
+    '/users/auth',
+    td.matchers.contains directoryAccount(EXISTING_USER)))
+    .thenCallback null, null, status(200), authResult(EXISTING_USER)
 
   # ...
   td.when(jsonClient.post(
@@ -37,7 +34,7 @@ jsonClientTD = ->
 
   td.when(jsonClient.post(
     '/users', td.matchers.contains(ADD_ACCOUNT)))
-      .thenCallback null, null, status(200), id:CREDS.id
+      .thenCallback null, null, status(200), id:NEW_USER.id
 
   jsonClient
 
@@ -70,7 +67,7 @@ describe 'directory-client', ->
 
     it 'returns the generated token when response status is 200', ->
       { callback } = authenticate CREDS
-      td.verify callback null, td.matchers.contains(token:TOKEN)
+      td.verify callback null, td.matchers.contains(authResult EXISTING_USER)
 
   describe '.addAccount()', ->
 
@@ -96,16 +93,16 @@ describe 'directory-client', ->
         td.matchers.isA restify.InvalidContentError)
 
     it 'reports success', ->
-      { callback } = addAccount CREDS
-      td.verify callback(null, id:CREDS.id)
+      { callback } = addAccount directoryAccount(NEW_USER)
+      td.verify callback(null, id:NEW_USER.id)
 
     it 'sends a POST request to /directory/v1/users', ->
-      { jsonClient } = addAccount CREDS
+      { jsonClient } = addAccount directoryAccount(NEW_USER)
       td.verify jsonClient.post(
         '/users', td.matchers.contains(ADD_ACCOUNT), td.callback)
 
     it 'reports failure when response status is not 200', ->
-      { callback } = addAccount WRONG_CREDS
+      { callback } = addAccount directoryAccount(EXISTING_USER)
       td.verify callback td.matchers.isA(Error)
 
     it.skip 'reports failure when directory server is not reachable', ->
