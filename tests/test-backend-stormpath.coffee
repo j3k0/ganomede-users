@@ -106,7 +106,7 @@ describe 'backend/stormpath', ->
       backend.loginAccount validAccount, callback
       td.verify callback null, token:AUTH_TOKEN
 
-  describe 'backend.createAccount()', ->
+  describe.skip 'backend.createAccount()', ->
 
   describe 'backend.sendPasswordResetEmail()', ->
 

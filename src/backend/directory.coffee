@@ -1,3 +1,11 @@
+# returns a BackendInitializer object:
+#   an object with a initialize method.
+#
+# BackendInitializer.initialize(callback)
+#   initializes the backend,
+#   callback has the following signature:
+#     callback(err, backend)
+
 createBackend = ({
   directoryClient # see src/directory-client.coffee
   authenticator   # see src/authentication.coffee
@@ -6,6 +14,7 @@ createBackend = ({
   facebookClient  # see src/facebook.coffee
   checkBan        # signature: checkban(callback)
                   #            callback(err, banned)
+  tagizer = require 'ganomede-tagizer'
 }) ->
 
   loginFacebook = ({
@@ -29,7 +38,23 @@ createBackend = ({
     password
     email
   }, cb) ->
-    cb new Error "not implemented"
+    id = username
+    account = { id, password }
+    aliases = [{
+      type: 'email'
+      value: email
+      public: false
+    }, {
+      type: 'name'
+      value: username
+      public: true
+    }, {
+      type: 'tag'
+      value: tagizer(username)
+      public: true
+    }]
+    directoryClient.addAccount account, aliases, (err) ->
+      cb err
 
   sendPasswordResetEmail = (email, cb) ->
     cb new Error "not implemented"
