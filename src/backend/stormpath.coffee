@@ -170,7 +170,6 @@ createBackend = ({
             log.info createdAccount, "registered"
             that.loginAccount account, callback
 
-      # TODO: unit test
       sendPasswordResetEmail: (email, cb) ->
         req = { email }
         application.sendPasswordResetEmail req, (err) ->
