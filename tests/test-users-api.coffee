@@ -12,6 +12,9 @@ td = require 'testdouble'
 PREFIX = 'users/v1'
 VALID_AUTH_TOKEN = 'deadbeef'
 data =
+  validLogin:
+    username: 'jeko'
+    password: '12345678'
   createAccount:
     tooshort: username: '01'
     toolong: username: '01234567890'
@@ -26,24 +29,39 @@ data =
   }]
 
 baseTest = ->
+  #log = require '../src/log'
   log = td.object [ 'info', 'warn', 'error' ]
   usermetaClient = td.object [ 'get', 'set', 'isValid' ]
   usermetaClient.redisClient = td.object []
   usermetaClient.validKeys = {}
+
   backend = td.object [
     'initialize'
+    'loginAccount'
     'createAccount'
     'sendPasswordResetEmail'
   ]
   createBackend = td.function 'createBackend'
   td.when(createBackend(td.matchers.isA Object))
     .thenReturn backend
+  missAuthenticator = ({ authenticator }) -> !authenticator
+  td.when(createBackend(td.matchers.argThat missAuthenticator))
+    .thenThrow new Error()
+
+  authenticator = td.object [ 'add' ]
+
+  td.when(backend.loginAccount td.matchers.anything())
+    .thenCallback new restify.InvalidCredentialsError()
+  td.when(backend.loginAccount data.validLogin)
+    .thenCallback null, token:VALID_AUTH_TOKEN
+
   callback = td.function 'callback'
   authdbClient = fakeAuthdb.createClient()
-  options = { log, usermetaClient, createBackend, authdbClient }
+  options = { log, usermetaClient, createBackend, authdbClient,
+    authenticator }
   { callback, options,
     createBackend, backend, usermetaClient,
-    authdbClient }
+    authdbClient, authdbClient }
 
 i = 0
 restTest = (done) ->
@@ -127,6 +145,20 @@ describe 'users-api', ->
         else
           console.dir err
       assert.ok !err
+
+    describe.skip '/login [POST] - Logs in a user', ->
+
+      it "should accept valid credentials", (done) ->
+        { test } = test
+        superagent
+          .post endpoint '/login'
+          .send data.validLogin
+          .end (err, res) ->
+            noError err
+            assert.equal 200, res.status
+            expect(res.body).to.eql token:VALID_AUTH_TOKEN
+            done()
+        return
 
     describe '/passwordResetEmail [POST] - Reset password', () ->
 
