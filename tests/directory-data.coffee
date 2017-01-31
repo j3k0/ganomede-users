@@ -23,6 +23,13 @@ EXISTING_USER:
   facebook_id: '6777'
   facebook_access_token: 'access-token'
 
+SECONDARY_USER:
+  id: 's3cdary'
+  username: 's3cdary'
+  email: 'other@email.com'
+  password: '654321'
+  token: 'token-auth'
+
 NEW_USER:
   id: '1newUser'
   username: '1newUser'

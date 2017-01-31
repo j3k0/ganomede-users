@@ -27,11 +27,12 @@ jsonClientTD = ->
     td.matchers.contains directoryAccount(EXISTING_USER)))
     .thenCallback null, null, status(200), authResult(EXISTING_USER)
 
-  # ...
+  # attempt to create a user with random data
   td.when(jsonClient.post(
     '/users', td.matchers.anything()))
       .thenCallback null, null, status(400)
 
+  # attempt to create a user with valid account data from NEW_USER
   td.when(jsonClient.post(
     '/users', td.matchers.contains(ADD_ACCOUNT)))
       .thenCallback null, null, status(200), id:NEW_USER.id
@@ -39,7 +40,6 @@ jsonClientTD = ->
   jsonClient
 
 baseTest = ->
-
   callback = td.function 'callback'
   jsonClient = jsonClientTD()
   log = td.object [ 'info', 'warn', 'error' ]
@@ -47,6 +47,7 @@ baseTest = ->
     log, jsonClient, apiSecret:API_SECRET }
 
   { directoryClient, jsonClient, callback }
+
 
 describe 'directory-client', ->
 
