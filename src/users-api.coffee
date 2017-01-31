@@ -100,9 +100,9 @@ loginDefault = (req, res, next) ->
   account =
     username: req.body.username
     password: req.body.password
-  loginAccount account, (err, data) ->
+  backend.loginAccount account, (err, data) ->
     if err
-      return sendStormpathError err, next
+      return sendError err, next
 
     # login successful.
     # however, there may be an an alias for this account.
@@ -347,6 +347,7 @@ initialize = (cb, options = {}) ->
     fullnamesClient
     checkBan
     facebookClient
+    authenticator
   }
 
   createBackend = options.createBackend ||
