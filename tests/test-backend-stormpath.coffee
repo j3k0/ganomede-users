@@ -36,6 +36,7 @@ baseTest = ->
 initTest = ->
   ret = baseTest()
   ret.application = td.object [
+    'createAccount'
     'authenticateAccount'
     'sendPasswordResetEmail' ]
 
@@ -106,7 +107,32 @@ describe 'backend/stormpath', ->
       backend.loginAccount validAccount, callback
       td.verify callback null, token:AUTH_TOKEN
 
-  describe.skip 'backend.createAccount()', ->
+  describe 'backend.createAccount()', ->
+
+    validCreate =
+      username: 'jeko'
+      password: '12345678'
+      email:    'jeko@email.com'
+
+    createData =
+      givenName: "Email"
+      surname:  validCreate.username
+      username: validCreate.username
+      email:    validCreate.email
+      password: validCreate.password
+
+    it 'attempts to create an account with stormpath', ->
+      { backend, callback, application } = backendTest()
+      backend.createAccount validCreate, callback
+      td.verify application.createAccount(
+        createData, td.callback)
+
+    it 'fails when stormpath fails', ->
+      { backend, callback, application } = backendTest()
+      td.when(application.createAccount td.matchers.anything())
+        .thenCallback new Error()
+      backend.createAccount validCreate, callback
+      td.verify callback td.matchers.isA(Error)
 
   describe 'backend.sendPasswordResetEmail()', ->
 

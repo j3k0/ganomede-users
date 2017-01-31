@@ -4,6 +4,7 @@
 # as a second step to create other users management backends.
 
 stormpath = require 'stormpath'
+restify = require 'restify'
 helpers = require "ganomede-helpers"
 serviceConfig = helpers.links.ServiceEnv.config
 logMod = require '../log'
@@ -16,7 +17,7 @@ statusCode = (spErr) ->
 convertedError = (spErr) ->
   if spErr
     err = new restify.RestError
-      restCode: "Stormpath" + spErr.name + errorCode(spErr.code),
+      restCode: "Stormpath" + spErr.name + errorCode(spErr),
       statusCode: statusCode(spErr),
       message: spErr.userMessage,
     err.rawError = spErr
@@ -70,6 +71,9 @@ createBackend = ({
 
   if !stats
     stats = statsWrapper.createClient { log }
+
+  if !authenticator
+    throw new Error "authenticator missing"
 
   config = readConfig { appName, apiId, apiSecret }
   log.info config, 'stormpath config'
@@ -163,12 +167,12 @@ createBackend = ({
         application.createAccount account,
           (err, createdAccount) ->
             if err
-              return callback convertedError(err)
+              return cb convertedError(err)
             if createdAccount.status != "ENABLED"
-              return callback null,
+              return cb null,
                 token: null
             log.info createdAccount, "registered"
-            that.loginAccount account, callback
+            that.loginAccount account, cb
 
       sendPasswordResetEmail: (email, cb) ->
         req = { email }
