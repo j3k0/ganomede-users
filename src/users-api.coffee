@@ -16,6 +16,7 @@ friendsStore = require "./friends-store"
 facebook = require "./facebook"
 usernameValidator = require "./username-validator"
 {Bans} = require('./bans')
+urllib = require 'url'
 
 sendError = (err, next) ->
   if err.rawError
@@ -57,6 +58,7 @@ createAccount = (req, res, next) ->
     return sendError usernameError, next
 
   account =
+    req_id:   req.id() # pass over request id for better tracking
     id:       req.body.username
     username: req.body.username
     email:    req.body.email
@@ -350,8 +352,28 @@ initialize = (cb, options = {}) ->
     authenticator
   }
 
-  createBackend = options.createBackend ||
-    require("./backend/stormpath").createBackend
+  createBackend = options.createBackend
+  if !createBackend
+    if process.env.USE_STORMPATH_ONLY
+      { createBackend } = require './backend/stormpath'
+    else if process.env.USE_DIRECTORY_ONLY
+      directoryService = serviceConfig 'DIRECTORY', 8000
+      if !directoryService.exists
+        throw new Error "directory service not configured properly"
+      log.info { directoryService }
+      jsonClient = restify.createJsonClient
+        url: urllib.format
+          protocol: 'http'
+          hostname: directoryService.host
+          port:     directoryService.port
+          pathname: 'directory/v1'
+      backendOpts.directoryClient = require('./directory-client').createClient {
+        log, jsonClient
+      }
+      backendOpts.directoryClient
+      { createBackend } = require './backend/directory'
+    else
+      throw new Error "TODO: integrate failover"
 
   be = createBackend backendOpts
   be.initialize (err, be) ->

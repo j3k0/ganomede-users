@@ -21,9 +21,24 @@ createClient = ({
 
   endpoint = (subpath) -> pathname + subpath
 
+  jsonOptions = ({ path, req_id }) ->
+    options =
+      path: endpoint(path)
+    if req_id
+      options.headers =
+        "x-request-id": req_id
+    options
+
   authenticate = (credentials, callback) ->
-    url = endpoint '/users/auth'
-    jsonClient.post url, credentials, (err, req, res, body) =>
+
+    options = jsonOptions
+      path: '/users/auth'
+      req_id: credentials.req_id
+    body =
+      id: credentials.id
+      password: credentials.password
+
+    jsonClient.post options, body, (err, req, res, body) =>
 
       if err
         log.error "failed authenticate", err
@@ -39,18 +54,23 @@ createClient = ({
       else
         callback null, body
 
-  addAccount = (account = {}, aliases = [], callback) ->
+  addAccount = (account = {}, callback) ->
 
     if !account.id || !account.password
       return callback new restify.InvalidContentError(
         'Missing credentials')
-    url = endpoint '/users'
-    data =
+
+    options = jsonOptions
+      path: '/users'
+      req_id: account.req_id
+
+    body =
       secret: apiSecret
       id: account.id
       password: account.password
-      aliases: aliases
-    jsonClient.post url, data, (err, req, res, body) ->
+      aliases: account.aliases
+
+    jsonClient.post options, body, (err, req, res, body) ->
       if err
         callback err
       else if (res.statusCode != 200)
