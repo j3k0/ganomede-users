@@ -32,11 +32,27 @@ else {
     var restify = require("restify");
     var main = require("./src/main");
 
-    var server = restify.createServer();
+    var server = restify.createServer({
+        handleUncaughtExceptions: true,
+        log: log
+    });
 
     // Enable restify plugins
+    const requestLogger = (req, res, next) => {
+        req.log.info({req_id: req.id()}, `${req.method} ${req.url}`);
+        next();
+    };
+    server.use(requestLogger);
     server.use(restify.bodyParser());
-    server.use(restify.gzipResponse());
+    // Audit requests
+    server.on('after', restify.auditLogger({log: log}));
+    // server.use(restify.gzipResponse());
+    // Automatically add a request-id to the response
+    function setRequestId (req, res, next) {
+        res.setHeader('x-request-id', req.id());
+        return next();
+    }
+    server.use(setRequestId);
 
     // Handle uncaughtException, kill the worker
     server.on('uncaughtException', function (req, res, route, err) {

@@ -27,17 +27,17 @@ directoryClientTD = ->
 
   # .authenticate() with correct credentials
   td.when(directoryClient.authenticate(
-    td.matchers.contains credentials(EXISTING_USER)))
+    td.matchers.contains directoryAccount(EXISTING_USER)))
       .thenCallback null, authResult(EXISTING_USER)
 
   # .addAccount() succeeds
   td.when(directoryClient.addAccount(
-    td.matchers.anything(), td.matchers.anything()))
+    td.matchers.anything()))
       .thenCallback null
-      
+
   # .addAccount() fails if user already exists
   td.when(directoryClient.addAccount(
-    directoryAccount(EXISTING_USER), td.matchers.anything()))
+    td.matchers.contains(directoryAccount(EXISTING_USER))))
       .thenCallback new restify.ConflictError
 
   directoryClient
@@ -85,11 +85,12 @@ describe 'backend/directory', ->
       ret = backendTest()
       ret.backend.loginAccount credentials, ret.callback
       ret
-    
+
     it 'attempts to authenticate with directory', ->
       { directoryClient } = loginAccount credentials(EXISTING_USER)
       td.verify directoryClient.authenticate(
-        credentials(EXISTING_USER), td.callback)
+        td.matchers.contains(directoryAccount(EXISTING_USER)),
+        td.callback)
 
     it 'creates a auth token when login is successfull', ->
       { callback } = loginAccount credentials(EXISTING_USER)
@@ -106,8 +107,8 @@ describe 'backend/directory', ->
       ret.backend.createAccount account, ret.callback
       ret
 
-    hasAlias = (matchedAlias) -> (aliases) ->
-      aliases.filter((testedAlias) ->
+    hasAlias = (matchedAlias) -> (account) ->
+      account.aliases.filter((testedAlias) ->
         testedAlias.type == matchedAlias.type and
           testedAlias.value == matchedAlias.value and
           testedAlias.public == matchedAlias.public
@@ -116,7 +117,8 @@ describe 'backend/directory', ->
     it 'adds an account with the provided id and password', ->
       { directoryClient } = createAccount account(NEW_USER)
       td.verify directoryClient.addAccount(
-        directoryAccount(NEW_USER), td.matchers.anything(), td.callback)
+        td.matchers.contains(directoryAccount(NEW_USER)),
+        td.callback)
 
     it 'adds the email as a private alias', ->
       { directoryClient } = createAccount account(NEW_USER)
@@ -125,7 +127,6 @@ describe 'backend/directory', ->
         public: false
         value: NEW_USER.email
       td.verify directoryClient.addAccount(
-        directoryAccount(NEW_USER),
         td.matchers.argThat(hasAlias(emailAlias)),
         td.callback)
 
@@ -136,7 +137,6 @@ describe 'backend/directory', ->
         public: true
         value: NEW_USER.username
       td.verify directoryClient.addAccount(
-        directoryAccount(NEW_USER),
         td.matchers.argThat(hasAlias(nameAlias)),
         td.callback)
 
@@ -147,7 +147,6 @@ describe 'backend/directory', ->
         public: true
         value: tagizer(NEW_USER.username)
       td.verify directoryClient.addAccount(
-        directoryAccount(NEW_USER),
         td.matchers.argThat(hasAlias(tagAlias)),
         td.callback)
 

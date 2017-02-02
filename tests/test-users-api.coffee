@@ -220,8 +220,9 @@ describe 'users-api', ->
           username: data.createAccount.valid.username
           email:    data.createAccount.valid.email
           password: data.createAccount.valid.password
-        td.when(backend.createAccount createAccountData)
-          .thenCallback null, data.createAccount.valid
+        td.when(backend.createAccount(
+          td.matchers.contains(createAccountData)))
+            .thenCallback null, data.createAccount.valid
 
         superagent
           .post endpoint "/accounts"

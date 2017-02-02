@@ -18,23 +18,23 @@ jsonClientTD = ->
   status = (code) -> statusCode:code
 
   td.when(jsonClient.post(
-    '/users/auth', td.matchers.anything()))
+    td.matchers.contains(path: '/users/auth'), td.matchers.anything()))
       .thenCallback null, null, status(401)
 
   # attempt to authenticate with valid credentials
   td.when(jsonClient.post(
-    '/users/auth',
+    td.matchers.contains(path: '/users/auth'),
     td.matchers.contains directoryAccount(EXISTING_USER)))
     .thenCallback null, null, status(200), authResult(EXISTING_USER)
 
   # attempt to create a user with random data
   td.when(jsonClient.post(
-    '/users', td.matchers.anything()))
+    td.matchers.contains(path:'/users'), td.matchers.anything()))
       .thenCallback null, null, status(400)
 
   # attempt to create a user with valid account data from NEW_USER
   td.when(jsonClient.post(
-    '/users', td.matchers.contains(ADD_ACCOUNT)))
+    td.matchers.contains(path: '/users'), td.matchers.contains(ADD_ACCOUNT)))
       .thenCallback null, null, status(200), id:NEW_USER.id
 
   jsonClient
@@ -43,6 +43,7 @@ baseTest = ->
   callback = td.function 'callback'
   jsonClient = jsonClientTD()
   log = td.object [ 'info', 'warn', 'error' ]
+  # log = require '../src/log'
   directoryClient = directoryClientMod.createClient {
     log, jsonClient, apiSecret:API_SECRET }
 
@@ -60,7 +61,9 @@ describe 'directory-client', ->
 
     it 'sends a POST request to /directory/v1/users/auth with credentials', ->
       { jsonClient } = authenticate CREDS
-      td.verify jsonClient.post('/users/auth', CREDS, td.callback)
+      td.verify jsonClient.post(
+        td.matchers.contains(path: '/users/auth'),
+        CREDS, td.callback)
 
     it 'reports failure when response status is not 200', ->
       { callback } = authenticate WRONG_CREDS
@@ -72,9 +75,9 @@ describe 'directory-client', ->
 
   describe '.addAccount()', ->
 
-    addAccount = (account, aliases) ->
+    addAccount = (account) ->
       ret = baseTest()
-      ret.directoryClient.addAccount account, aliases, ret.callback
+      ret.directoryClient.addAccount account, ret.callback
       ret
 
     it 'requires credentials as argument', ->
@@ -83,13 +86,13 @@ describe 'directory-client', ->
         td.matchers.isA restify.InvalidContentError)
 
     it 'requires an argument with id and password fields', ->
-      { callback } = addAccount {}, []
+      { callback } = addAccount {}
       td.verify callback(
         td.matchers.isA restify.InvalidContentError)
-      { callback } = addAccount {id:CREDS.id}, []
+      { callback } = addAccount {id:CREDS.id}
       td.verify callback(
         td.matchers.isA restify.InvalidContentError)
-      { callback } = addAccount {password:CREDS.password}, []
+      { callback } = addAccount {password:CREDS.password}
       td.verify callback(
         td.matchers.isA restify.InvalidContentError)
 
@@ -100,7 +103,8 @@ describe 'directory-client', ->
     it 'sends a POST request to /directory/v1/users', ->
       { jsonClient } = addAccount directoryAccount(NEW_USER)
       td.verify jsonClient.post(
-        '/users', td.matchers.contains(ADD_ACCOUNT), td.callback)
+        td.matchers.contains(path: '/users'),
+        td.matchers.contains(ADD_ACCOUNT), td.callback)
 
     it 'reports failure when response status is not 200', ->
       { callback } = addAccount directoryAccount(EXISTING_USER)
