@@ -17,7 +17,11 @@ Configuration
  * `REDIS_AUTH_PORT_6379_TCP_PORT` - Port of the AuthDB redis
  * `REDIS_USERMETA_PORT_6379_TCP_ADDR` - IP of the usermeta redis
  * `REDIS_USERMETA_PORT_6379_TCP_PORT` - Port of the usermeta redis
- * `FACEBOOK_APP_SECRET`
+ * `FACEBOOK_APP_ID` - Id of the Facebook application
+ * `FACEBOOK_APP_SECRET` - Secret of the Facebook application
+ * `LEGACY_ERROR_CODES` - Use stormpath compatible error codes
+ * `USE_STORMPATH_ONLY` - Only enable the Stormpath backend
+ * `USE_DIRECTORY_ONLY` - Only enable the Directory backend
 
 API
 ---

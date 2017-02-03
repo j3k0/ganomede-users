@@ -6,10 +6,11 @@ tagizer = require 'ganomede-tagizer'
 
 directory = require '../src/backend/directory'
 
-{ EXISTING_USER, NEW_USER,
+{ EXISTING_USER, SECONDARY_USER, NEW_USER, APP_ID,
   credentials, publicAccount, authResult,
   account, authAccount, facebookAccount,
-  directoryAccount
+  directoryAccount, directoryAliasesObj,
+  facebookLogin
 } = require './directory-data.coffee'
 
 # testdouble for the directory client
@@ -18,6 +19,7 @@ directoryClientTD = ->
   directoryClient = td.object [
     'authenticate'
     'addAccount'
+    'byAlias'
   ]
 
   # .authenticate() with wrong credentials
@@ -40,24 +42,71 @@ directoryClientTD = ->
     td.matchers.contains(directoryAccount(EXISTING_USER))))
       .thenCallback new restify.ConflictError
 
+  # .byAlias() fails when alias not in directory
+  td.when(directoryClient.byAlias(
+    td.matchers.anything()))
+      .thenCallback new restify.NotFoundError()
+
+  # .byAlias() loads existing user by facebook id
+  td.when(directoryClient.byAlias(
+    td.matchers.contains
+      type: "facebook.id.#{APP_ID}"
+      value: EXISTING_USER.facebook_id
+  )).thenCallback null,
+    id: EXISTING_USER.id
+    aliases: directoryAliasesObj EXISTING_USER
+
   directoryClient
 
 authenticatorTD = ->
 
   authenticator = td.object [ 'add' ]
-  td.when(authenticator.add(
-    td.matchers.contains publicAccount EXISTING_USER))
-      .thenReturn authAccount EXISTING_USER
+  addUser = (user) ->
+    td.when(authenticator.add(
+      td.matchers.contains publicAccount user))
+        .thenReturn authAccount user
+  [ EXISTING_USER, SECONDARY_USER, NEW_USER ].forEach addUser
+  authenticator
+
+fbgraphTD = ->
+
+  fbgraph = td.object [ 'get' ]
+  td.when(fbgraph.get(td.matchers.anything()))
+    .thenCallback new Error("fbgraph.get failed")
+  addUser = (user) ->
+    token = "access_token=#{user.facebook_access_token}"
+    uri = "/me?fields=id,name,email&#{token}"
+    td.when(fbgraph.get(uri))
+      .thenCallback null,
+        id: user.facebook_id
+        email: user.email
+        fullName: user.fullName
+  [ EXISTING_USER, SECONDARY_USER, NEW_USER ].forEach addUser
+  fbgraph
+
+aliasesClientTD = ->
+  aliasesClient = td.object [ 'get' ]
+
+  td.when(aliasesClient.get td.matchers.isA String)
+    .thenCallback null, ''
+
+  td.when(aliasesClient.get "fb:#{SECONDARY_USER.facebook_id}")
+    .thenCallback null, SECONDARY_USER.username
+
+  aliasesClient
 
 baseTest = ->
   log = td.object [ 'info', 'warn', 'error' ]
+  fbgraph = fbgraphTD()
   directoryClient = directoryClientTD()
   authenticator = authenticatorTD()
+  aliasesClient = aliasesClientTD()
   backend = directory.createBackend {
-    log, authenticator, directoryClient }
+    log, authenticator, directoryClient, fbgraph,
+    facebookAppId: APP_ID, aliasesClient }
   callback = td.function 'callback'
-  { callback, directoryClient, backend }
-  
+  { callback, directoryClient, backend, aliasesClient }
+
 backendTest = ->
   ret = baseTest()
   ret.backend.initialize (err, backend) ->
@@ -174,6 +223,64 @@ describe 'backend/directory', ->
       { callback } = sendPasswordResetEmail "wrong-email"
       td.verify callback td.matchers.isA Error
 
-  describe.skip 'backend.loginFacebook()', ->
+  describe 'backend.loginFacebook()', ->
+
+    loginFacebook = (account, callback) ->
+      ret = backendTest()
+      ret.backend.loginFacebook account, callback || ret.callback
+      ret
+
+    loginWithout = (fieldname) ->
+      data =
+        accessToken: 'dummy'
+        username: 'dummy'
+        password: 'dummy'
+      delete data[fieldname]
+      { callback } = loginFacebook data, (err) ->
+        expect(err).to.be.a(restify.BadRequestError)
+
+    it 'requires an accessToken', -> loginWithout 'accessToken'
+    it 'requires an username', -> loginWithout 'username'
+    it 'requires an password', -> loginWithout 'password'
+
+    it 'checks facebook id with directory client', (done) ->
+      { directoryClient } = loginFacebook facebookLogin(NEW_USER),
+      (err, account) ->
+        expect(err).to.be.null
+        td.verify directoryClient.byAlias(
+          td.matchers.contains(
+            type: "facebook.id.#{APP_ID}"
+            value: NEW_USER.facebook_id),
+          td.callback)
+        done()
+
+    it 'checks "fb:facebook_id" alias if not in directory', (done) ->
+      { aliasesClient } = loginFacebook facebookLogin(NEW_USER),
+      (err, account) ->
+        td.verify aliasesClient.get(
+          "fb:#{NEW_USER.facebook_id}",
+          td.callback)
+        done()
+
+    it 'logins directory-existing users', (done) ->
+      loginFacebook facebookLogin(EXISTING_USER),
+      (err, account) ->
+        expect(err).to.be.null
+        expect(account.token).to.eql EXISTING_USER.token
+        done()
+
+    it 'logins legacy-existing users', (done) ->
+      loginFacebook facebookLogin(SECONDARY_USER),
+      (err, account) ->
+        expect(err).to.be.null
+        expect(account.token).to.eql SECONDARY_USER.token
+        done()
+
+    it 'registers non existing user', (done) ->
+      loginFacebook facebookLogin(NEW_USER),
+      (err, account) ->
+        expect(err).to.be.null
+        expect(account.token).to.eql NEW_USER.token
+        done()
 
 # vim: ts=2:sw=2:et:
