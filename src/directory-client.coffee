@@ -73,7 +73,7 @@ createClient = ({
     jsonClient.post options, body, (err, req, res, body) ->
       if err
         callback err
-      else if (res.statusCode != 200)
+      else if res.statusCode != 200
         log.error "failed to create account", code:res.statusCode
         callback new Error "HTTP#{res.statusCode}"
       else if !body
@@ -103,7 +103,23 @@ createClient = ({
   #    copyGameFields game, body
   #    callback(null, null, body)
 
-  { endpoint, authenticate, addAccount }
+  byAlias = ({ type, value, req_id }, callback) ->
+
+    options = jsonOptions
+      path: "/users/alias/#{type}/#{value}"
+      req_id: req_id
+    jsonClient.get options, (err, req, res, body) ->
+      if err
+        callback err
+      else if res.statusCode != 200
+        callback new Error "HTTP#{res.statusCode}"
+      else if !body
+        callback new restify.InvalidContentError(
+          'Server replied with no data')
+      else
+        callback null, body
+
+  { endpoint, authenticate, addAccount, byAlias }
 
 module.exports = { createClient }
 # vim: ts=2:sw=2:et:
