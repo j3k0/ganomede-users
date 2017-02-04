@@ -15,38 +15,8 @@ failover = require '../src/backend/failover'
 { EXISTING_USER, SECONDARY_USER, NEW_USER,
   credentials, publicAccount, authResult,
   account, authAccount, facebookAccount,
-  directoryAccount
+  directoryAccount, facebookLogin
 } = require './directory-data.coffee'
-
-# testdouble for the directory client
-directoryClientTD = ->
-
-  directoryClient = td.object [
-    'authenticate'
-    'addAccount'
-  ]
-
-  # .authenticate() with wrong credentials
-  td.when(directoryClient.authenticate(
-    td.matchers.anything()))
-      .thenCallback new restify.InvalidCredentialsError()
-
-  # .authenticate() with correct credentials
-  td.when(directoryClient.authenticate(
-    td.matchers.contains credentials(EXISTING_USER)))
-      .thenCallback null, authResult(EXISTING_USER)
-
-  # .addAccount() succeeds
-  td.when(directoryClient.addAccount(
-    td.matchers.anything(), td.matchers.anything()))
-      .thenCallback null
-      
-  # .addAccount() fails if user already exists
-  td.when(directoryClient.addAccount(
-    directoryAccount(EXISTING_USER), td.matchers.anything()))
-      .thenCallback new restify.ConflictError
-
-  directoryClient
 
 authenticatorTD = ->
 
@@ -73,20 +43,29 @@ backendTD = (existing) ->
     td.matchers.contains credentials(existing)))
     .thenCallback null, authResult(existing)
 
+  # login with facebook
+  td.when(backend.loginFacebook(
+    td.matchers.anything()))
+    .thenCallback new Error("failed facebook login")
+
+  # login with facebook
+  td.when(backend.loginFacebook(
+    td.matchers.contains facebookLogin(existing)))
+    .thenCallback null, authResult(existing)
+
   # initialize() returns the backend object
   td.when(ret.initialize()).thenCallback null, backend
   ret
 
 baseTest = ->
   log = td.object [ 'info', 'warn', 'error' ]
-  directoryClient = directoryClientTD()
   authenticator = authenticatorTD()
   primary = backendTD EXISTING_USER
   secondary = backendTD SECONDARY_USER
   backend = failover.createBackend {
     log, authenticator, primary, secondary }
   callback = td.function 'callback'
-  { callback, directoryClient, backend, primary, secondary }
+  { callback, backend, primary, secondary }
   
 backendTest = ->
   ret = baseTest()
@@ -214,7 +193,19 @@ describe 'backend/failover', ->
       { callback } = sendPasswordResetEmail "wrong-email"
       td.verify callback td.matchers.isA Error
 
-  describe.skip 'backend.loginFacebook()', ->
+  describe 'backend.loginFacebook()', ->
+
+    loginFacebook = (account) ->
+      ret = backendTest()
+      ret.backend.loginFacebook account, ret.callback
+      ret
+    
+    it 'attempts login with primary backend', ->
+      account = facebookLogin EXISTING_USER
+      { callback, primary } = loginFacebook account
+      td.verify primary.loginFacebook(account, td.callback)
+      td.verify callback(null, authResult(EXISTING_USER))
+
 
 # vim: ts=2:sw=2:et:
 
