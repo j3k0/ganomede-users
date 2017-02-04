@@ -277,10 +277,13 @@ describe 'backend/directory', ->
         done()
 
     it 'registers non existing user', (done) ->
-      loginFacebook facebookLogin(NEW_USER),
+      { directoryClient } = loginFacebook facebookLogin(NEW_USER),
       (err, account) ->
         expect(err).to.be.null
         expect(account.token).to.eql NEW_USER.token
+        td.verify directoryClient.addAccount(
+          td.matchers.contains(id:NEW_USER.id),
+          td.callback)
         done()
 
 # vim: ts=2:sw=2:et:
