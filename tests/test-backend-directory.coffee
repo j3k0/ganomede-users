@@ -4,6 +4,9 @@ td = require 'testdouble'
 {expect} = require 'chai'
 tagizer = require 'ganomede-tagizer'
 
+# Disable delayed calls. We're doing synchronous tests.
+global.setImmediate = (func) -> func()
+
 directory = require '../src/backend/directory'
 
 { EXISTING_USER, SECONDARY_USER, NEW_USER, APP_ID,
@@ -236,54 +239,46 @@ describe 'backend/directory', ->
         username: 'dummy'
         password: 'dummy'
       delete data[fieldname]
-      { callback } = loginFacebook data, (err) ->
-        expect(err).to.be.a(restify.BadRequestError)
+      { callback } = loginFacebook data
+      td.verify callback(td.matchers.isA restify.BadRequestError)
 
     it 'requires an accessToken', -> loginWithout 'accessToken'
     it 'requires an username', -> loginWithout 'username'
     it 'requires an password', -> loginWithout 'password'
 
-    it 'checks facebook id with directory client', (done) ->
-      { directoryClient } = loginFacebook facebookLogin(NEW_USER),
-      (err, account) ->
-        expect(err).to.be.null
-        td.verify directoryClient.byAlias(
-          td.matchers.contains(
-            type: "facebook.id.#{APP_ID}"
-            value: NEW_USER.facebook_id),
-          td.callback)
-        done()
+    it 'checks facebook id with directory client', ->
+      { directoryClient, callback } =
+        loginFacebook facebookLogin(NEW_USER)
+      td.verify callback null, td.matchers.anything()
+      td.verify directoryClient.byAlias(
+        td.matchers.contains(
+          type: "facebook.id.#{APP_ID}"
+          value: NEW_USER.facebook_id),
+        td.callback)
 
-    it 'checks "fb:facebook_id" alias if not in directory', (done) ->
-      { aliasesClient } = loginFacebook facebookLogin(NEW_USER),
-      (err, account) ->
-        td.verify aliasesClient.get(
-          "fb:#{NEW_USER.facebook_id}",
-          td.callback)
-        done()
+    it 'checks "fb:facebook_id" alias if not in directory', ->
+      { aliasesClient, callback } = loginFacebook facebookLogin(NEW_USER)
+      td.verify aliasesClient.get(
+        "fb:#{NEW_USER.facebook_id}",
+        td.callback)
 
-    it 'logins directory-existing users', (done) ->
-      loginFacebook facebookLogin(EXISTING_USER),
-      (err, account) ->
-        expect(err).to.be.null
-        expect(account.token).to.eql EXISTING_USER.token
-        done()
+    it 'logins directory-existing users', ->
+      { callback } = loginFacebook facebookLogin(EXISTING_USER)
+      td.verify callback null, td.matchers.contains
+        token: EXISTING_USER.token
 
-    it 'logins legacy-existing users', (done) ->
-      loginFacebook facebookLogin(SECONDARY_USER),
-      (err, account) ->
-        expect(err).to.be.null
-        expect(account.token).to.eql SECONDARY_USER.token
-        done()
+    it 'logins legacy-existing users', ->
+      { callback } = loginFacebook facebookLogin(SECONDARY_USER)
+      td.verify callback null, td.matchers.contains
+        token: SECONDARY_USER.token
 
-    it 'registers non existing user', (done) ->
-      { directoryClient } = loginFacebook facebookLogin(NEW_USER),
-      (err, account) ->
-        expect(err).to.be.null
-        expect(account.token).to.eql NEW_USER.token
-        td.verify directoryClient.addAccount(
-          td.matchers.contains(id:NEW_USER.id),
-          td.callback)
-        done()
+    it 'registers non existing user', ->
+      { directoryClient, callback } =
+        loginFacebook facebookLogin(NEW_USER)
+      td.verify callback null, td.matchers.contains
+        token:NEW_USER.token
+      td.verify directoryClient.addAccount(
+        td.matchers.contains(id:NEW_USER.id),
+        td.callback)
 
 # vim: ts=2:sw=2:et:
