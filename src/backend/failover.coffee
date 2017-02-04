@@ -31,7 +31,7 @@ createBackend = ({
     loginFacebook = (account, cb) ->
       primary.loginFacebook account, (err, result) ->
         if err
-          secondary.loginFacebook credentials, cb
+          secondary.loginFacebook account, cb
         else
           cb null, result
 
