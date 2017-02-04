@@ -15,9 +15,9 @@ testw:
 	./node_modules/.bin/mocha --watch ${MOCHA_ARGS} | ${BUNYAN}
 
 coverage: test
-	@mkdir -p doc
-	./node_modules/.bin/mocha -b --compilers coffee:coffee-script/register --require blanket -R html-cov tests | ./node_modules/.bin/bunyan -l ${BUNYAN_LEVEL} > doc/coverage.html
-	@echo "coverage exported to doc/coverage.html"
+	./node_modules/.bin/mocha -b --compilers coffee:coffee-script/register --require coffee-coverage/register-istanbul tests/
+	./node_modules/.bin/istanbul report
+	@echo "coverage exported to file://`pwd`/coverage/lcov-report/index.html"
 
 run: check
 	node index.js | ./node_modules/.bin/bunyan -l ${BUNYAN_LEVEL}
