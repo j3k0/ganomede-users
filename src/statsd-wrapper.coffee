@@ -18,8 +18,9 @@ missingEnv = () ->
       return e
   return undefined
 
-createClient = () ->
+createClient = ({
   log = logMod.child(module: "statsd")
+} = {}) ->
   if missingEnv()
     log.warn "Can't initialize statsd, missing env: " + missingEnv()
     return dummyClient()
@@ -31,4 +32,6 @@ createClient = () ->
     log.error "error in socket", error
   return client
 
-module.exports = createClient()
+module.exports =
+  createClient: createClient
+  dummyClient: dummyClient
