@@ -25,9 +25,8 @@ createClient = (options) ->
   }
 
 clientFactory = (key) ->
-  (options) ->
-    options.key = key
-    createClient options
+  ({ usermetaClient }) ->
+    createClient { usermetaClient, key }
 
 module.exports =
   createClient: createClient

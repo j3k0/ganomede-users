@@ -1,0 +1,125 @@
+#
+# Talks to directory server
+#
+
+restify = require 'restify'
+logMod = require './log'
+clone = (obj) -> JSON.parse(JSON.stringify(obj))
+
+createClient = ({
+  jsonClient
+  log
+  apiSecret = process.env.API_SECRET
+}) ->
+
+  if !jsonClient
+    throw new Error('jsonClient required')
+
+  pathname = jsonClient.url?.pathname || ''
+  log = log || logMod.child directoryClient:pathname
+  log.info { pathname }, "DirectoryClient created"
+
+  endpoint = (subpath) -> pathname + subpath
+
+  jsonOptions = ({ path, req_id }) ->
+    options =
+      path: endpoint(path)
+    if req_id
+      options.headers =
+        "x-request-id": req_id
+    options
+
+  authenticate = (credentials, callback) ->
+
+    options = jsonOptions
+      path: '/users/auth'
+      req_id: credentials.req_id
+    body =
+      id: credentials.id
+      password: credentials.password
+
+    jsonClient.post options, body, (err, req, res, body) =>
+
+      if err
+        log.error "failed authenticate", err
+        callback(err)
+
+      else if res.statusCode == 401
+        callback new restify.InvalidCredentialsError()
+
+      else if (res.statusCode != 200)
+        log.error "failed to authenticate", code:res.statusCode
+        callback new Error "HTTP#{res.statusCode}"
+
+      else
+        callback null, body
+
+  addAccount = (account = {}, callback) ->
+
+    if !account.id || !account.password
+      return callback new restify.InvalidContentError(
+        'Missing credentials')
+
+    options = jsonOptions
+      path: '/users'
+      req_id: account.req_id
+
+    body =
+      secret: apiSecret
+      id: account.id
+      password: account.password
+      aliases: account.aliases
+
+    jsonClient.post options, body, (err, req, res, body) ->
+      if err
+        callback err
+      else if res.statusCode != 200
+        log.error "failed to create account", code:res.statusCode
+        callback new Error "HTTP#{res.statusCode}"
+      else if !body
+        callback new restify.InvalidContentError(
+          'Server replied with no data')
+      else
+        callback null, body
+
+  # POST /moves
+  # @game should contain moveData to post
+  # callback(err, directoryError, newState)
+  #moves = (game, callback) ->
+  #  url = endpoint('/moves')
+  #  # @log.info { url:url }, "post /moves"
+  #  jsonClient.post url, game, (err, req, res, body) =>
+  #    if (err)
+  #      restifyError = body && (err instanceof restify.RestError)
+  #      if restifyError
+  #        log.warn 'moves() rejected move with directory error', {
+  #          err, body, game }
+  #        return callback(null, err)
+  #      else
+  #        log.error 'DirectoryClient.moves() failed', {
+  #          err, game }
+  #        return callback(err)
+
+  #    copyGameFields game, body
+  #    callback(null, null, body)
+
+  byAlias = ({ type, value, req_id }, callback) ->
+
+    options = jsonOptions
+      path: "/users/alias/#{type}/#{value}"
+      req_id: req_id
+    jsonClient.get options, (err, req, res, body) ->
+      if err
+        callback err
+      else if res.statusCode != 200
+        callback new Error "HTTP#{res.statusCode}"
+      else if !body
+        callback new restify.InvalidContentError(
+          'Server replied with no data')
+      else
+        callback null, body
+
+  { endpoint, authenticate, addAccount, byAlias }
+
+module.exports = { createClient }
+# vim: ts=2:sw=2:et:

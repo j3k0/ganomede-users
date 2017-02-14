@@ -1,6 +1,7 @@
 users:
     build: .
     dockerfile: Dockerfile.dev
+    command: node index.js
     volumes:
      - ./src:/home/app/code/src
      - ./tests:/home/app/code/tests
@@ -13,17 +14,24 @@ users:
      - "STORMPATH_API_ID=6OWYNFQMZS845XUYL1OTKHHWF"
      - "STORMPATH_API_SECRET=npdPqM6G+BofGsCc7bxer+knkUgEJJC7QEwqcFcBvqQ"
      - "STORMPATH_APP_NAME=Ganomede"
+     - "DIRECTORY_PORT_8000_TCP_PORT=8000"
+     - "DIRECTORY_PORT_8000_TCP_ADDR=172.17.0.1"
+     - "USE_DIRECTORY_ONLY=1"
+     - "LEGACY_ERROR_CODES=1"
+     - "API_SECRET=1234"
     ports:
-     - "8000"
+     - "8001:8000"
 
 usersRedisCache:
     image: tutum/redis:latest
     environment:
      - "REDIS_PASS=**None**"
+
 authRedis:
     image: tutum/redis:latest
     environment:
      - "REDIS_PASS=**None**"
+
 usermetaRedis:
     image: tutum/redis:latest
     environment:

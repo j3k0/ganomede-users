@@ -1,5 +1,3 @@
-log = require("./log").child(module:"friends-store")
-
 uniq = (a) ->
   has = {}
   a.filter (item) ->
@@ -9,6 +7,11 @@ uniq = (a) ->
       return has[item] = true
 
 createStore = (options) ->
+
+  if options.log
+    log = options.log
+  else
+    log = require("./log").child(module:"friends-store")
 
   # Constants
   KEY_NAME = options.keyName || "$friends"
