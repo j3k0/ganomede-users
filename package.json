@@ -1,6 +1,6 @@
 {
   "name": "users",
-  "version": "1.4.2",
+  "version": "1.5.0",
   "api": "users/v1",
   "description": "users micro service",
   "private": true,
@@ -19,7 +19,6 @@
   "dependencies": {
     "async": "^2.0.1",
     "authdb": "^0.3.0",
-    "blanket": "^1.1.6",
     "bunyan": "^1.2.3",
     "coffee-script": "^1.8.0",
     "coffeelint": "^1.6.1",
@@ -29,7 +28,9 @@
     "fbgraph": "^1.0.0",
     "forever": "^0.15.3",
     "ganomede-helpers": "^1.0.2",
+    "ganomede-tagizer": "^1.0.0",
     "jshint": "^2.5.10",
+    "lodash": "^4.17.4",
     "mocha": "^3.2.0",
     "newrelic": "^1.20.2",
     "node-statsd": "^0.1.1",
@@ -39,17 +40,11 @@
     "stormpath": "^0.20.0",
     "vasync": "^1.6.2"
   },
-  "config": {
-    "blanket": {
-      "pattern": [
-        "src"
-      ],
-      "data-cover-never": "node_modules",
-      "loader": "./node-loaders/coffee-script"
-    }
-  },
   "devDependencies": {
     "chai": "^3.5.0",
-    "superagent": "^3.4.0"
+    "coffee-coverage": "^1.0.1",
+    "istanbul": "^0.4.5",
+    "superagent": "^3.4.0",
+    "testdouble": "^1.11.0"
   }
 }

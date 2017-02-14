@@ -5,12 +5,10 @@ MAINTAINER Jean-Christophe Hoelt <hoelt@fovea.cc>
 
 # Create 'app' user
 RUN useradd app -d /home/app
-WORKDIR /home/app/code
 
 # Install NPM packages
 COPY package.json /home/app/code/package.json
-RUN chown -R app /home/app
-RUN npm install --production
+RUN cd /home/app/code && npm install --production
 
 # Copy app source files
 COPY index.js newrelic.js Makefile coffeelint.json .eslintignore .eslintrc /home/app/code/
