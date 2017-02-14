@@ -202,9 +202,11 @@ createBackend = ({
     }]
     account = { id, password, aliases, req_id }
     directoryClient.addAccount account, (err) ->
+      # TODO, store facebook friends and fullname
       cb legacyError(err)
 
   sendPasswordResetEmail = (email, cb) ->
+    # TODO
     cb new Error "not implemented"
 
   initialize: (cb) ->

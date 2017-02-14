@@ -373,6 +373,7 @@ initialize = (cb, options = {}) ->
       backendOpts.directoryClient
       { createBackend } = require './backend/directory'
     else
+      # TODO
       throw new Error "TODO: integrate failover"
 
   be = createBackend backendOpts
