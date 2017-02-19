@@ -83,7 +83,7 @@ fbgraphTD = ->
       .thenCallback null,
         id: user.facebook_id
         email: user.email
-        fullName: user.fullName
+        name: user.fullName
   [ EXISTING_USER, SECONDARY_USER, NEW_USER ].forEach addUser
   fbgraph
 
@@ -98,17 +98,21 @@ aliasesClientTD = ->
 
   aliasesClient
 
+fullnamesClientTD = -> td.object [ 'set' ]
+
 baseTest = ->
   log = td.object [ 'info', 'warn', 'error' ]
   fbgraph = fbgraphTD()
   directoryClient = directoryClientTD()
   authenticator = authenticatorTD()
   aliasesClient = aliasesClientTD()
+  fullnamesClient = fullnamesClientTD()
   backend = directory.createBackend {
     log, authenticator, directoryClient, fbgraph,
-    facebookAppId: APP_ID, aliasesClient }
+    facebookAppId: APP_ID, aliasesClient, fullnamesClient }
   callback = td.function 'callback'
-  { callback, directoryClient, backend, aliasesClient }
+  { callback, directoryClient, backend, aliasesClient,
+    fullnamesClient }
 
 backendTest = ->
   ret = baseTest()
@@ -280,5 +284,17 @@ describe 'backend/directory', ->
       td.verify directoryClient.addAccount(
         td.matchers.contains(id:NEW_USER.id),
         td.callback)
+
+    itSavesFullName = (user) ->
+      { fullnamesClient, callback } =
+        loginFacebook facebookLogin(user)
+      td.verify fullnamesClient.set(
+        user.username, user.fullName, td.callback)
+
+    it 'saves the full name of new users', ->
+      itSavesFullName NEW_USER
+
+    it 'saves the full name of existing users', ->
+      itSavesFullName EXISTING_USER
 
 # vim: ts=2:sw=2:et:

@@ -121,9 +121,11 @@ createBackend = ({
         cb null,
           username: directoryAccount.id
           email: facebookAccount.email
+          fullName: facebookAccount.fullName
       else
         id = username
         email = facebookAccount.email
+        fullName = facebookAccount.fullName
         aliases = [{
           type: 'email'
           value: email
@@ -146,7 +148,7 @@ createBackend = ({
           if err
             cb err
           else
-            cb null, { username, email }
+            cb null, { username, email, fullName }
 
     # log user in
     loginUser = ({ username, email }, cb) ->
@@ -158,11 +160,21 @@ createBackend = ({
         authResult = authenticator.add { username, email }
         cb null, authResult
 
+    # save the user's full name (for future reference)
+    saveFullName = ({ username, email, fullName }, cb) ->
+      cb null, { username, email }
+      if username and fullName
+        fullnamesClient.set username, fullName, (err, reply) ->
+          if err
+            log.warn "failed to store full name", err, {
+              username, fullName }
+
     vasync.waterfall [
       loadFacebookAccount
       loadDirectoryAccount
       loadLegacyAlias
       registerDirectoryAccount
+      saveFullName
       loginUser
     ], (err, result) ->
       callback err, result
