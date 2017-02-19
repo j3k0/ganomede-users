@@ -222,10 +222,10 @@ createClient = ({
       fbProcess.next()
 
       # Get friends from facebook
-      facebookFriends.storeFriends
-        aliasesClient: aliasesClient
-        friendsClient: friendsClient
-        facebookClient: facebookClient
+      facebookFriends.storeFriends {
+        aliasesClient
+        friendsClient
+        facebookClient
         username: body.username
         accessToken: body.accessToken
         callback: (err, usernames) ->
@@ -233,6 +233,7 @@ createClient = ({
             log.error "Failed to store friends", err
           else
             log.info "Friends stored", usernames
+      }
 
     reportFailure = ->
       if fbProcess.stormpathError

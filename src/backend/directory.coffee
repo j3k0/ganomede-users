@@ -30,9 +30,11 @@ createBackend = ({
   authenticator   # see src/authentication.coffee
   aliasesClient   # see src/aliases.coffee
   fullnamesClient # see src/fullnames.coffee
+  friendsClient   # see src/friends-store.coffee
   facebookClient  # see src/facebook.coffee
   checkBan        # signature: checkban(callback)
                   #            callback(err, banned)
+  facebookFriends # see src/facebook-friends.coffee
   tagizer = require 'ganomede-tagizer'
   log = require '../log'
   fbgraph = require 'fbgraph'
@@ -169,12 +171,30 @@ createBackend = ({
             log.warn "failed to store full name", err, {
               username, fullName }
 
+    # save the user's friends
+    saveFriends = ({ username, email }, cb) ->
+      cb null, { username, email }
+      facebookFriends.storeFriends {
+        aliasesClient
+        friendsClient
+        facebookClient
+        username
+        accessToken
+        callback: (err, usernames) ->
+          if err
+            log.error "Failed to store friends", err
+          #else
+          #  log.info "Friends stored", usernames
+      }
+
     vasync.waterfall [
       loadFacebookAccount
       loadDirectoryAccount
       loadLegacyAlias
       registerDirectoryAccount
+      # TODO, store facebook friends
       saveFullName
+      saveFriends
       loginUser
     ], (err, result) ->
       callback err, result
@@ -214,7 +234,6 @@ createBackend = ({
     }]
     account = { id, password, aliases, req_id }
     directoryClient.addAccount account, (err) ->
-      # TODO, store facebook friends and fullname
       cb legacyError(err)
 
   sendPasswordResetEmail = (email, cb) ->

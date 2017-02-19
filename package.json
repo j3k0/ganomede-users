@@ -12,7 +12,7 @@
     "start": "./node_modules/.bin/forever start index.js",
     "stop": "./node_modules/.bin/forever stop index.js",
     "test": "./run_tests.sh",
-    "testw": "API_SECRET=42 make testw"
+    "testw": "./run_tests.sh --watch"
   },
   "author": "Jean-Christophe Hoelt <hoelt@fovea.cc>",
   "license": "Private",

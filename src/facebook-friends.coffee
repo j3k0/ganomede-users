@@ -9,8 +9,8 @@ storeFriends = (options) ->
   facebookClient = options.facebookClient
   accessToken = options.accessToken
   callback = options.callback
-  rootLog = options.log || logDefault
-  log = rootLog.child(module:"facebook-friends")
+  rootLog = options.rootLog || logDefault
+  log = options.log || rootLog.child(module:"facebook-friends")
 
   # Retrive usernames using aliases
   retrieveUsernames = (fbFriends, cb) ->

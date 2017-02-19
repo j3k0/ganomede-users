@@ -63,6 +63,8 @@ createBackend = ({
   aliasesClient,
   fullnamesClient,
   facebookClient,
+  facebookFriends,
+  friendsClient, # see src/friends-store.coffee
   authenticator,
   checkBan,
   stats,
@@ -137,7 +139,7 @@ createBackend = ({
     spFacebookClient = spFacebook.createClient {
       client, application, authenticator,
       aliasesClient, fullnamesClient, facebookClient,
-      checkBan, log, stats
+      facebookFriends, friendsClient, checkBan, log, stats
     }
 
     that =

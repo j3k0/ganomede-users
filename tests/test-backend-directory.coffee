@@ -99,6 +99,9 @@ aliasesClientTD = ->
   aliasesClient
 
 fullnamesClientTD = -> td.object [ 'set' ]
+friendsClientTD = -> td.object []
+facebookFriendsTD = -> td.object [ 'storeFriends' ]
+facebookClientTD = -> td.object []
 
 baseTest = ->
   log = td.object [ 'info', 'warn', 'error' ]
@@ -107,12 +110,17 @@ baseTest = ->
   authenticator = authenticatorTD()
   aliasesClient = aliasesClientTD()
   fullnamesClient = fullnamesClientTD()
+  friendsClient = friendsClientTD()
+  facebookFriends = facebookFriendsTD()
+  facebookClient = facebookClientTD()
   backend = directory.createBackend {
     log, authenticator, directoryClient, fbgraph,
-    facebookAppId: APP_ID, aliasesClient, fullnamesClient }
+    facebookAppId: APP_ID, aliasesClient, fullnamesClient,
+    friendsClient, facebookFriends, facebookClient }
   callback = td.function 'callback'
   { callback, directoryClient, backend, aliasesClient,
-    fullnamesClient }
+    fullnamesClient, friendsClient, facebookFriends,
+    facebookClient }
 
 backendTest = ->
   ret = baseTest()
@@ -286,8 +294,7 @@ describe 'backend/directory', ->
         td.callback)
 
     itSavesFullName = (user) ->
-      { fullnamesClient, callback } =
-        loginFacebook facebookLogin(user)
+      { fullnamesClient } = loginFacebook facebookLogin(user)
       td.verify fullnamesClient.set(
         user.username, user.fullName, td.callback)
 
@@ -296,5 +303,22 @@ describe 'backend/directory', ->
 
     it 'saves the full name of existing users', ->
       itSavesFullName EXISTING_USER
+
+    itSavesFriends = (user) ->
+      { facebookFriends, aliasesClient, friendsClient,
+        facebookClient } =
+        loginFacebook facebookLogin(user)
+      td.verify facebookFriends.storeFriends(td.matchers.contains {
+        aliasesClient
+        friendsClient
+        facebookClient
+        username: user.username
+        accessToken: user.facebook_access_token
+      })
+
+    it 'saves the users friends for new users', ->
+      itSavesFriends NEW_USER
+    it 'saves the users friends for existing users', ->
+      itSavesFriends EXISTING_USER
 
 # vim: ts=2:sw=2:et:
