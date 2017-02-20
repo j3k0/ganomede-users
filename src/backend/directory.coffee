@@ -35,9 +35,13 @@ createBackend = ({
   checkBan        # signature: checkban(callback)
                   #            callback(err, banned)
   facebookFriends # see src/facebook-friends.coffee
+  mailerTransport # see src/mailer.coffee
   tagizer = require 'ganomede-tagizer'
   log = require '../log'
   fbgraph = require 'fbgraph'
+  generatePassword = require("password-generator").bind(null,8)
+  passwordResetTemplate # template with (subject, text and/or html)
+                        # see src/mail-template.coffee
 }) ->
 
   if !directoryClient
@@ -46,6 +50,12 @@ createBackend = ({
   if !facebookAppId
     throw new Error("facebookAppId missing." +
       "You might like to define env FACEBOOK_APP_ID")
+
+  if !passwordResetTemplate
+    throw new Error("passwordResetTemplate missing")
+
+  if !mailerTransport
+    throw new Error("mailerTransport missing")
 
   loginFacebook = ({
     facebookId  # the facebook id of the user
@@ -192,12 +202,10 @@ createBackend = ({
       loadDirectoryAccount
       loadLegacyAlias
       registerDirectoryAccount
-      # TODO, store facebook friends
       saveFullName
       saveFriends
       loginUser
-    ], (err, result) ->
-      callback err, result
+    ], callback
 
   # credentials: { username, password }
   loginAccount = (credentials, cb) ->
@@ -236,9 +244,34 @@ createBackend = ({
     directoryClient.addAccount account, (err) ->
       cb legacyError(err)
 
-  sendPasswordResetEmail = (email, cb) ->
-    # TODO
-    cb new Error "not implemented"
+  sendPasswordResetEmail = ({email, req_id}, callback) ->
+    id = null
+    password = null
+    vasync.waterfall [
+
+      # Retrieve the user account from directory
+      (cb) ->
+        directoryClient.byAlias {
+          type: 'email'
+          value: email
+          req_id: req_id
+        }, cb
+
+      # Edit the user's password
+      (account, cb) ->
+        id = account.id
+        password = generatePassword()
+        directoryClient.editAccount {id, password, req_id}, cb
+
+      # Send the new password by email
+      (result, cb) ->
+        cb = cb || result
+        templateValues = {id, email, password}
+        content = passwordResetTemplate.render templateValues
+        content.to = "#{id} <#{email}>"
+        content.to = email
+        mailerTransport.sendMail content, cb
+    ], callback
 
   initialize: (cb) ->
     cb null, {

@@ -12,7 +12,7 @@
     "start": "./node_modules/.bin/forever start index.js",
     "stop": "./node_modules/.bin/forever stop index.js",
     "test": "./run_tests.sh",
-    "testw": "./run_tests.sh --watch"
+    "testw": "./run_tests.sh --watch tests"
   },
   "author": "Jean-Christophe Hoelt <hoelt@fovea.cc>",
   "license": "Private",
@@ -35,6 +35,7 @@
     "newrelic": "^1.20.2",
     "node-statsd": "^0.1.1",
     "nodemailer": "^3.1.3",
+    "password-generator": "^2.1.0",
     "redis": "^2.6.5",
     "restify": "^4.3.0",
     "state-machine": "0.0.3",

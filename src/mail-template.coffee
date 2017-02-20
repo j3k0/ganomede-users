@@ -1,5 +1,3 @@
-# TODO: test this module
-
 renderDoc = (doc, values) ->
   for v of values
     doc = doc.replace new RegExp("__#{v}__", 'g'), values[v]

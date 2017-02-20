@@ -176,8 +176,8 @@ createBackend = ({
             log.info createdAccount, "registered"
             that.loginAccount account, cb
 
-      sendPasswordResetEmail: (email, cb) ->
-        req = { email }
+      sendPasswordResetEmail: ({email}, cb) ->
+        req = {email}
         application.sendPasswordResetEmail req, (err) ->
           if err
             if err.code == 2016

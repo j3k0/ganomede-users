@@ -1,6 +1,7 @@
 _ = require 'lodash'
 restify = require "restify"
 td = require 'testdouble'
+{anything,contains,isA} = td.matchers
 {expect} = require 'chai'
 tagizer = require 'ganomede-tagizer'
 
@@ -22,6 +23,7 @@ directoryClientTD = ->
   directoryClient = td.object [
     'authenticate'
     'addAccount'
+    'editAccount'
     'byAlias'
   ]
 
@@ -40,6 +42,11 @@ directoryClientTD = ->
     td.matchers.anything()))
       .thenCallback null
 
+  # .editAccount() succeeds
+  td.when(directoryClient.editAccount(
+    td.matchers.anything()))
+      .thenCallback null
+
   # .addAccount() fails if user already exists
   td.when(directoryClient.addAccount(
     td.matchers.contains(directoryAccount(EXISTING_USER))))
@@ -55,6 +62,13 @@ directoryClientTD = ->
     td.matchers.contains
       type: "facebook.id.#{APP_ID}"
       value: EXISTING_USER.facebook_id
+  )).thenCallback null,
+    id: EXISTING_USER.id
+    aliases: directoryAliasesObj EXISTING_USER
+
+  # .byAlias() loads existing user by email
+  td.when(directoryClient.byAlias(
+    contains {type: 'email', value: EXISTING_USER.email}
   )).thenCallback null,
     id: EXISTING_USER.id
     aliases: directoryAliasesObj EXISTING_USER
@@ -103,6 +117,27 @@ friendsClientTD = -> td.object []
 facebookFriendsTD = -> td.object [ 'storeFriends' ]
 facebookClientTD = -> td.object []
 
+passwordResetTemplateTD = ->
+  passwordResetTemplate = td.object ['render']
+  td.when(passwordResetTemplate.render(anything()))
+    .thenReturn
+      subject: "prt-subject"
+      text: "prt-text"
+      html: "prt-html"
+  passwordResetTemplate
+
+mailerTransportTD = ->
+  mt = td.object ['sendMail']
+  td.when(mt.sendMail(anything()))
+    .thenCallback null, {messageId:'1234',response:'ok'}
+  mt
+
+GENERATED_PASSWORD = 'blah1234'
+generatePasswordTD = ->
+  gp = td.function 'generatePassword'
+  td.when(gp()).thenReturn GENERATED_PASSWORD
+  gp
+
 baseTest = ->
   log = td.object [ 'info', 'warn', 'error' ]
   fbgraph = fbgraphTD()
@@ -113,10 +148,14 @@ baseTest = ->
   friendsClient = friendsClientTD()
   facebookFriends = facebookFriendsTD()
   facebookClient = facebookClientTD()
+  mailerTransport = mailerTransportTD()
+  passwordResetTemplate = passwordResetTemplateTD()
+  generatePassword = generatePasswordTD()
   backend = directory.createBackend {
     log, authenticator, directoryClient, fbgraph,
     facebookAppId: APP_ID, aliasesClient, fullnamesClient,
-    friendsClient, facebookFriends, facebookClient }
+    friendsClient, facebookFriends, facebookClient,
+    passwordResetTemplate, mailerTransport, generatePassword }
   callback = td.function 'callback'
   { callback, directoryClient, backend, aliasesClient,
     fullnamesClient, friendsClient, facebookFriends,
@@ -221,22 +260,28 @@ describe 'backend/directory', ->
     it 'fails when the given ID is not available', ->
       { backend, directoryClient, callback } = backendTest()
       backend.createAccount account(EXISTING_USER), callback
-      td.verify callback td.matchers.isA restify.ConflictError
+      td.verify callback(td.matchers.isA restify.ConflictError)
 
-  describe.skip 'backend.sendPasswordResetEmail()', ->
+  describe 'backend.sendPasswordResetEmail()', ->
 
     sendPasswordResetEmail = (email) ->
       ret = backendTest()
-      ret.backend.sendPasswordResetEmail email, ret.callback
+      ret.backend.sendPasswordResetEmail {email}, ret.callback
       ret
 
     it 'calls the callback with success when email exists', ->
-      { callback } = sendPasswordResetEmail EMAIL
-      td.verify callback null
+      { callback } = sendPasswordResetEmail EXISTING_USER.email
+      td.verify callback(null), ignoreExtraArgs: true
 
     it 'fails when the email is not known', ->
-      { callback } = sendPasswordResetEmail "wrong-email"
-      td.verify callback td.matchers.isA Error
+      { callback } = sendPasswordResetEmail NEW_USER.email
+      td.verify callback(isA restify.NotFoundError)
+
+    it 'changes the user password', ->
+      { callback, directoryClient } = sendPasswordResetEmail EXISTING_USER.email
+      td.verify directoryClient.editAccount(
+        contains {id: EXISTING_USER.id, password: GENERATED_PASSWORD}),
+        {ignoreExtraArgs: true}
 
   describe 'backend.loginFacebook()', ->
 

@@ -8,6 +8,7 @@ api = require '../src/users-api'
 {expect} = require 'chai'
 {BanInfo} = require '../src/bans'
 td = require 'testdouble'
+{contains} = td.matchers
 
 PREFIX = 'users/v1'
 VALID_AUTH_TOKEN = 'deadbeef'
@@ -164,8 +165,9 @@ describe 'users-api', ->
 
       it "should send an email", (done) ->
         { backend } = test
-        td.when(backend.sendPasswordResetEmail data.passwordReset.email)
-          .thenCallback null
+        td.when(backend.sendPasswordResetEmail(
+          contains email:data.passwordReset.email))
+            .thenCallback null
         superagent
           .post endpoint "/passwordResetEmail"
           .send data.passwordReset

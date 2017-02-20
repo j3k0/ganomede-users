@@ -17,6 +17,7 @@ facebook = require "./facebook"
 usernameValidator = require "./username-validator"
 {Bans} = require('./bans')
 urllib = require 'url'
+mailer = require './mailer'
 
 sendError = (err, next) ->
   if err.rawError
@@ -205,9 +206,9 @@ passwordResetEmail = (req, res, next) ->
 
   # Send emails using backend, check for failure
   sendEmail = (email) ->
-    log.info "reset password", email:email
+    req.log.info "reset password", {email}
     stats.increment 'stormpath.application.passwordreset'
-    backend.sendPasswordResetEmail email, (err) ->
+    backend.sendPasswordResetEmail {email, req_id: req.id()}, (err) ->
       if err
         log.error err
         sendError err, next
@@ -230,8 +231,12 @@ passwordResetEmail = (req, res, next) ->
     if err
       log.error err
       err = new restify.NotAuthorizedError "not authorized"
-      return sendError err, next
-    sendEmail account.email
+      sendError err, next
+    else if account?.email
+      sendEmail account.email
+    else
+      err = new restify.InvalidContentError "no email in authdb"
+      sendError err, next
 
 authMiddleware = (req, res, next) ->
   authToken = req.params.authToken
@@ -368,8 +373,12 @@ initialize = (cb, options = {}) ->
           port:     directoryService.port
           pathname: 'directory/v1'
       backendOpts.directoryClient = require('./directory-client').createClient {
-        log, jsonClient
-      }
+        log, jsonClient }
+      backendOpts.passwordResetTemplate =
+        subject: process.env.MAILER_SEND_SUBJECT
+        text: process.env.MAILER_SEND_TEXT
+        hmtl: process.env.MAILER_SEND_HTML
+      backendOpts.mailerTransport = mailer.createTransport()
       backendOpts.directoryClient
       { createBackend } = require './backend/directory'
     else
