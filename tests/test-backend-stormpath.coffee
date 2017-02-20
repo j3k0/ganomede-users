@@ -139,16 +139,16 @@ describe 'backend/stormpath', ->
     it 'calls stormpath\'s sendPasswordResetEmail with email', ->
       { backend, application, callback } = backendTest()
       email = 'user@email.com'
-      backend.sendPasswordResetEmail email, callback
+      backend.sendPasswordResetEmail {email}, callback
       td.verify application.sendPasswordResetEmail({
-        email }, td.callback)
+        email}, td.callback)
 
     it 'calls the callback', ->
       { backend, application, callback } = backendTest()
       email = 'user@email.com'
-      td.when(application.sendPasswordResetEmail { email })
+      td.when(application.sendPasswordResetEmail {email})
         .thenCallback null
-      backend.sendPasswordResetEmail email, callback
+      backend.sendPasswordResetEmail {email}, callback
       td.verify callback null
 
 # vim: ts=2:sw=2:et:

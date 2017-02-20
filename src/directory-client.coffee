@@ -70,38 +70,43 @@ createClient = ({
       password: account.password
       aliases: account.aliases
 
+    postAccount 'create', options, body, callback
+        
+  editAccount = (account = {}, callback) ->
+
+    if !account.id
+      return callback new restify.InvalidContentError(
+        'Missing account id')
+
+    options = jsonOptions
+      path: "/users/#{account.id}"
+      req_id: account.req_id
+
+    body = secret: apiSecret
+
+    if account.password
+      body.password = account.password
+    else if account.aliases and account.aliases.length
+      body.aliases = account.aliases
+    else
+      return callback new restify.InvalidContentError(
+        'Nothing to change')
+
+    postAccount "edit", options, body, callback
+
+  postAccount = (description, options, body, callback) ->
+
     jsonClient.post options, body, (err, req, res, body) ->
       if err
         callback err
       else if res.statusCode != 200
-        log.error "failed to create account", code:res.statusCode
+        log.error "failed to #{description} account", code:res.statusCode
         callback new Error "HTTP#{res.statusCode}"
       else if !body
         callback new restify.InvalidContentError(
           'Server replied with no data')
       else
         callback null, body
-
-  # POST /moves
-  # @game should contain moveData to post
-  # callback(err, directoryError, newState)
-  #moves = (game, callback) ->
-  #  url = endpoint('/moves')
-  #  # @log.info { url:url }, "post /moves"
-  #  jsonClient.post url, game, (err, req, res, body) =>
-  #    if (err)
-  #      restifyError = body && (err instanceof restify.RestError)
-  #      if restifyError
-  #        log.warn 'moves() rejected move with directory error', {
-  #          err, body, game }
-  #        return callback(null, err)
-  #      else
-  #        log.error 'DirectoryClient.moves() failed', {
-  #          err, game }
-  #        return callback(err)
-
-  #    copyGameFields game, body
-  #    callback(null, null, body)
 
   byAlias = ({ type, value, req_id }, callback) ->
 

@@ -63,6 +63,8 @@ createBackend = ({
   aliasesClient,
   fullnamesClient,
   facebookClient,
+  facebookFriends,
+  friendsClient, # see src/friends-store.coffee
   authenticator,
   checkBan,
   stats,
@@ -137,7 +139,7 @@ createBackend = ({
     spFacebookClient = spFacebook.createClient {
       client, application, authenticator,
       aliasesClient, fullnamesClient, facebookClient,
-      checkBan, log, stats
+      facebookFriends, friendsClient, checkBan, log, stats
     }
 
     that =
@@ -174,8 +176,8 @@ createBackend = ({
             log.info createdAccount, "registered"
             that.loginAccount account, cb
 
-      sendPasswordResetEmail: (email, cb) ->
-        req = { email }
+      sendPasswordResetEmail: ({email}, cb) ->
+        req = {email}
         application.sendPasswordResetEmail req, (err) ->
           if err
             if err.code == 2016

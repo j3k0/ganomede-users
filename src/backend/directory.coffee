@@ -30,12 +30,18 @@ createBackend = ({
   authenticator   # see src/authentication.coffee
   aliasesClient   # see src/aliases.coffee
   fullnamesClient # see src/fullnames.coffee
+  friendsClient   # see src/friends-store.coffee
   facebookClient  # see src/facebook.coffee
   checkBan        # signature: checkban(callback)
                   #            callback(err, banned)
+  facebookFriends # see src/facebook-friends.coffee
+  mailerTransport # see src/mailer.coffee
   tagizer = require 'ganomede-tagizer'
   log = require '../log'
   fbgraph = require 'fbgraph'
+  generatePassword = require("password-generator").bind(null,8)
+  passwordResetTemplate # template with (subject, text and/or html)
+                        # see src/mail-template.coffee
 }) ->
 
   if !directoryClient
@@ -44,6 +50,12 @@ createBackend = ({
   if !facebookAppId
     throw new Error("facebookAppId missing." +
       "You might like to define env FACEBOOK_APP_ID")
+
+  if !passwordResetTemplate
+    throw new Error("passwordResetTemplate missing")
+
+  if !mailerTransport
+    throw new Error("mailerTransport missing")
 
   loginFacebook = ({
     facebookId  # the facebook id of the user
@@ -121,9 +133,11 @@ createBackend = ({
         cb null,
           username: directoryAccount.id
           email: facebookAccount.email
+          fullName: facebookAccount.fullName
       else
         id = username
         email = facebookAccount.email
+        fullName = facebookAccount.fullName
         aliases = [{
           type: 'email'
           value: email
@@ -146,7 +160,7 @@ createBackend = ({
           if err
             cb err
           else
-            cb null, { username, email }
+            cb null, { username, email, fullName }
 
     # log user in
     loginUser = ({ username, email }, cb) ->
@@ -158,14 +172,40 @@ createBackend = ({
         authResult = authenticator.add { username, email }
         cb null, authResult
 
+    # save the user's full name (for future reference)
+    saveFullName = ({ username, email, fullName }, cb) ->
+      cb null, { username, email }
+      if username and fullName
+        fullnamesClient.set username, fullName, (err, reply) ->
+          if err
+            log.warn "failed to store full name", err, {
+              username, fullName }
+
+    # save the user's friends
+    saveFriends = ({ username, email }, cb) ->
+      cb null, { username, email }
+      facebookFriends.storeFriends {
+        aliasesClient
+        friendsClient
+        facebookClient
+        username
+        accessToken
+        callback: (err, usernames) ->
+          if err
+            log.error "Failed to store friends", err
+          #else
+          #  log.info "Friends stored", usernames
+      }
+
     vasync.waterfall [
       loadFacebookAccount
       loadDirectoryAccount
       loadLegacyAlias
       registerDirectoryAccount
+      saveFullName
+      saveFriends
       loginUser
-    ], (err, result) ->
-      callback err, result
+    ], callback
 
   # credentials: { username, password }
   loginAccount = (credentials, cb) ->
@@ -204,8 +244,34 @@ createBackend = ({
     directoryClient.addAccount account, (err) ->
       cb legacyError(err)
 
-  sendPasswordResetEmail = (email, cb) ->
-    cb new Error "not implemented"
+  sendPasswordResetEmail = ({email, req_id}, callback) ->
+    id = null
+    password = null
+    vasync.waterfall [
+
+      # Retrieve the user account from directory
+      (cb) ->
+        directoryClient.byAlias {
+          type: 'email'
+          value: email
+          req_id: req_id
+        }, cb
+
+      # Edit the user's password
+      (account, cb) ->
+        id = account.id
+        password = generatePassword()
+        directoryClient.editAccount {id, password, req_id}, cb
+
+      # Send the new password by email
+      (result, cb) ->
+        cb = cb || result
+        templateValues = {id, email, password}
+        content = passwordResetTemplate.render templateValues
+        content.to = "#{id} <#{email}>"
+        content.to = email
+        mailerTransport.sendMail content, cb
+    ], callback
 
   initialize: (cb) ->
     cb null, {
