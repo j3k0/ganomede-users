@@ -45,7 +45,7 @@ API
 ### body (application/json)
 
     {
-        "facebookAccessToken": "AccessTokenFromFacebook",
+        "facebookToken": "AccessTokenFromFacebook",
         "username": "tk421"
     }
 
@@ -76,7 +76,7 @@ API
 ### body (application/json)
 
     {
-        "facebookAccessToken": "AccessTokenFromFacebook"
+        "facebookToken": "AccessTokenFromFacebook"
     }
 
 ### response [200] OK
