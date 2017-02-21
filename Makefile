@@ -2,7 +2,7 @@ BUNYAN_LEVEL?=1000
 MOCHA_ARGS=--bail --compilers coffee:coffee-script/register tests
 BUNYAN=./node_modules/.bin/bunyan -l ${BUNYAN_LEVEL}
 
-all: install test
+all: Dockerfile.dev install test
 
 check: install
 	./node_modules/.bin/eslint src/
@@ -37,10 +37,12 @@ node_modules: package.json
 clean:
 	rm -fr node_modules
 
-docker-prepare:
+Dockerfile.dev: Dockerfile Makefile
+	sed "s/npm install --production/npm install/g" Dockerfile > Dockerfile.dev
+	echo COPY run_tests.sh /home/app/code/ >> Dockerfile.dev
+
+docker-prepare: Dockerfile.dev
 	@mkdir -p doc
-	cp Dockerfile Dockerfile.dev
-	echo RUN npm install >> Dockerfile.dev
 	docker-compose up -d --no-recreate authRedis usermetaRedis usersRedisCache
 
 docker-run: docker-prepare
