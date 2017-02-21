@@ -354,7 +354,10 @@ initialize = (cb, options = {}) ->
     fullnamesClient
     checkBan
     facebookClient
+    facebookFriends
+    friendsClient
     authenticator
+    stats
   }
 
   createBackend = options.createBackend
