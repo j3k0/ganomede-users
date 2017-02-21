@@ -37,16 +37,28 @@ else {
         log: log
     });
 
-    // Enable restify plugins
-    const requestLogger = (req, res, next) => {
-        req.log.info({req_id: req.id()}, `${req.method} ${req.url}`);
-        next();
+    const shouldLogRequest = (req) =>
+        (req.url !== `/${pkg.api}/ping/_health_check`);
+
+    const filteredLogger = (logger) => (req, res, next) => {
+        if (shouldLogRequest(req))
+            logger(req, res);
+        if (next && typeof next === 'function')
+            next();
     };
+
+    // Log incoming requests
+    const requestLogger = filteredLogger((req) =>
+        req.log.info({req_id: req.id()}, `${req.method} ${req.url}`));
     server.use(requestLogger);
+
+    // Enable restify plugins
     server.use(restify.bodyParser());
-    // Audit requests
-    server.on('after', restify.auditLogger({log: log}));
     // server.use(restify.gzipResponse());
+
+    // Audit requests at completion
+    server.on('after', filteredLogger(restify.auditLogger({log: log})));
+
     // Automatically add a request-id to the response
     function setRequestId (req, res, next) {
         res.setHeader('x-request-id', req.id());
