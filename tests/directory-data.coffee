@@ -74,7 +74,7 @@ SECONDARY_USER:
 NEW_USER:
   id: '1newUser'
   username: '1newUser'
-  password: '123456'
+  password: '12345678'
   email: 'newuser@email.com'
   token: 'token-auth-new'
   facebook_id: '3000'

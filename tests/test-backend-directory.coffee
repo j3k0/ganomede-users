@@ -205,9 +205,12 @@ describe 'backend/directory', ->
 
   describe 'backend.createAccount()', ->
 
-    createAccount = (account) ->
+    createAccount = (acc) ->
       ret = backendTest()
-      ret.backend.createAccount account, ret.callback
+      td.when(ret.directoryClient.authenticate(
+        contains(directoryAccount(acc))))
+          .thenCallback(null, authResult(acc))
+      ret.backend.createAccount account(acc), ret.callback
       ret
 
     hasAlias = (matchedAlias) -> (account) ->
@@ -218,13 +221,13 @@ describe 'backend/directory', ->
       ).length > 0
 
     it 'adds an account with the provided id and password', ->
-      { directoryClient } = createAccount account(NEW_USER)
+      { directoryClient } = createAccount NEW_USER
       td.verify directoryClient.addAccount(
         td.matchers.contains(directoryAccount(NEW_USER)),
         td.callback)
 
     it 'adds the email as a private alias', ->
-      { directoryClient } = createAccount account(NEW_USER)
+      { directoryClient } = createAccount NEW_USER
       emailAlias =
         type: 'email'
         public: false
@@ -234,7 +237,7 @@ describe 'backend/directory', ->
         td.callback)
 
     it 'adds the name as a public alias', ->
-      { directoryClient } = createAccount account(NEW_USER)
+      { directoryClient } = createAccount NEW_USER
       nameAlias =
         type: 'name'
         public: true
@@ -244,7 +247,7 @@ describe 'backend/directory', ->
         td.callback)
 
     it 'adds the tag as a public alias', ->
-      { directoryClient } = createAccount account(NEW_USER)
+      { directoryClient } = createAccount NEW_USER
       tagAlias =
         type: 'tag'
         public: true
@@ -254,8 +257,8 @@ describe 'backend/directory', ->
         td.callback)
 
     it 'calls back on success', ->
-      { callback } = createAccount account(NEW_USER)
-      td.verify callback null
+      { callback } = createAccount NEW_USER
+      td.verify callback null, authResult(NEW_USER)
 
     it 'fails when the given ID is not available', ->
       { backend, directoryClient, callback } = backendTest()

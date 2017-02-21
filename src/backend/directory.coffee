@@ -17,6 +17,7 @@ if process.env.LEGACY_ERROR_CODES
       BadPassword_400: 'StormpathResourceError2007'
       UserNotFoundError_404: 'StormpathResourceError2006'
       InvalidCredentialsError_401: 'StormpathResourceError2006'
+      AliasAlreadyExistsError_409: 'StormpathResourceError2001'
     if err and err.body?.code
       id = "#{err.body.code}_#{err.statusCode}"
       err.body.code = conversions[id] || err.body.code
@@ -208,16 +209,14 @@ createBackend = ({
     ], callback
 
   # credentials: { username, password }
-  loginAccount = (credentials, cb) ->
-    credentials =
-      req_id: credentials.req_id
-      id: credentials.username
-      password: credentials.password
-    directoryClient.authenticate credentials, (err, authResult) ->
+  loginAccount = ({req_id, username, password}, cb) ->
+    id = username
+    credentials = { id, password, req_id }
+    directoryClient.authenticate credentials, (err, {id, token}) ->
       if err
         cb legacyError(err)
       else
-        cb null, authResult
+        cb null, {username: id, token}
 
   createAccount = ({
     id
@@ -242,7 +241,11 @@ createBackend = ({
     }]
     account = { id, password, aliases, req_id }
     directoryClient.addAccount account, (err) ->
-      cb legacyError(err)
+      if err
+        cb legacyError(err)
+      else
+        log.info account, "registered"
+        loginAccount { req_id, username: id, password }, cb
 
   sendPasswordResetEmail = ({email, req_id}, callback) ->
     id = null
