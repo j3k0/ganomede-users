@@ -197,7 +197,7 @@ describe 'backend/directory', ->
 
     it 'creates a auth token when login is successfull', ->
       { callback } = loginAccount credentials(EXISTING_USER)
-      td.verify callback null, authResult(EXISTING_USER)
+      td.verify callback null, contains(authResult(EXISTING_USER))
 
     it 'fails when credentials are invalid', ->
       { callback } = loginAccount credentials(NEW_USER)
@@ -258,7 +258,7 @@ describe 'backend/directory', ->
 
     it 'calls back on success', ->
       { callback } = createAccount NEW_USER
-      td.verify callback null, authResult(NEW_USER)
+      td.verify callback null, contains(authResult(NEW_USER))
 
     it 'fails when the given ID is not available', ->
       { backend, directoryClient, callback } = backendTest()

@@ -212,10 +212,11 @@ createBackend = ({
   loginAccount = ({req_id, username, password}, cb) ->
     id = username
     credentials = { id, password, req_id }
-    directoryClient.authenticate credentials, (err, {id, token}) ->
+    directoryClient.authenticate credentials, (err, authResult) ->
       if err
         cb legacyError(err)
       else
+        {token} = authResult
         cb null, {username: id, token}
 
   createAccount = ({
