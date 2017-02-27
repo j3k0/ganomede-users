@@ -27,7 +27,7 @@
     "fakeredis": "^1.0.3",
     "fbgraph": "^1.0.0",
     "forever": "^0.15.3",
-    "ganomede-helpers": "^1.0.2",
+    "ganomede-helpers": "^1.0.4",
     "ganomede-tagizer": "^1.0.0",
     "jshint": "^2.5.10",
     "lodash": "^4.17.4",

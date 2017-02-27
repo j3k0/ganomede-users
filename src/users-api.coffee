@@ -365,13 +365,13 @@ initialize = (cb, options = {}) ->
     if process.env.USE_STORMPATH_ONLY
       { createBackend } = require './backend/stormpath'
     else if process.env.USE_DIRECTORY_ONLY
-      directoryService = serviceConfig 'DIRECTORY', 8000
+      directoryService = serviceConfig 'DIRECTORY', 8080
       if !directoryService.exists
         throw new Error "directory service not configured properly"
       log.info { directoryService }
       jsonClient = restify.createJsonClient
         url: urllib.format
-          protocol: 'http'
+          protocol: directoryService.protocol || 'http'
           hostname: directoryService.host
           port:     directoryService.port
           pathname: 'directory/v1'
