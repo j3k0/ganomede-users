@@ -3,6 +3,7 @@
 # Implements the users API using Stormpath
 #
 
+_ = require 'lodash'
 authdb = require "authdb"
 authentication = require "./authentication"
 restify = require "restify"
@@ -360,33 +361,40 @@ initialize = (cb, options = {}) ->
     stats
   }
 
+  prepareDirectoryBackend = () ->
+    directoryService = serviceConfig 'DIRECTORY', 8080
+    if !directoryService.exists
+      throw new Error "directory service not configured properly"
+    log.info { directoryService }
+    jsonClient = restify.createJsonClient
+      url: urllib.format
+        protocol: directoryService.protocol || 'http'
+        hostname: directoryService.host
+        port:     directoryService.port
+        pathname: 'directory/v1'
+    backendOpts.directoryClient = require('./directory-client').createClient {
+      log, jsonClient }
+    backendOpts.passwordResetTemplate =
+      subject: process.env.MAILER_SEND_SUBJECT
+      text: process.env.MAILER_SEND_TEXT
+      hmtl: process.env.MAILER_SEND_HTML
+    backendOpts.mailerTransport = mailer.createTransport()
+
   createBackend = options.createBackend
   if !createBackend
     if process.env.USE_STORMPATH_ONLY
       { createBackend } = require './backend/stormpath'
     else if process.env.USE_DIRECTORY_ONLY
-      directoryService = serviceConfig 'DIRECTORY', 8080
-      if !directoryService.exists
-        throw new Error "directory service not configured properly"
-      log.info { directoryService }
-      jsonClient = restify.createJsonClient
-        url: urllib.format
-          protocol: directoryService.protocol || 'http'
-          hostname: directoryService.host
-          port:     directoryService.port
-          pathname: 'directory/v1'
-      backendOpts.directoryClient = require('./directory-client').createClient {
-        log, jsonClient }
-      backendOpts.passwordResetTemplate =
-        subject: process.env.MAILER_SEND_SUBJECT
-        text: process.env.MAILER_SEND_TEXT
-        hmtl: process.env.MAILER_SEND_HTML
-      backendOpts.mailerTransport = mailer.createTransport()
-      backendOpts.directoryClient
+      prepareDirectoryBackend()
       { createBackend } = require './backend/directory'
     else
-      # TODO
-      throw new Error "TODO: integrate failover"
+      createInStormpath = !!process.env.CREATE_USERS_IN_STORMPATH
+      backendOpts.primary = require('./backend/directory')
+        .createBackend _.extend({allowCreate: !createInStormpath}, backendOpts)
+      backendOpts.secondary = require('./backend/stormpath')
+        .createBackend(backendOpts)
+      backendOpts.createAccountFromSecondary = createInStormpath
+      { createBackend } = require './backend/failover'
 
   be = createBackend backendOpts
   be.initialize (err, be) ->

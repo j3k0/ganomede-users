@@ -10,6 +10,7 @@ createBackend = ({
                   #            callback(err, banned)
   primary
   secondary
+  createAccountFromSecondary
 }) ->
 
   if !primary
@@ -18,7 +19,7 @@ createBackend = ({
     throw new Error "secondary backend not specified"
 
   backend = ([ primary, secondary ]) ->
-    
+
     # attempts to login with primary,
     # tries secondary on failure
     loginAccount = (credentials, cb) ->
@@ -36,7 +37,10 @@ createBackend = ({
           cb null, result
 
     # only attempts to create the account with primary
-    createAccount = primary.createAccount
+    if createAccountFromSecondary
+      createAccount = secondary.createAccount
+    else
+      createAccount = primary.createAccount
 
     # attempts password reset with primary,
     # tries secondary on failure

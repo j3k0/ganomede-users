@@ -22,6 +22,7 @@ Configuration
  * `LEGACY_ERROR_CODES` - Use stormpath compatible error codes
  * `USE_STORMPATH_ONLY` - Only enable the Stormpath backend
  * `USE_DIRECTORY_ONLY` - Only enable the Directory backend
+ * `CREATE_USERS_IN_STORMPATH` - New users will use Stormpath backend
 
 API
 ---

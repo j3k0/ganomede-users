@@ -43,6 +43,7 @@ createBackend = ({
   generatePassword = require("password-generator").bind(null,8)
   passwordResetTemplate # template with (subject, text and/or html)
                         # see src/mail-template.coffee
+  allowCreate = true
 }) ->
 
   if !directoryClient
@@ -136,6 +137,9 @@ createBackend = ({
           email: facebookAccount.email
           fullName: facebookAccount.fullName
       else
+        if !allowCreate
+          return cb new restify.ForbiddenError(
+            'Cannot register new facebook users')
         id = username
         email = facebookAccount.email
         fullName = facebookAccount.fullName
