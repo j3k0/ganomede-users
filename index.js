@@ -40,15 +40,21 @@ else {
     const shouldLogRequest = (req) =>
         (req.url !== `/${pkg.api}/ping/_health_check`);
 
-    const filteredLogger = (logger) => (req, res, next) => {
-        if (shouldLogRequest(req))
+    const shouldLogResponse = (res) =>
+        (res && res.statusCode >= 500);
+
+    const filteredLogger = (errorsOnly, logger) => (req, res, next) => {
+        const logError = errorsOnly && shouldLogResponse(res);
+        const logInfo = !errorsOnly && (
+            shouldLogRequest(req) || shouldLogResponse(res));
+        if (logError || logInfo)
             logger(req, res);
         if (next && typeof next === 'function')
             next();
     };
 
     // Log incoming requests
-    const requestLogger = filteredLogger((req) =>
+    const requestLogger = filteredLogger(false, (req) =>
         req.log.info({req_id: req.id()}, `${req.method} ${req.url}`));
     server.use(requestLogger);
 
@@ -57,8 +63,8 @@ else {
     // server.use(restify.gzipResponse());
 
     // Audit requests at completion
-    if (process.env.NODE_ENV != 'production')
-      server.on('after', filteredLogger(restify.auditLogger({log: log, body: true})));
+    server.on('after', filteredLogger(process.env.NODE_ENV === 'production',
+        restify.auditLogger({log: log, body: true})));
 
     // Automatically add a request-id to the response
     function setRequestId (req, res, next) {
