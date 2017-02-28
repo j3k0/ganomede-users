@@ -149,14 +149,14 @@ createBackend = ({
         stats.increment 'stormpath.application.account.authenticate'
         application.authenticateAccount account, (err, result) ->
           if err
-            return callback err
+            return callback convertedError(err)
 
           # if successful, the result will have an account field
           # with the successfully authenticated account:
           stats.increment 'stormpath.auth.account.get'
           result.getAccount (err, account) ->
             if err
-              return callback err
+              return callback convertedError(err)
             callback null, authenticator.add(account)
 
       createAccount: (body, cb) ->
@@ -198,7 +198,7 @@ createBackend = ({
   initialize = (cb) ->
     loadApplication (err, app) ->
       if err
-        cb err
+        cb convertedError(err)
       else
         cb null, backend app
 

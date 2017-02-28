@@ -57,7 +57,8 @@ else {
     // server.use(restify.gzipResponse());
 
     // Audit requests at completion
-    server.on('after', filteredLogger(restify.auditLogger({log: log})));
+    if (process.env.NODE_ENV != 'production')
+      server.on('after', filteredLogger(restify.auditLogger({log: log, body: true})));
 
     // Automatically add a request-id to the response
     function setRequestId (req, res, next) {
