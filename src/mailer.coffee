@@ -7,7 +7,6 @@ createTransport = ({
   service = process.env.MAILER_SERVICE
   user = process.env.MAILER_AUTH_USER
   pass = process.env.MAILER_AUTH_PASS
-
   from = process.env.MAILER_SEND_FROM
   subject = process.env.MAILER_SEND_SUBJECT
   text = process.env.MAILER_SEND_TEXT

@@ -135,7 +135,7 @@ createClient = ({
       else
         callback null, body
 
-  { endpoint, authenticate, addAccount, byAlias }
+  { endpoint, authenticate, addAccount, byAlias, editAccount }
 
 module.exports = { createClient }
 # vim: ts=2:sw=2:et:

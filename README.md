@@ -24,6 +24,13 @@ Configuration
  * `USE_STORMPATH_ONLY` - Only enable the Stormpath backend
  * `USE_DIRECTORY_ONLY` - Only enable the Directory backend
  * `CREATE_USERS_IN_STORMPATH` - New users will use Stormpath backend
+ * `MAILER_SERVICE` - Nodemailer sender service
+ * `MAILER_AUTH_USER` - Nodemailer sender credentials (username)
+ * `MAILER_AUTH_PASS` - Nodemailer sender credentials (password)
+ * `MAILER_SEND_FROM` - Sender of password reset email
+ * `MAILER_SEND_SUBJECT` - Subject of password reset email
+ * `MAILER_SEND_TEXT` - Plain text of password reset email
+ * `MAILER_SEND_HTML` - HTML text of password reset email
 
 API
 ---
