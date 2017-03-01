@@ -88,6 +88,7 @@ login = (req, res, next) ->
 # Login (or register) a facebook user account
 loginFacebook = (req, res, next) ->
   account =
+    req_id: req.id() # pass over request id for better tracking
     accessToken: req.body.facebookToken
     username: req.body.username
     password: req.body.password
@@ -102,6 +103,7 @@ loginFacebook = (req, res, next) ->
 loginDefault = (req, res, next) ->
 
   account =
+    req_id:   req.id() # pass over request id for better tracking
     username: req.body.username
     password: req.body.password
   backend.loginAccount account, (err, data) ->
@@ -389,6 +391,7 @@ initialize = (cb, options = {}) ->
       { createBackend } = require './backend/directory'
     else
       createInStormpath = !!process.env.CREATE_USERS_IN_STORMPATH
+      prepareDirectoryBackend()
       backendOpts.primary = require('./backend/directory')
         .createBackend _.extend({allowCreate: !createInStormpath}, backendOpts)
       backendOpts.secondary = require('./backend/stormpath')

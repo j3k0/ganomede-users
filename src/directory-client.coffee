@@ -40,15 +40,26 @@ createClient = ({
 
     jsonClient.post options, body, (err, req, res, body) =>
 
-      if err
-        log.error "failed authenticate", err
-        callback(err)
+      if err?.restCode == 'UserNotFoundError'
+        log.info "failed to authenticate",
+          req_id: credentials.req_id
+          id: credentials.id
+          code: 'UserNotFoundError'
+        callback err
 
-      else if res.statusCode == 401
+      else if res?.statusCode == 401
         callback new restify.InvalidCredentialsError()
 
-      else if (res.statusCode != 200)
-        log.error "failed to authenticate", code:res.statusCode
+      else if err
+        log.error "authentication error",
+          req_id: credentials.req_id
+          err: err
+        callback err
+
+      else if res?.statusCode != 200
+        log.error "failed to authenticate",
+          req_id: credentials.req_id
+          code: res.statusCode
         callback new Error "HTTP#{res.statusCode}"
 
       else

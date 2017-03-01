@@ -220,8 +220,7 @@ createBackend = ({
       if err
         cb legacyError(err)
       else
-        {token} = authResult
-        cb null, {username: id, token}
+        cb null, {username: id, token: authResult.token}
 
   createAccount = ({
     id
