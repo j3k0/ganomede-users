@@ -13,6 +13,7 @@ Configuration
  * `STORMPATH_APP_NAME`
  * `DIRECTORY_PORT_8080_TCP_ADDR` - IP of the rules service
  * `DIRECTORY_PORT_8080_TCP_PORT` - Port of the rules service
+ * `DIRECTORY_PORT_8080_TCP_PROTOCOL` - Port of the rules service
  * `REDIS_AUTH_PORT_6379_TCP_ADDR` - IP of the AuthDB redis
  * `REDIS_AUTH_PORT_6379_TCP_PORT` - Port of the AuthDB redis
  * `REDIS_USERMETA_PORT_6379_TCP_ADDR` - IP of the usermeta redis
