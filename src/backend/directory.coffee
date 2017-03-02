@@ -9,22 +9,6 @@
 restify = require "restify"
 vasync = require "vasync"
 
-if process.env.LEGACY_ERROR_CODES
-  legacyError = (err) ->
-    conversions =
-      UserAlreadyExistsError_409: 'StormpathResourceError2001'
-      BadUserId_400: 'StormpathResourceError2006'
-      BadPassword_400: 'StormpathResourceError2007'
-      UserNotFoundError_404: 'StormpathResourceError2006'
-      InvalidCredentialsError_401: 'StormpathResourceError2006'
-      AliasAlreadyExistsError_409: 'StormpathResourceError2001'
-    if err and err.body?.code
-      id = "#{err.body.code}_#{err.statusCode}"
-      err.body.code = conversions[id] || err.body.code
-    err
-else
-  legacyError = (x) -> x
-
 createBackend = ({
   facebookAppId = process.env.FACEBOOK_APP_ID
   directoryClient # see src/directory-client.coffee
@@ -58,6 +42,31 @@ createBackend = ({
 
   if !mailerTransport
     throw new Error("mailerTransport missing")
+
+  if process.env.LEGACY_ERROR_CODES
+    legacyError = (err, req_id) ->
+      conversions =
+        UserAlreadyExistsError_409: 'StormpathResourceError2001'
+        BadUserId_400: 'StormpathResourceError2006'
+        BadPassword_400: 'StormpathResourceError2007'
+        UserNotFoundError_404: 'StormpathResourceError2006'
+        InvalidCredentials_401: 'StormpathResourceError2006'
+        AliasAlreadyExistsError_409: 'StormpathResourceError2001'
+      if err and err.body?.code
+        id = "#{err.restCode}_#{err.statusCode}"
+        legacyCode = conversions[id] || err.body.code
+        log.debug {
+          restCode: err.restCode
+          statusCode: err.statusCode
+          legacyCode: legacyCode
+          req_id: req_id
+        }, "Converted to legacy error"
+        err.rawCode = err.restCode
+        err.body.code = err.restCode = legacyCode
+      err
+  else
+    legacyError = (x) -> x
+
 
   loginFacebook = ({
     facebookId  # the facebook id of the user
@@ -218,7 +227,7 @@ createBackend = ({
     credentials = { id, password, req_id }
     directoryClient.authenticate credentials, (err, authResult) ->
       if err
-        cb legacyError(err)
+        cb legacyError(err, req_id)
       else
         cb null, {username: id, token: authResult.token}
 
@@ -246,13 +255,14 @@ createBackend = ({
     account = { id, password, aliases, req_id }
     directoryClient.addAccount account, (err) ->
       if err
-        cb legacyError(err)
+        cb legacyError(err, req_id)
       else
         log.info account, "registered"
         loginAccount { req_id, username: id, password }, cb
 
   sendPasswordResetEmail = ({email, req_id}, callback) ->
     id = null
+    name = null
     password = null
     vasync.waterfall [
 
@@ -268,15 +278,17 @@ createBackend = ({
       (account, cb) ->
         id = account.id
         password = generatePassword()
+        name = account.aliases?.name
         directoryClient.editAccount {id, password, req_id}, cb
 
       # Send the new password by email
       (result, cb) ->
         cb = cb || result
-        templateValues = {id, email, password}
+        templateValues = {id, name, email, password}
         content = passwordResetTemplate.render templateValues
         content.to = "#{id} <#{email}>"
         content.to = email
+        content.req_id = req_id
         mailerTransport.sendMail content, cb
     ], callback
 

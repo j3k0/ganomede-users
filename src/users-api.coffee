@@ -20,11 +20,11 @@ usernameValidator = require "./username-validator"
 urllib = require 'url'
 mailer = require './mailer'
 
-sendError = (err, next) ->
+sendError = (req, err, next) ->
   if err.rawError
-    log.error err.rawError
+    req.log.error err.rawError
   else
-    log.error err
+    req.log.error err
   next err
 
 stats = require('./statsd-wrapper').createClient()
@@ -57,7 +57,7 @@ backend = null
 createAccount = (req, res, next) ->
 
   if usernameError = usernameValidator(req.body.username)
-    return sendError usernameError, next
+    return sendError req, usernameError, next
 
   account =
     req_id:   req.id() # pass over request id for better tracking
@@ -69,7 +69,7 @@ createAccount = (req, res, next) ->
 
   backend.createAccount account, (err, data) ->
     if err
-      return sendError err, next
+      return sendError req, err, next
     else
       res.send data
       next()
@@ -108,7 +108,7 @@ loginDefault = (req, res, next) ->
     password: req.body.password
   backend.loginAccount account, (err, data) ->
     if err
-      return sendError err, next
+      return sendError req, err, next
 
     # login successful.
     # however, there may be an an alias for this account.
@@ -143,7 +143,7 @@ checkBanMiddleware = (req, res, next) ->
              null
 
   if (!username)
-    return sendError(new restify.BadRequestError, next)
+    return sendError(req, new restify.BadRequestError, next)
 
   checkBan username, (err, exists) ->
     if (err)
@@ -166,7 +166,7 @@ getAccountFromAuthDb = (req, res, next) ->
   token = req.params.authToken
   if !token
     err = new restify.InvalidContentError "invalid content"
-    return sendError err, next
+    return sendError req, err, next
 
   # Use the authentication database to retrieve more about the user.
   # see `addAuth` for details of what's in the account, for now:
@@ -177,7 +177,7 @@ getAccountFromAuthDb = (req, res, next) ->
     if err
       log.error err
       err = new restify.NotAuthorizedError "not authorized"
-      return sendError err, next
+      return sendError req, err, next
 
     req._store = {account}
     req.body = req.body || {}
@@ -214,7 +214,7 @@ passwordResetEmail = (req, res, next) ->
     backend.sendPasswordResetEmail {email, req_id: req.id()}, (err) ->
       if err
         log.error err
-        sendError err, next
+        sendError req, err, next
       else
         res.send ok:true
         next()
@@ -228,23 +228,23 @@ passwordResetEmail = (req, res, next) ->
   token = req.params.authToken
   if !token
     err = new restify.InvalidContentError "invalid content"
-    return sendError err, next
+    return sendError req, err, next
 
   authdbClient.getAccount token, (err, account) ->
     if err
       log.error err
       err = new restify.NotAuthorizedError "not authorized"
-      sendError err, next
+      sendError req, err, next
     else if account?.email
       sendEmail account.email
     else
       err = new restify.InvalidContentError "no email in authdb"
-      sendError err, next
+      sendError req, err, next
 
 authMiddleware = (req, res, next) ->
   authToken = req.params.authToken
   if !authToken
-    return sendError(new restify.InvalidContentError('invalid content'), next)
+    return sendError(req, new restify.InvalidContentError('invalid content'), next)
 
   if apiSecret
     separatorIndex = authToken.indexOf ":"
@@ -259,7 +259,7 @@ authMiddleware = (req, res, next) ->
 
   authdbClient.getAccount authToken, (err, account) ->
     if err || !account
-      return sendError(new restify.UnauthorizedError('not authorized'), next)
+      return sendError(req, new restify.UnauthorizedError('not authorized'), next)
 
     req.params.user = account
     next()
@@ -376,20 +376,23 @@ initialize = (cb, options = {}) ->
         pathname: 'directory/v1'
     backendOpts.directoryClient = require('./directory-client').createClient {
       log, jsonClient }
-    backendOpts.passwordResetTemplate =
+    backendOpts.passwordResetTemplate = require('./mail-template').createTemplate
       subject: process.env.MAILER_SEND_SUBJECT
       text: process.env.MAILER_SEND_TEXT
-      hmtl: process.env.MAILER_SEND_HTML
+      html: process.env.MAILER_SEND_HTML
     backendOpts.mailerTransport = mailer.createTransport()
 
   createBackend = options.createBackend
   if !createBackend
     if process.env.USE_STORMPATH_ONLY
+      log.info "Using stormpath backend only"
       { createBackend } = require './backend/stormpath'
     else if process.env.USE_DIRECTORY_ONLY
+      log.info "Using directory backend only"
       prepareDirectoryBackend()
       { createBackend } = require './backend/directory'
     else
+      log.info "Using directory + stormpath backend"
       createInStormpath = !!process.env.CREATE_USERS_IN_STORMPATH
       prepareDirectoryBackend()
       backendOpts.primary = require('./backend/directory')

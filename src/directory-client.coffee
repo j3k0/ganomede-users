@@ -15,6 +15,27 @@ createClient = ({
   if !jsonClient
     throw new Error('jsonClient required')
 
+  jsonPost = (options, reqBody, cb) ->
+    jsonClient.post options, reqBody, (err, req, res, resBody) ->
+      log.debug {
+        options
+        reqBody
+        req_id: options.headers?['x-request-id']
+        resErr: err
+        resBody
+      }, "directoryClient.post"
+      cb err, req, res, resBody
+
+  jsonGet = (options,  cb) ->
+    jsonClient.get options, (err, req, res, body) ->
+      log.debug {
+        options,
+        req_id: options.headers?['x-request-id']
+        resErr: err
+        resBody: body
+      }, "directoryClient.get"
+      cb err, req, res, body
+
   pathname = jsonClient.url?.pathname || ''
   log = log || logMod.child directoryClient:pathname
   log.info { pathname }, "DirectoryClient created"
@@ -38,28 +59,31 @@ createClient = ({
       id: credentials.id
       password: credentials.password
 
-    jsonClient.post options, body, (err, req, res, body) =>
+    jsonPost options, body, (err, req, res, body) ->
 
       if err?.restCode == 'UserNotFoundError'
-        log.info "failed to authenticate",
+        log.info {
           req_id: credentials.req_id
           id: credentials.id
           code: 'UserNotFoundError'
+        }, "failed to authenticate"
         callback err
 
       else if res?.statusCode == 401
         callback new restify.InvalidCredentialsError()
 
       else if err
-        log.error "authentication error",
+        log.error {
           req_id: credentials.req_id
           err: err
+        }, "authentication error"
         callback err
 
       else if res?.statusCode != 200
-        log.error "failed to authenticate",
+        log.error {
           req_id: credentials.req_id
           code: res.statusCode
+        }, "failed to authenticate"
         callback new Error "HTTP#{res.statusCode}"
 
       else
@@ -82,7 +106,7 @@ createClient = ({
       aliases: account.aliases
 
     postAccount 'create', options, body, callback
-        
+
   editAccount = (account = {}, callback) ->
 
     if !account.id
@@ -90,7 +114,7 @@ createClient = ({
         'Missing account id')
 
     options = jsonOptions
-      path: "/users/#{account.id}"
+      path: "/users/id/#{account.id}"
       req_id: account.req_id
 
     body = secret: apiSecret
@@ -107,11 +131,11 @@ createClient = ({
 
   postAccount = (description, options, body, callback) ->
 
-    jsonClient.post options, body, (err, req, res, body) ->
+    jsonPost options, body, (err, req, res, body) ->
       if err
         callback err
       else if res.statusCode != 200
-        log.error "failed to #{description} account", code:res.statusCode
+        log.error {code: res.statusCode}, "failed to #{description} account"
         callback new Error "HTTP#{res.statusCode}"
       else if !body
         callback new restify.InvalidContentError(
@@ -124,7 +148,7 @@ createClient = ({
     options = jsonOptions
       path: "/users/alias/#{type}/#{value}"
       req_id: req_id
-    jsonClient.get options, (err, req, res, body) ->
+    jsonGet options, (err, req, res, body) ->
       if err
         callback err
       else if res.statusCode != 200

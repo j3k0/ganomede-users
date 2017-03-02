@@ -69,6 +69,7 @@ else {
     // Automatically add a request-id to the response
     function setRequestId (req, res, next) {
         res.setHeader('x-request-id', req.id());
+        req.log = req.log.child({req_id: req.id()})
         return next();
     }
     server.use(setRequestId);
