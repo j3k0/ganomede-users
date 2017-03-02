@@ -19,6 +19,10 @@ createBackend = ({
   if !secondary
     throw new Error "secondary backend not specified"
 
+  isUserNotFound = (restCode) ->
+    [ 'UserNotFoundError', 'ResourceNotFound'
+    ].indexOf(restCode) >= 0
+
   backend = ([ primary, secondary ]) ->
 
     # attempts to login with primary,
@@ -29,7 +33,7 @@ createBackend = ({
         if err
           log.debug {err, req_id},
             "loginAccount with primary failed"
-          if (err.rawCode || err.restCode) == 'UserNotFoundError'
+          if isUserNotFound(err.rawCode || err.restCode)
             log.debug {req_id}, "let's attempt with secondary"
             secondary.loginAccount credentials, cb
           else

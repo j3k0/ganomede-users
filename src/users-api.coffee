@@ -229,7 +229,8 @@ passwordResetEmail = (req, res, next) ->
 authMiddleware = (req, res, next) ->
   authToken = req.params.authToken
   if !authToken
-    return sendError(req, new restify.InvalidContentError('invalid content'), next)
+    return sendError(req, new restify.InvalidContentError(
+      'invalid content'), next)
 
   if apiSecret
     separatorIndex = authToken.indexOf ":"
@@ -244,7 +245,8 @@ authMiddleware = (req, res, next) ->
 
   authdbClient.getAccount authToken, (err, account) ->
     if err || !account
-      return sendError(req, new restify.UnauthorizedError('not authorized'), next)
+      return sendError(req, new restify.UnauthorizedError('
+        not authorized'), next)
 
     req.params.user = account
     next()
@@ -338,6 +340,7 @@ initialize = (cb, options = {}) ->
     apiSecret: options.stormpathApiSecret
     appName: options.stormpathAppName
     log
+    authdbClient
     aliasesClient
     fullnamesClient
     checkBan
@@ -359,12 +362,13 @@ initialize = (cb, options = {}) ->
         hostname: directoryService.host
         port:     directoryService.port
         pathname: 'directory/v1'
-    backendOpts.directoryClient = require('./directory-client').createClient {
-      log, jsonClient }
-    backendOpts.passwordResetTemplate = require('./mail-template').createTemplate
-      subject: process.env.MAILER_SEND_SUBJECT
-      text: process.env.MAILER_SEND_TEXT
-      html: process.env.MAILER_SEND_HTML
+    backendOpts.directoryClient = require('./directory-client')
+      .createClient { log, jsonClient }
+    backendOpts.passwordResetTemplate = require('./mail-template')
+      .createTemplate {
+        subject: process.env.MAILER_SEND_SUBJECT
+        text: process.env.MAILER_SEND_TEXT
+        html: process.env.MAILER_SEND_HTML }
     backendOpts.mailerTransport = mailer.createTransport()
 
   createBackend = options.createBackend

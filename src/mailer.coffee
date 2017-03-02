@@ -1,50 +1,55 @@
 'use strict'
 
 _ = require 'lodash'
+env = (x) -> process.env["MAILER_#{x.toUpperCase()}"]
 
 # create reusable transporter object using the SMTP transport
 createTransport = ({
+  nodemailer = require 'nodemailer'
+
   from = process.env.MAILER_SEND_FROM
   subject = process.env.MAILER_SEND_SUBJECT
   text = process.env.MAILER_SEND_TEXT
   html = process.env.MAILER_SEND_HTML
 
-  nodemailer = require 'nodemailer'
+  port = +(env('PORT') || 0)
+  host = env('HOST')
+  secure = env('SECURE') == 'true'
+  auth =
+    user: env('AUTH_USER')
+    pass: env('AUTH_PASS')
+  ignoreTLS = env('IGNORE_TLS') == 'true'
+  name = env('NAME')
+  localAddress = env('LOCAL_ADDRESS')
+  connectionTimeout = env('CONNECTION_TIMEOUT')
+  greetingTimeout = env('GREETING_TIMEOUT')
+  socketTimeout = env('SOCKET_TIMEOUT')
+  debug = env('DEBUG') == 'true'
+  authMethod = env('AUTH_METHOD')
+
   log = require("./log").child(module:"mailer")
 } = {}) ->
 
-  env = (x) -> process.env["MAILER_#{x.toUpperCase()}"]
-
   options = {}
-  if env('PORT')
-    options.port = +(env('PORT') || null)
-  if env('HOST')
-    options.host = env('HOST') || 'localhost'
-  if env('SECURE')
-    options.secure = env('SECURE') == 'true'
-  if env('AUTH_USER') and env('AUTH_PASS')
+  options.port = port if port
+  options.host = host if host
+  options.secure = secure
+  if auth and auth.user and auth.pass
     options.auth =
-      user: env('AUTH_USER')
-      pass: env('AUTH_PASS')
-  if env('IGNORE_TLS')
-    options.ignoreTLS = env(IGNORE_TLS) == 'true'
-  if env('NAME')
-    options.name = env('NAME')
-  if env('LOCAL_ADDRESS')
-    options.localAddress = env('LOCAL_ADDRESS')
-  if env('CONNECTION_TIMEOUT')
-    options.connectionTimeout = env('CONNECTION_TIMEOUT')
-  if env('GREETING_TIMEOUT')
-    options.greetingTimeout = env('GREETING_TIMEOUT')
-  if env('SOCKET_TIMEOUT')
-    options.socketTimeout = env('SOCKET_TIMEOUT')
-  if env('DEBUG')
-    options.debug = env('DEBUG') == 'true'
-  if env('AUTH_METHOD')
-    options.authMethod = env('AUTH_METHOD')
+      user: user
+      pass: pass
+  options.ignoreTLS = ignoreTLS if ignoreTLS
+  options.name = name if name
+  options.localAddress = localAddress if localAddress
+  options.connectionTimeout = connectionTimeout if connectionTimeout
+  options.greetingTimeout = greetingTimeout if greetingTimeout
+  options.socketTimeout = socketTimeout if socketTimeout
+  options.debug = debug
+  options.authMethod = authMethod if authMethod
   options.logger = log
 
   defaults = { from, subject, text, html }
+  log.debug {options}, 'nodemailer.createTransport'
   transport = nodemailer.createTransport options
 
   defaults: defaults

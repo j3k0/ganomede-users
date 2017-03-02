@@ -59,7 +59,7 @@ jsonClientTD = ->
 baseTest = ->
   callback = td.function 'callback'
   jsonClient = jsonClientTD()
-  log = td.object [ 'info', 'warn', 'error' ]
+  log = td.object [ 'debug', 'info', 'warn', 'error' ]
   # log = require '../src/log'
   directoryClient = directoryClientMod.createClient {
     log, jsonClient, apiSecret:API_SECRET }

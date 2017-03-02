@@ -19,9 +19,8 @@ badguy =
   err: new Error('server refuses bad guys')
 
 options =
-  service: 'bobmail'
-  user: 'jeko@bobmail'
-  pass: '1234'
+  host: 'bobmail.fovea.cc'
+  port: '25'
   from: 'admin@ganomede.org'
   subject: 'default-subject'
   text: 'default-text'
@@ -37,10 +36,8 @@ nodemailerTransportTD = ->
 nodemailerTD = ({nodemailerTransport}) ->
   nodemailer = td.object ['createTransport']
   td.when(nodemailer.createTransport(contains(
-    service: options.service
-    auth:
-      user: options.user
-      pass: options.pass
+    host: options.host
+    port: options.port
   ))).thenReturn nodemailerTransport
   nodemailer
 
@@ -51,7 +48,10 @@ baseTest = ->
   callback = td.function 'callback'
   nodemailerTransport = nodemailerTransportTD()
   nodemailer = nodemailerTD {nodemailerTransport}
-  log = td.object ['info', 'error']
+  log = td.object ['debug', 'info', 'error']
+  tb = require('bunyan').createLogger({name:'tbf'})
+  td.when(log.debug(), {ignoreExtraArgs:true})
+    .thenDo(tb.info.bind tb)
   _.extend {},
     {nodemailerTransport, nodemailer, log, callback},
     options

@@ -139,7 +139,7 @@ generatePasswordTD = ->
   gp
 
 baseTest = ->
-  log = td.object [ 'info', 'warn', 'error' ]
+  log = td.object [ 'debug', 'info', 'warn', 'error' ]
   fbgraph = fbgraphTD()
   directoryClient = directoryClientTD()
   authenticator = authenticatorTD()

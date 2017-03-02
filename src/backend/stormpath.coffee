@@ -66,6 +66,7 @@ createBackend = ({
   facebookFriends,
   friendsClient, # see src/friends-store.coffee
   authenticator,
+  authdbClient,
   checkBan,
   stats,
   client # stormpath client

@@ -34,9 +34,14 @@ backendTD = (existing) ->
     'sendPasswordResetEmail'
   ]
 
-  # login any user fails with InvalidCredentialsError
+  # login any user fails with UserNotFoundError
   td.when(backend.loginAccount td.matchers.anything())
-    .thenCallback new restify.InvalidCredentialsError()
+    .thenCallback new restify.ResourceNotFoundError()
+
+  # login any user fails with InvalidCredentialsError
+  td.when(backend.loginAccount
+    td.matchers.contains {username: existing.username})
+      .thenCallback new restify.InvalidCredentialsError()
 
   # login the existing user succeeds
   td.when(backend.loginAccount(
@@ -58,7 +63,10 @@ backendTD = (existing) ->
   ret
 
 baseTest = ->
-  log = td.object [ 'info', 'warn', 'error' ]
+  log = td.object [ 'debug', 'info', 'warn', 'error' ]
+  #tb = require('bunyan').createLogger({name:'tbf'})
+  #td.when(log.debug(), {ignoreExtraArgs:true})
+  #  .thenDo(tb.info.bind tb)
   authenticator = authenticatorTD()
   primary = backendTD EXISTING_USER
   secondary = backendTD SECONDARY_USER
@@ -115,7 +123,7 @@ describe 'backend/failover', ->
 
     it 'fails when credentials are invalid', ->
       { callback } = loginAccount credentials(NEW_USER)
-      td.verify callback td.matchers.isA(restify.InvalidCredentialsError)
+      td.verify callback td.matchers.isA(restify.ResourceNotFoundError)
 
   describe.skip 'backend.createAccount()', ->
 
