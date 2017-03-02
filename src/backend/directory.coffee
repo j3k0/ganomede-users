@@ -260,7 +260,7 @@ createBackend = ({
         log.info account, "registered"
         loginAccount { req_id, username: id, password }, cb
 
-  sendPasswordResetEmail = ({email, req_id}, callback) ->
+  sendPasswordResetEmail = ({token, email, req_id}, callback) ->
     id = null
     name = null
     password = null
@@ -268,16 +268,23 @@ createBackend = ({
 
       # Retrieve the user account from directory
       (cb) ->
-        directoryClient.byAlias {
-          type: 'email'
-          value: email
-          req_id: req_id
-        }, cb
+        if email
+          directoryClient.byAlias {
+            type: 'email'
+            value: email
+            req_id: req_id
+          }, cb
+        else if token
+          directoryClient.byToken {token, req_id}, cb
+        else
+          cb new restify.BadRequestError(
+            'sendPasswordResetEmail requires email or auth token')
 
       # Edit the user's password
       (account, cb) ->
         id = account.id
         password = generatePassword()
+        email = email || account.aliases?.email
         name = account.aliases?.name
         directoryClient.editAccount {id, password, req_id}, cb
 

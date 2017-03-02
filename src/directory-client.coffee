@@ -159,7 +159,23 @@ createClient = ({
       else
         callback null, body
 
-  { endpoint, authenticate, addAccount, byAlias, editAccount }
+  byToken = ({ token, req_id }, callback) ->
+
+    options = jsonOptions
+      path: "/users/auth/#{token}"
+      req_id: req_id
+    jsonGet options, (err, req, res, body) ->
+      if err
+        callback err
+      else if res.statusCode != 200
+        callback new Error "HTTP#{res.statusCode}"
+      else if !body
+        callback new restify.InvalidContentError(
+          'Server replied with no data')
+      else
+        callback null, body
+
+  { endpoint, authenticate, addAccount, byAlias, byToken, editAccount }
 
 module.exports = { createClient }
 # vim: ts=2:sw=2:et:

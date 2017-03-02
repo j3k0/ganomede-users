@@ -206,40 +206,25 @@ getAccountSend = (req, res, next) ->
 
 # Send a password reset email
 passwordResetEmail = (req, res, next) ->
+  
+  token = req.params?.authToken
+  email = req.body?.email
 
   # Send emails using backend, check for failure
-  sendEmail = (email) ->
-    req.log.info "reset password", {email}
-    stats.increment 'stormpath.application.passwordreset'
-    backend.sendPasswordResetEmail {email, req_id: req.id()}, (err) ->
-      if err
-        log.error err
-        sendError req, err, next
-      else
-        res.send ok:true
-        next()
+  req.log.info "reset password", {token, email}
 
-  # It's possible to just specify the email address
-  if req.body?.email
-    sendEmail req.body.email
-    return
-
-  # It's also possible to retrieve the account from the authToken
-  token = req.params.authToken
-  if !token
+  if !token and !email
     err = new restify.InvalidContentError "invalid content"
     return sendError req, err, next
 
-  authdbClient.getAccount token, (err, account) ->
+  stats.increment 'stormpath.application.passwordreset'
+  backend.sendPasswordResetEmail {email, token, req_id: req.id()}, (err) ->
     if err
       log.error err
-      err = new restify.NotAuthorizedError "not authorized"
       sendError req, err, next
-    else if account?.email
-      sendEmail account.email
     else
-      err = new restify.InvalidContentError "no email in authdb"
-      sendError req, err, next
+      res.send ok:true
+      next()
 
 authMiddleware = (req, res, next) ->
   authToken = req.params.authToken

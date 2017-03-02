@@ -176,24 +176,41 @@ createBackend = ({
             log.info createdAccount, "registered"
             that.loginAccount account, cb
 
-      sendPasswordResetEmail: ({email}, cb) ->
-        req = {email}
-        application.sendPasswordResetEmail req, (err) ->
-          if err
-            if err.code == 2016
-              cb new restify.RestError
-                restCode: "EmailNotFoundError",
-                statusCode: err.status,
-                message: err.userMessage,
-            else if err.code == 2002
-              cb new restify.RestError
-                restCode: "EmailBadFormatError",
-                statusCode: err.status,
-                message: err.userMessage,
+      sendPasswordResetEmail: ({token, email, req_id}, cb) ->
+
+        loadEmail = (cb) ->
+          if email
+            return cb null
+          if !token
+            return cb new restify.InvalidContentError "no authToken"
+          authdbClient.getAccount token, (err, account) ->
+            if err
+              log.error err
+              cb new restify.NotAuthorizedError "not authorized"
+            else if account?.email
+              cb null, account.email
             else
-              cb convertedError err
-          else
-            cb null
+              cb new restify.InvalidContentError "no email in authdb"
+
+        loadEmail (err) ->
+          if err
+            return cb err
+          application.sendPasswordResetEmail {email}, (err) ->
+            if err
+              if err.code == 2016
+                cb new restify.RestError
+                  restCode: "EmailNotFoundError",
+                  statusCode: err.status,
+                  message: err.userMessage,
+              else if err.code == 2002
+                cb new restify.RestError
+                  restCode: "EmailBadFormatError",
+                  statusCode: err.status,
+                  message: err.userMessage,
+              else
+                cb convertedError err
+            else
+              cb null
 
   initialize = (cb) ->
     loadApplication (err, app) ->
