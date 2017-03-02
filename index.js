@@ -32,11 +32,47 @@ else {
     var restify = require("restify");
     var main = require("./src/main");
 
-    var server = restify.createServer();
+    var server = restify.createServer({
+        handleUncaughtExceptions: true,
+        log: log
+    });
+
+    const shouldLogRequest = (req) =>
+        (req.url !== `/${pkg.api}/ping/_health_check`);
+
+    const shouldLogResponse = (res) =>
+        (res && res.statusCode >= 500);
+
+    const filteredLogger = (errorsOnly, logger) => (req, res, next) => {
+        const logError = errorsOnly && shouldLogResponse(res);
+        const logInfo = !errorsOnly && (
+            shouldLogRequest(req) || shouldLogResponse(res));
+        if (logError || logInfo)
+            logger(req, res);
+        if (next && typeof next === 'function')
+            next();
+    };
+
+    // Log incoming requests
+    const requestLogger = filteredLogger(false, (req) =>
+        req.log.info({req_id: req.id()}, `${req.method} ${req.url}`));
+    server.use(requestLogger);
 
     // Enable restify plugins
     server.use(restify.bodyParser());
-    server.use(restify.gzipResponse());
+    // server.use(restify.gzipResponse());
+
+    // Audit requests at completion
+    server.on('after', filteredLogger(process.env.NODE_ENV === 'production',
+        restify.auditLogger({log: log, body: true})));
+
+    // Automatically add a request-id to the response
+    function setRequestId (req, res, next) {
+        res.setHeader('x-request-id', req.id());
+        req.log = req.log.child({req_id: req.id()})
+        return next();
+    }
+    server.use(setRequestId);
 
     // Handle uncaughtException, kill the worker
     server.on('uncaughtException', function (req, res, route, err) {

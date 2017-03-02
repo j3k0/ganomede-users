@@ -1,5 +1,7 @@
 bunyan = require "bunyan"
-log = bunyan.createLogger name: "users"
+log = bunyan.createLogger
+  name: "users"
+  level: process.env.LOG_LEVEL || 'info'
 
 # class used by elasticsearch for logging
 log.ElasticLogger = class

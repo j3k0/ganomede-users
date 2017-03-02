@@ -11,11 +11,40 @@ Configuration
  * `STORMPATH_API_ID`
  * `STORMPATH_API_SECRET`
  * `STORMPATH_APP_NAME`
- * `REDIS_AUTH_PORT_6379_TCP_ADDR`
- * `REDIS_AUTH_PORT_6379_TCP_PORT`
- * `REDIS_USERMETA_PORT_6379_TCP_ADDR`
- * `REDIS_USERMETA_PORT_6379_TCP_PORT`
- * `FACEBOOK_APP_SECRET`
+ * `DIRECTORY_PORT_8080_TCP_ADDR` - IP of the rules service
+ * `DIRECTORY_PORT_8080_TCP_PORT` - Port of the rules service
+ * `DIRECTORY_PORT_8080_TCP_PROTOCOL` - Port of the rules service
+ * `REDIS_AUTH_PORT_6379_TCP_ADDR` - IP of the AuthDB redis
+ * `REDIS_AUTH_PORT_6379_TCP_PORT` - Port of the AuthDB redis
+ * `REDIS_USERMETA_PORT_6379_TCP_ADDR` - IP of the usermeta redis
+ * `REDIS_USERMETA_PORT_6379_TCP_PORT` - Port of the usermeta redis
+ * `FACEBOOK_APP_ID` - Id of the Facebook application
+ * `FACEBOOK_APP_SECRET` - Secret of the Facebook application
+ * `LEGACY_ERROR_CODES` - Use stormpath compatible error codes
+ * `USE_STORMPATH_ONLY` - Only enable the Stormpath backend
+ * `USE_DIRECTORY_ONLY` - Only enable the Directory backend
+ * `CREATE_USERS_IN_STORMPATH` - New users will use Stormpath backend
+ * `LOG_LEVEL` - See [bunyan levels](https://github.com/trentm/node-bunyan#levels) (default: info)
+
+Mailer options (for password reset emails)
+
+ * `MAILER_SEND_FROM` - Sender of password reset email
+ * `MAILER_SEND_SUBJECT` - Subject of password reset email
+ * `MAILER_SEND_TEXT` - Plain text of password reset email
+ * `MAILER_SEND_HTML` - HTML text of password reset email
+ * `MAILER_PORT` - the port to connect to (defaults to 25 or 465)
+ * `MAILER_HOST` - the hostname or IP address to connect to (defaults to 'localhost')
+ * `MAILER_SECURE` - connection should use SSL (if `true`) or not (if `false`)
+ * `MAILER_AUTH_USER` - username to use when connecting to smtp server
+ * `MAILER_AUTH_PASS` - password to use when connecting to smtp server
+ * `MAILER_IGNORE_TLS` - turns off STARTTLS support if true
+ * `MAILER_NAME` - optional hostname of the client, used for identifying to the server
+ * `MAILER_LOCAL_ADDRESS` - the local interface to bind to for network connections
+ * `MAILER_CONNECTION_TIMEOUT` - how many milliseconds to wait for the connection to establish
+ * `MAILER_GREETING_TIMEOUT` - how many milliseconds to wait for the greeting after connection is established
+ * `MAILER_SOCKET_TIMEOUT` - how many milliseconds of inactivity to allow
+ * `MAILER_DEBUG` - set to true, then logs SMTP traffic, otherwise logs only transaction events
+ * `MAILER_AUTH_METHOD` - defines preferred authentication method, eg. 'PLAIN'
 
 API
 ---
@@ -39,7 +68,7 @@ API
 ### body (application/json)
 
     {
-        "facebookAccessToken": "AccessTokenFromFacebook",
+        "facebookToken": "AccessTokenFromFacebook",
         "username": "tk421"
     }
 
@@ -70,7 +99,7 @@ API
 ### body (application/json)
 
     {
-        "facebookAccessToken": "AccessTokenFromFacebook"
+        "facebookToken": "AccessTokenFromFacebook"
     }
 
 ### response [200] OK
