@@ -1,4 +1,5 @@
 vasync = require 'vasync'
+restify = require "restify"
 
 createBackend = ({
   directoryClient # see src/directory-client.coffee
@@ -8,6 +9,7 @@ createBackend = ({
   facebookClient  # see src/facebook.coffee
   checkBan        # signature: checkban(callback)
                   #            callback(err, banned)
+  usermetaClient
   log = require '../log'
   primary
   secondary
@@ -51,13 +53,25 @@ createBackend = ({
         else
           cb null, result
 
-    # only attempts to create the account with primary
     if createAccountFromSecondary
       log.info "failover backend will create accounts in secondary"
-      createAccount = secondary.createAccount
-    else
-      log.info "failover backend will create accounts in primary"
-      createAccount = primary.createAccount
+    createAccount = ({
+      username
+      password
+      email
+      req_id
+    }, cb) ->
+      # only attempts to create the account if it does not exists
+      usermetaClient.get username, "auth", (err, reply) ->
+        if reply
+          cb new restify.RestError
+            statusCode: 409
+            restCode: 'StormpathResourceError2001'
+            message: 'User already exists'
+        else if createAccountFromSecondary
+          secondary.createAccount({username, password, email, req_id}, cb)
+        else
+          primary.createAccount({username, password, email, req_id}, cb)
 
     # attempts password reset with primary,
     # tries secondary on failure

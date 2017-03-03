@@ -341,6 +341,7 @@ initialize = (cb, options = {}) ->
     appName: options.stormpathAppName
     log
     authdbClient
+    usermetaClient
     aliasesClient
     fullnamesClient
     checkBan

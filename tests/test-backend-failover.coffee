@@ -25,6 +25,16 @@ authenticatorTD = ->
     td.matchers.contains publicAccount EXISTING_USER))
       .thenReturn authAccount EXISTING_USER
 
+usermetaClientTD = ->
+  usermetaClient = td.object [ 'get' ]
+  td.when(usermetaClient.get td.matchers.anything(), td.matchers.anything())
+    .thenCallback null, null
+  td.when(usermetaClient.get EXISTING_USER.username, "auth")
+    .thenCallback null, 1
+  td.when(usermetaClient.get SECONDARY_USER.username, "auth")
+    .thenCallback null, 1
+  usermetaClient
+
 backendTD = (existing) ->
   ret = td.object [ 'initialize' ]
   backend = td.object [
@@ -68,13 +78,14 @@ baseTest = ->
   #td.when(log.debug(), {ignoreExtraArgs:true})
   #  .thenDo(tb.info.bind tb)
   authenticator = authenticatorTD()
+  usermetaClient = usermetaClientTD()
   primary = backendTD EXISTING_USER
   secondary = backendTD SECONDARY_USER
   backend = failover.createBackend {
-    log, authenticator, primary, secondary }
+    log, authenticator, usermetaClient, primary, secondary }
   callback = td.function 'callback'
-  { callback, backend, primary, secondary }
-  
+  { callback, backend, primary, secondary, usermetaClient }
+
 backendTest = ->
   ret = baseTest()
   ret.backend.initialize (err, backend) ->
@@ -125,26 +136,28 @@ describe 'backend/failover', ->
       { callback } = loginAccount credentials(NEW_USER)
       td.verify callback td.matchers.isA(restify.ResourceNotFoundError)
 
-  describe.skip 'backend.createAccount()', ->
+  describe 'backend.createAccount()', ->
 
     createAccount = (account) ->
       ret = backendTest()
       ret.backend.createAccount account, ret.callback
       ret
 
-    hasAlias = (matchedAlias) -> (aliases) ->
-      aliases.filter((testedAlias) ->
-        testedAlias.type == matchedAlias.type and
-          testedAlias.value == matchedAlias.value and
-          testedAlias.public == matchedAlias.public
-      ).length > 0
+    it 'does not create users that exist in primary', ->
+      { directoryClient, callback } = createAccount account(EXISTING_USER)
+      td.verify callback(td.matchers.isA(restify.RestError))
 
-    it 'adds an account with the provided id and password', ->
-      { directoryClient } = createAccount account(NEW_USER)
-      td.verify directoryClient.addAccount(
-        directoryAccount(NEW_USER), td.matchers.anything(), td.callback)
+    it 'does not create users that exist in secondary', ->
+      { directoryClient, callback } = createAccount account(SECONDARY_USER)
+      td.verify callback(td.matchers.isA(restify.RestError))
 
-    it 'adds the email as a private alias', ->
+    it 'creates users that do not exist', ->
+      { directoryClient, primary } = createAccount account(NEW_USER)
+      td.verify primary.createAccount(
+        td.matchers.contains(username: NEW_USER.username),
+        td.callback)
+
+    it.skip 'adds the email as a private alias', ->
       { directoryClient } = createAccount account(NEW_USER)
       emailAlias =
         type: 'email'
@@ -155,7 +168,7 @@ describe 'backend/failover', ->
         td.matchers.argThat(hasAlias(emailAlias)),
         td.callback)
 
-    it 'adds the name as a public alias', ->
+    it.skip 'adds the name as a public alias', ->
       { directoryClient } = createAccount account(NEW_USER)
       nameAlias =
         type: 'name'
@@ -166,7 +179,7 @@ describe 'backend/failover', ->
         td.matchers.argThat(hasAlias(nameAlias)),
         td.callback)
 
-    it 'adds the tag as a public alias', ->
+    it.skip 'adds the tag as a public alias', ->
       { directoryClient } = createAccount account(NEW_USER)
       tagAlias =
         type: 'tag'
@@ -177,11 +190,11 @@ describe 'backend/failover', ->
         td.matchers.argThat(hasAlias(tagAlias)),
         td.callback)
 
-    it 'calls back on success', ->
+    it.skip 'calls back on success', ->
       { callback } = createAccount account(NEW_USER)
       td.verify callback null
 
-    it 'fails when the given ID is not available', ->
+    it.skip 'fails when the given ID is not available', ->
       { backend, directoryClient, callback } = backendTest()
       backend.createAccount account(EXISTING_USER), callback
       td.verify callback td.matchers.isA restify.ConflictError
