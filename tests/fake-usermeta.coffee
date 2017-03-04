@@ -1,8 +1,7 @@
 DEFAULT_MAX_LENGTH = 200
 class UsermetaClient
-  constructor: (redis) ->
+  constructor: () ->
     @store = {}
-    @redisClient = redis
   set: (username, key, value, cb, maxLength = DEFAULT_MAX_LENGTH) ->
     token = "#{username}:#{key}"
     @store[token] = value
@@ -12,7 +11,6 @@ class UsermetaClient
     if !@store[token]
       return cb null, null
     cb null, @store[token]
-  isValid: (key) -> true
 
 module.exports =
   createClient: (redis) -> new UsermetaClient(redis)

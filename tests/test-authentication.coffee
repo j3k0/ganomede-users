@@ -17,12 +17,14 @@ createTestable = ->
 
   authdbClient = td.object [ 'addAccount' ]
 
-  usermetaClient = td.object [ 'set' ]
+  localUsermetaClient = td.object [ 'set' ]
+  centralUsermetaClient = td.object [ 'set' ]
 
   authenticator = authentication.createAuthenticator {
-    authdbClient, usermetaClient, genToken, timestamp }
+    authdbClient, localUsermetaClient, centralUsermetaClient,
+    genToken, timestamp }
 
-  { authdbClient, usermetaClient, authenticator }
+  { authdbClient, localUsermetaClient, centralUsermetaClient, authenticator }
 
 describe 'authentication', ->
 
@@ -32,7 +34,7 @@ describe 'authentication', ->
 
   describe 'authenticator.add()', ->
     it 'adds the user to authdb', ->
-      { authdbClient, usermetaClient, authenticator
+      { authdbClient, centralUsermetaClient, authenticator, localUsermetaClient,
       } = createTestable()
       ret = authenticator.add
         username: USERNAME
@@ -44,7 +46,12 @@ describe 'authentication', ->
       td.verify authdbClient.addAccount TOKEN,
         username: USERNAME
         email: EMAIL
-      td.verify usermetaClient.set USERNAME, 'auth', TIMESTAMP,
+      td.verify localUsermetaClient.set USERNAME, 'auth', TIMESTAMP,
         td.matchers.isA(Function)
+      td.verify centralUsermetaClient.set USERNAME, 'auth', TIMESTAMP,
+        td.matchers.isA(Function)
+
+  describe.skip 'authenticator.updateAuthMetadata()', ->
+  describe.skip 'authenticator.getAuthMetadata()', ->
 
 # vim: ts=2:sw=2:et:

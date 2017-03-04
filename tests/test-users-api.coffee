@@ -32,9 +32,8 @@ data =
 baseTest = ->
   #log = require '../src/log'
   log = td.object [ 'info', 'warn', 'error' ]
-  usermetaClient = td.object [ 'get', 'set', 'isValid' ]
-  usermetaClient.redisClient = td.object []
-  usermetaClient.validKeys = {}
+  localUsermetaClient = td.object [ 'get', 'set' ]
+  centralUsermetaClient = td.object [ 'get', 'set' ]
 
   backend = td.object [
     'initialize'
@@ -58,10 +57,10 @@ baseTest = ->
 
   callback = td.function 'callback'
   authdbClient = fakeAuthdb.createClient()
-  options = { log, usermetaClient, createBackend, authdbClient,
-    authenticator }
+  options = { log, localUsermetaClient, centralUsermetaClient,
+    createBackend, authdbClient, authenticator }
   { callback, options,
-    createBackend, backend, usermetaClient,
+    createBackend, backend, localUsermetaClient, centralUsermetaClient,
     authdbClient, authdbClient }
 
 i = 0
@@ -81,8 +80,8 @@ restTest = (done) ->
 
   i += 1
   server = restify.createServer()
-  redis  = td.object [] # fakeRedis.createClient("test-usermeta-#{i}")
-  usermeta = fakeUsermeta.createClient(redis)
+  localUsermeta = fakeUsermeta.createClient()
+  centralUsermeta = fakeUsermeta.createClient()
   ret.bans = td.object require('../src/bans').Bans
 
   data.tokens.forEach (info) ->
@@ -97,7 +96,8 @@ restTest = (done) ->
   ret.start = (cb) ->
     options =
       # log: td.object [ 'info', 'warn', 'error' ]
-      usermetaClient: usermeta
+      localUsermetaClient: localUsermeta
+      centralUsermetaClient: centralUsermeta
       authdbClient: ret.authdbClient
       createBackend: ret.createBackend
       bans: ret.bans

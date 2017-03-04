@@ -41,7 +41,9 @@ facebookClient = facebook.createClient
 authdbClient = null
 
 # Extra user data
-usermetaClient = null
+rootUsermetaClient = null
+localUsermetaClient = null
+centralUsermetaClient = null
 bansClient = null
 aliasesClient = null
 fullnamesClient = null
@@ -201,10 +203,7 @@ getAccountSend = (req, res, next) ->
 
   # Update the "auth" metadata
   if account.username
-    timestamp = "" + (new Date().getTime())
-    # TODO: update local and central "auth"
-    # TODO: maybe its own module (because code is repeated in authenticator)
-    usermetaClient.set account.username, "auth", timestamp, (err, reply) ->
+    authenticator.updateAuthMetadata account
 
 # Send a password reset email
 passwordResetEmail = (req, res, next) ->
@@ -236,7 +235,7 @@ jsonBody = (req, res, next) ->
 
 authMiddleware = (req, res, next) ->
 
-  authToken = req.params.authToken
+  authToken = req.params.authToken || req.context.authToken
   if !authToken
     return sendError(req, new restify.InvalidContentError(
       'invalid content'), next)
@@ -263,17 +262,17 @@ authMiddleware = (req, res, next) ->
 
 # Set metadata
 postMetadata = (req, res, next) ->
+  # send who is the calling user, or null if not known
+  # (so GanomedeUsermeta can check access rights)
   params =
     username: req.params.user.username
-    authToken: req.params.authToken
+    authToken: req.params.authToken || req.context.authToken
     apiSecret: req.params.apiSecret
     req_id: req.id()
     log: req.log
   key = req.params.key
   value = req.body.value
-  # TODO: send who is the calling user, or null if not known
-  # (so usermetaClient can check access rights)
-  usermetaClient.set params, key, value, (err, reply) ->
+  rootUsermetaClient.set params, key, value, (err, reply) ->
     if (err)
       log.error
         err:err
@@ -286,7 +285,7 @@ postMetadata = (req, res, next) ->
 getMetadata = (req, res, next) ->
   username = req.params.username
   key = req.params.key
-  usermetaClient.get username, key, (err, reply) ->
+  rootUsermetaClient.get username, key, (err, reply) ->
     res.send
       key: key
       value: reply
@@ -306,43 +305,44 @@ initialize = (cb, options = {}) ->
       host: redisAuthConfig.host
       port: redisAuthConfig.port
 
-  # TODO: we now want 2 usermetaClient (central and local)
-  if options.usermetaClient
-    usermetaClient = options.usermetaClient
-  else
-    localUsermetaConfig = serviceConfig('LOCAL_USERMETA', 8000)
-    if localUsermetaConfig.exists
-      localUsermetaClient = usermeta.create ganomedeConfig: localUsermetaConfig
-      log.info localUsermetaConfig, "localUsermeta"
-      usermetaClient = localUsermetaClient
+  createUsermetaClient = (name, ganomedeEnv) ->
+    ganomedeConfig = serviceConfig(ganomedeEnv, 8000)
+    if options[name]
+      return options[name]
+    else if ganomedeConfig.exists
+      log.info {ganomedeConfig}, "usermeta[#{name}]"
+      return usermeta.create {ganomedeConfig}
     else
-      log.error "cant create usermeta client, no LOCAL_USERMETA config"
+      log.warn "cant create usermeta client, no #{ganomedeEnv} config"
+      return null
+
+  localUsermetaClient = createUsermetaClient(
+    "localUsermetaClient", 'LOCAL_USERMETA')
+  centralUsermetaClient = createUsermetaClient(
+    "centralUsermetaClient", 'CENTRAL_USERMETA')
+  # TODO: create the root usermeta client
+  rootUsermetaClient = centralUsermetaClient
 
   if options.bans
     bans = options.bans
   else
-    bans = new Bans({usermetaClient})
+    bans = new Bans(usermetaClient: centralUsermetaClient)
 
   # Aliases
-  # TODO: use central usermeta
-  aliasesClient = aliases.createClient {
-    usermetaClient }
+  aliasesClient = aliases.createClient
+    usermetaClient: centralUsermetaClient
 
   # Full names
-  # TODO: use central usermeta
-  fullnamesClient = fullnames.createClient {
-    usermetaClient }
+  fullnamesClient = fullnames.createClient
+    usermetaClient: centralUsermetaClient
 
   # Friends
-  # TODO: use central usermeta
   friendsClient = friendsStore.createClient {
-    log, usermetaClient }
+    log, usermetaClient: centralUsermetaClient }
 
   # Authenticator
-  # TODO: use both local and central usermeta
-  # (so we store last local auth date, and last global auth date)
   authenticator = authentication.createAuthenticator {
-    authdbClient, usermetaClient }
+    authdbClient, localUsermetaClient, centralUsermetaClient }
 
   # Facebook friends
   facebookFriends = require "./facebook-friends"
@@ -364,7 +364,6 @@ initialize = (cb, options = {}) ->
     appName: options.stormpathAppName
     log
     authdbClient
-    usermetaClient # TODO: local or central? (see what it's used for)
     aliasesClient
     fullnamesClient
     checkBan

@@ -9,7 +9,6 @@ createBackend = ({
   facebookClient  # see src/facebook.coffee
   checkBan        # signature: checkban(callback)
                   #            callback(err, banned)
-  usermetaClient
   log = require '../log'
   primary
   secondary
@@ -62,7 +61,7 @@ createBackend = ({
       req_id
     }, cb) ->
       # only attempts to create the account if it does not exists
-      usermetaClient.get username, "auth", (err, reply) ->
+      authenticator.getAuthMetadata {username}, (err, reply) ->
         if reply
           cb new restify.RestError
             statusCode: 409
