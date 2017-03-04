@@ -1,0 +1,74 @@
+users:
+    build: .
+    dockerfile: Dockerfile.dev
+    volumes:
+     - ./src:/home/app/code/src
+     - ./tests:/home/app/code/tests
+     - ./run_tests.sh:/home/app/code/run_tests.sh
+    links:
+     - authRedis:redis_auth
+     - centralUsermeta:central_usermeta
+     - localUsermeta:local_usermeta
+     - directory:directory
+    environment:
+     - "USE_DIRECTORY_ONLY=1"
+     - "LEGACY_ERROR_CODES=1"
+     - "API_SECRET=1234"
+     - "LOG_LEVEL=debug"
+     - "FACEBOOK_APP_ID=1234567890"
+     - "FACEBOOK_APP_SECRET="
+     - "NODE_ENV="
+    ports:
+     - "8001:8000"
+
+centralUsermeta:
+    image: ganomede/usermeta:v1.0.5
+    ports:
+      - "8004:8000"
+    links:
+     - centralUsermetaRedis:redis_usermeta
+     - authRedis:redis_auth
+    environment:
+     - "API_SECRET=1234"
+     - "USERMETA_PUBLIC_KEYS=country,yearofbirth"
+     - "USERMETA_PROTECTED_KEYS=$$friends"
+     - "USERMETA_PRIVATE_KEYS=$$banned,$$alias"
+     - "USERMETA_INTERNAL_KEYS="
+     - "USERMETA_MAX_LENGTH=1000"
+     - "NODE_ENV="
+
+localUsermeta:
+    image: ganomede/usermeta:v1.0.5
+    ports:
+      - "8003:8000"
+    links:
+     - localUsermetaRedis:redis_usermeta
+     - authRedis:redis_auth
+    environment:
+     - "API_SECRET=1234"
+     - "USERMETA_PUBLIC_KEYS=puzzles"
+     - "USERMETA_PROTECTED_KEYS="
+     - "USERMETA_PRIVATE_KEYS="
+     - "USERMETA_INTERNAL_KEYS="
+     - "USERMETA_MAX_LENGTH=10000"
+     - "NODE_ENV="
+
+directory:
+    image: ganomede/directory:v0.2.0
+    ports:
+     - "8002:8000"
+    links:
+     - directoryCouch:couch_directory
+     - authRedis:redis_auth
+    environment:
+     - "API_SECRET=1234"
+     - "COUCH_DIRECTORY_SYNC="
+
+directoryCouch:
+    image: klaemo/couchdb:1.6.1
+authRedis:
+    image: redis:alpine
+centralUsermetaRedis:
+    image: redis:alpine
+localUsermetaRedis:
+    image: redis:alpine
