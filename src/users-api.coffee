@@ -202,6 +202,8 @@ getAccountSend = (req, res, next) ->
   # Update the "auth" metadata
   if account.username
     timestamp = "" + (new Date().getTime())
+    # TODO: update local and central "auth"
+    # TODO: maybe its own module (because code is repeated in authenticator)
     usermetaClient.set account.username, "auth", timestamp, (err, reply) ->
 
 # Send a password reset email
@@ -256,6 +258,8 @@ postMetadata = (req, res, next) ->
   username = req.params.user.username
   key = req.params.key
   value = req.body.value
+  # TODO: send who is the calling user, or null if not known
+  # (so usermetaClient can check access rights)
   usermetaClient.set username, key, value, (err, reply) ->
     if (err)
       log.error
@@ -265,6 +269,7 @@ postMetadata = (req, res, next) ->
     next()
 
 # Get metadata
+# TODO: send who is the calling user
 getMetadata = (req, res, next) ->
   username = req.params.username
   key = req.params.key
@@ -288,6 +293,8 @@ initialize = (cb, options = {}) ->
       host: redisAuthConfig.host
       port: redisAuthConfig.port
 
+  # TODO: we now want 2 usermetaClient (central and local)
+  # TODO: connect to ganomede-usermeta instead of REDIS_USERMETA
   if options.usermetaClient
     usermetaClient = options.usermetaClient
   else
@@ -306,18 +313,23 @@ initialize = (cb, options = {}) ->
     bans = new Bans({redis: usermetaClient.redisClient})
 
   # Aliases
+  # TODO: use central usermeta
   aliasesClient = aliases.createClient {
     usermetaClient }
 
   # Full names
+  # TODO: use central usermeta
   fullnamesClient = fullnames.createClient {
     usermetaClient }
 
   # Friends
+  # TODO: use central usermeta
   friendsClient = friendsStore.createClient {
     log, usermetaClient }
 
   # Authenticator
+  # TODO: use both local and central usermeta
+  # (so we store last local auth date, and last global auth date)
   authenticator = authentication.createAuthenticator {
     authdbClient, usermetaClient }
 
@@ -341,7 +353,7 @@ initialize = (cb, options = {}) ->
     appName: options.stormpathAppName
     log
     authdbClient
-    usermetaClient
+    usermetaClient # TODO: local or central? (see what it's used for)
     aliasesClient
     fullnamesClient
     checkBan

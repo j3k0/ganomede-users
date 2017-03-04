@@ -3,6 +3,19 @@ restify = require "restify"
 
 DEFAULT_MAX_LENGTH = 200
 
+# TODO: connect to a ganomede-usermeta instance (remove all links to redis usermeta)
+# TODO: forget all about keys validation, ganomede-usermeta will take care of that
+# TODO: implement virtual metadata 'email' and 'username' (with ganomede-directory)
+# TODO: implement virtual metadata 'country' and 'yearofbirth' (with ganomede-directory)
+#
+# Design:
+#
+# Lets have 2 implementations of a usermeta client:
+#  * GanomedeUsermeta will use ganomede-usermeta (instanced twice -- local and central)
+#  * DirectoryAliases will use ganomede-directory aliases
+#
+# Then create a UsermetaRouter that sends requests to the appropriate client
+#
 class Usermeta
   constructor: (@redisClient) ->
     @validKeys = null
