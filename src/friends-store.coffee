@@ -22,7 +22,7 @@ createStore = (options) ->
   if not usermetaClient
     throw new Error("usermetaClient not defined")
 
-  if not usermetaClient.isValid KEY_NAME
+  if usermetaClient.validKeys and not usermetaClient.isValid KEY_NAME
     usermetaClient.validKeys[KEY_NAME] = true
 
   # Empty set, prevent creating empty arrays all the time

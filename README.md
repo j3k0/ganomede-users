@@ -11,10 +11,10 @@ Configuration
  * `STORMPATH_API_ID`
  * `STORMPATH_API_SECRET`
  * `STORMPATH_APP_NAME`
- * `DIRECTORY_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the directory service
- * `CENTRAL_USERMETA_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the central usermeta service
- * `LOCAL_USERMETA_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the local usermeta service
- * `REDIS_AUTH_[ADDR|PORT]` - IP|port of the AuthDB redis
+ * `DIRECTORY_PORT_8000_TCP_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the directory service
+ * `CENTRAL_USERMETA_PORT_8000_TCP_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the central usermeta service
+ * `LOCAL_USERMETA_PORT_8000_TCP_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the local usermeta service
+ * `REDIS_AUTH_PORT_6379_TCP_[ADDR|PORT]` - IP|port of the AuthDB redis
  * `FACEBOOK_APP_ID` - Id of the Facebook application
  * `FACEBOOK_APP_SECRET` - Secret of the Facebook application
  * `LEGACY_ERROR_CODES` - Use stormpath compatible error codes

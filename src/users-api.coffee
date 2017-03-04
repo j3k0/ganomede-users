@@ -1,6 +1,6 @@
 # Users API
 #
-# Implements the users API using Stormpath
+# Implements the users API
 #
 
 _ = require 'lodash'
@@ -16,7 +16,7 @@ fullnames = require "./fullnames"
 friendsStore = require "./friends-store"
 facebook = require "./facebook"
 usernameValidator = require "./username-validator"
-{Bans} = require('./bans')
+{Bans} = require './bans'
 urllib = require 'url'
 mailer = require './mailer'
 
@@ -228,7 +228,14 @@ passwordResetEmail = (req, res, next) ->
       res.send ok:true
       next()
 
+jsonBody = (req, res, next) ->
+  if typeof req.params != 'object'
+    return sendError(req, new restify.BadRequestError(
+      'Body is not json'), next)
+  next()
+
 authMiddleware = (req, res, next) ->
+
   authToken = req.params.authToken
   if !authToken
     return sendError(req, new restify.InvalidContentError(
@@ -240,6 +247,7 @@ authMiddleware = (req, res, next) ->
       reqApiSecret = authToken.substr(0, separatorIndex)
       username = authToken.substr(separatorIndex + 1, authToken.length)
       if apiSecret == reqApiSecret
+        req.params.apiSecret = apiSecret
         req.params.user =
           username: username
       next()
@@ -255,12 +263,17 @@ authMiddleware = (req, res, next) ->
 
 # Set metadata
 postMetadata = (req, res, next) ->
-  username = req.params.user.username
+  params =
+    username: req.params.user.username
+    authToken: req.params.authToken
+    apiSecret: req.params.apiSecret
+    req_id: req.id()
+    log: req.log
   key = req.params.key
   value = req.body.value
   # TODO: send who is the calling user, or null if not known
   # (so usermetaClient can check access rights)
-  usermetaClient.set username, key, value, (err, reply) ->
+  usermetaClient.set params, key, value, (err, reply) ->
     if (err)
       log.error
         err:err
@@ -294,23 +307,21 @@ initialize = (cb, options = {}) ->
       port: redisAuthConfig.port
 
   # TODO: we now want 2 usermetaClient (central and local)
-  # TODO: connect to ganomede-usermeta instead of REDIS_USERMETA
   if options.usermetaClient
     usermetaClient = options.usermetaClient
   else
-    redisUsermetaConfig = serviceConfig('REDIS_USERMETA', 6379)
-    if redisUsermetaConfig.exists
-      redisUsermetaConfig.options =
-        no_ready_check: true
-      usermetaClient = usermeta.create redisUsermetaConfig
-      log.info "usermeta", redisUsermetaConfig
+    localUsermetaConfig = serviceConfig('LOCAL_USERMETA', 8000)
+    if localUsermetaConfig.exists
+      localUsermetaClient = usermeta.create ganomedeConfig: localUsermetaConfig
+      log.info localUsermetaConfig, "localUsermeta"
+      usermetaClient = localUsermetaClient
     else
-      log.error "cant create usermeta client, no REDIS_USERMETA database"
+      log.error "cant create usermeta client, no LOCAL_USERMETA config"
 
   if options.bans
     bans = options.bans
   else
-    bans = new Bans({redis: usermetaClient.redisClient})
+    bans = new Bans({usermetaClient})
 
   # Aliases
   # TODO: use central usermeta
@@ -365,7 +376,7 @@ initialize = (cb, options = {}) ->
   }
 
   prepareDirectoryBackend = () ->
-    directoryService = serviceConfig 'DIRECTORY', 8080
+    directoryService = serviceConfig 'DIRECTORY', 8000
     if !directoryService.exists
       throw new Error "directory service not configured properly"
     log.info { directoryService }
@@ -459,18 +470,18 @@ addRoutes = (prefix, server) ->
     getAccountSend
   )
 
-  server.post("#{prefix}/banned-users", validateSecret, banAdd)
+  server.post("#{prefix}/banned-users", jsonBody, validateSecret, banAdd)
   server.del("#{prefix}/banned-users/:username", validateSecret, banRemove)
   server.get("#{prefix}/banned-users/:username", banStatus)
 
   endPoint = "/#{prefix}/auth/:authToken/passwordResetEmail"
-  server.post endPoint, passwordResetEmail
+  server.post endPoint, jsonBody, passwordResetEmail
 
   endPoint = "/#{prefix}/passwordResetEmail"
-  server.post endPoint, passwordResetEmail
+  server.post endPoint, jsonBody, passwordResetEmail
 
   server.post "/#{prefix}/auth/:authToken/metadata/:key",
-    authMiddleware, postMetadata
+    jsonBody, authMiddleware, postMetadata
   server.get "/#{prefix}/:username/metadata/:key", getMetadata
 
   friendsApi.addRoutes prefix, server
