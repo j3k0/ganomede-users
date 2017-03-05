@@ -2,18 +2,104 @@ assert = require "assert"
 usermeta = require "../src/usermeta"
 fakeRedis = require 'fakeredis'
 td = require 'testdouble'
+{expect} = require 'chai'
+restify = require "restify"
 
 describe "usermeta", ->
 
+  describe "DirectoryAliases", ->
+
+    publicAccount =
+      id: "username"
+      aliases:
+        name: "name"
+        tag: "guttentag"
+
+    protectedAccount =
+      id: "username"
+      aliases:
+        name: "myname"
+        tag: "guttentag"
+        email: "user@email.com"
+
+    usermetaClient = null
+    directoryClient = null
+    beforeEach ->
+      directoryClient = td.object ['editAccount', 'byId', 'byToken']
+      td.when(directoryClient.editAccount(td.matchers.anything()))
+        .thenCallback(null, {})
+      td.when(directoryClient.byId(td.matchers.contains(id:"username")))
+        .thenCallback(null, publicAccount)
+      td.when(directoryClient.byToken(td.matchers.contains(token:"abc")))
+        .thenCallback(null, protectedAccount)
+      usermetaClient = usermeta.create {directoryClient}
+
+    it "is created from a directoryClient", ->
+      assert.equal "DirectoryAliasesProtected", usermetaClient.type
+
+    it "also works in 'public' mode", ->
+      usermetaClient = usermeta.create {directoryClient, mode: "public"}
+      assert.equal "DirectoryAliasesPublic", usermetaClient.type
+
+    describe '.get', ->
+      it "calls back with (BadRequestError, null) for invalid data", (done) ->
+        usermetaClient.get "username", "location", (err, data) ->
+          expect(err).to.be.instanceof restify.BadRequestError
+          assert.equal null, data
+          done()
+
+      it "requires an authToken in protected mode", (done) ->
+        usermetaClient.get "username", "name", (err, data) ->
+          expect(err).to.be.instanceof restify.NotAuthorizedError
+          done()
+
+      it "does not require the authToken in public mode", (done) ->
+        usermetaClient = usermeta.create {directoryClient, mode: "public"}
+        usermetaClient.get "username", "name", (err, data) ->
+          expect(err).to.be.null
+          expect(data).to.equal "name"
+          done()
+
+
+    describe '.set', ->
+      it "requires an authToken", (done) ->
+        usermetaClient.set "username", "name", "newname", (err, data) ->
+          expect(err).to.be.instanceof restify.NotAuthorizedError
+          done()
+
+      it "sets and gets data", (done) ->
+        usermetaClient.set {authToken:"abc"}, "email", "user@email.com", (err, data) ->
+          expect(err).to.be.null
+          usermetaClient.get {authToken:"abc"}, "email", (err, data) ->
+            console.log err
+            expect(err).to.be.null
+            assert.equal "user@email.com", data
+            done()
+
+  describe "GanomedeUsermeta", ->
+
+    usermetaClient = null
+    jsonClient = null
+    beforeEach ->
+      jsonClient = td.object []
+      usermetaClient = usermeta.create {ganomedeClient: jsonClient}
+
+    it "is created from a ganomedeClient", ->
+      assert.equal "GanomedeUsermeta", usermetaClient.type
+
   describe "RedisUsermeta", ->
 
+    usermetaClient = null
     redisClient = null
     beforeEach ->
       process.env.USERMETA_VALID_KEYS = "k1,ke2,key3,age,age1"
       redisClient = fakeRedis.createClient(__filename)
+      usermetaClient = usermeta.create {redisClient}
+
+    it "is created from a redisClient", ->
+      assert.equal "RedisUsermeta", usermetaClient.type
 
     it "parse USERMETA_VALID_KEYS", ->
-      usermetaClient = usermeta.create redisClient: redisClient
       assert.equal true, usermetaClient.validKeys.k1
       assert.equal true, usermetaClient.validKeys.ke2
       assert.equal true, usermetaClient.validKeys.key3
@@ -21,13 +107,11 @@ describe "usermeta", ->
       assert.equal false, usermetaClient.isValid "key4"
 
     it "returns null for invalid data", (done) ->
-      usermetaClient = usermeta.create redisClient: redisClient
       usermetaClient.get "username", "location", (err, data) ->
         assert.equal null, data
         done()
 
     it "sets and gets data", (done) ->
-      usermetaClient = usermeta.create redisClient: redisClient
       usermetaClient.set "username", "age", "25", (err, data) ->
         assert.ok !err
         usermetaClient.get "username", "age", (err, data) ->

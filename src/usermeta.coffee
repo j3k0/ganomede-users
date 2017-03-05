@@ -37,7 +37,7 @@ parseParams = (obj) ->
 directory = {
 
   # handles replies from directoryClient's read requests
-  handleResponse: (params, cb) -> (err, account) ->
+  handleResponse: (params, key, cb) -> (err, account) ->
     if err
       log.error {err, req_id: params.req_id},
         "GanomedeUsermeta.get failed"
@@ -90,7 +90,8 @@ directory = {
 class DirectoryAliasesProtected
 
   constructor: (@directoryClient) ->
-    @validKeys = {email: true}
+    @validKeys = {email: true, name: true}
+    @type = "DirectoryAliasesProtected"
 
   isValid: (key) -> !!@validKeys[key]
 
@@ -106,14 +107,18 @@ class DirectoryAliasesProtected
     # protected metadata require an authToken for reading
     if !params.authToken
       return cb new restify.NotAuthorizedError("Protected meta")
-    directoryClient.byToken {token: params.authToken, req_id},
-      directory.handleResponse(params, cb)
+    account =
+      token: params.authToken
+      req_id: params.req_id
+    @directoryClient.byToken account,
+      directory.handleResponse(params, key, cb)
 
 # Stores "public" metadata as directory account aliases
 class DirectoryAliasesPublic
 
   constructor: (@directoryClient) ->
     @validKeys = {name: true}
+    @type = "DirectoryAliasesPublic"
 
   isValid: (key) -> !!@validKeys[key]
 
@@ -126,12 +131,16 @@ class DirectoryAliasesPublic
     if !@isValid key
       return cb new restify.BadRequestError("Forbidden meta key")
     params = parseParams(params)
-    directoryClient.byId {id: params.username, req_id},
-      directory.handleResponse(params, cb)
+    account =
+      id: params.username
+      req_id: params.req_id
+    @directoryClient.byId account,
+      directory.handleResponse(params, key, cb)
 
 # Stores "public" metadata in redis
 class RedisUsermeta
   constructor: (@redisClient) ->
+    @type = "RedisUsermeta"
     @validKeys = null
     if process.env.USERMETA_VALID_KEYS
       keys = process.env.USERMETA_VALID_KEYS.split ","
@@ -177,6 +186,7 @@ authPath = (params) ->
 # ganomede-usermeta server will take care of key validation
 class GanomedeUsermeta
   constructor: (@jsonClient) ->
+    @type = "GanomedeUsermeta"
 
   set: (params, key, value, cb) ->
     params = parseParams(params)
