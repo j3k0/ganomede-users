@@ -1,6 +1,11 @@
 #!/bin/bash
 
-PREFIX=http://localhost:8001/users/v1
+BASE_URL="${BASE_URL:-http://localhost:8000}"
+PREFIX="${BASE_URL}/users/v1"
+
+function json_pp() {
+    xargs -0 node -e "console.log(JSON.stringify(JSON.parse(process.argv[1]), null, 2))"
+}
 
 if [ "x$FULL_CLEANUP" = "x1" ]; then
     echo "Cleaning up database"
@@ -17,7 +22,9 @@ fi
 set -e
 
 function CURL() {
-    docker-compose up --no-deps --no-recreate -d
+    if [ "x$RECREATE" = "x1" ]; then
+        docker-compose up --no-deps --no-recreate -d
+    fi
     curl -s -H 'Content-type: application/json' "$@" > .curloutput.txt ||
         curl -H 'Content-type: application/json' "$@"
     cat .curloutput.txt | json_pp > .testoutput.txt
@@ -46,6 +53,7 @@ EMAIL='"email":"test124@test.fovea.cc"'
 WRONG_PASSWORD='"password":"nononon"'
 
 it "registers the user"
+    CURL $PREFIX/accounts -d "{$USERNAME, $PASSWORD, $EMAIL}"
     CURL $PREFIX/accounts -d "{$USERNAME, $PASSWORD, $EMAIL}"
     outputIncludes StormpathResourceError2001
 

@@ -11,13 +11,10 @@ Configuration
  * `STORMPATH_API_ID`
  * `STORMPATH_API_SECRET`
  * `STORMPATH_APP_NAME`
- * `DIRECTORY_PORT_8080_TCP_ADDR` - IP of the rules service
- * `DIRECTORY_PORT_8080_TCP_PORT` - Port of the rules service
- * `DIRECTORY_PORT_8080_TCP_PROTOCOL` - Port of the rules service
- * `REDIS_AUTH_PORT_6379_TCP_ADDR` - IP of the AuthDB redis
- * `REDIS_AUTH_PORT_6379_TCP_PORT` - Port of the AuthDB redis
- * `REDIS_USERMETA_PORT_6379_TCP_ADDR` - IP of the usermeta redis
- * `REDIS_USERMETA_PORT_6379_TCP_PORT` - Port of the usermeta redis
+ * `DIRECTORY_PORT_8000_TCP_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the directory service
+ * `CENTRAL_USERMETA_PORT_8000_TCP_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the central usermeta service
+ * `LOCAL_USERMETA_PORT_8000_TCP_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the local usermeta service
+ * `REDIS_AUTH_PORT_6379_TCP_[ADDR|PORT]` - IP|port of the AuthDB redis
  * `FACEBOOK_APP_ID` - Id of the Facebook application
  * `FACEBOOK_APP_SECRET` - Secret of the Facebook application
  * `LEGACY_ERROR_CODES` - Use stormpath compatible error codes
@@ -112,11 +109,24 @@ API
 
 ### response [202] Accepted
 
+# Metadata
+
+## /users/v1/auth/:token/metadata/:key [GET]
+
+Users' protected custom data.
+
+### body (application/json)
+
+### response [200] OK
+
+    {
+        "key": "some-key",
+        "value": "..."
+    }
+
 ## /users/v1/auth/:token/metadata/:key [POST]
 
-Users' custom data. Valid metadata keys can be restricted using the `USERMETA_VALID_KEYS` environment variable. A comma-separated list of keys.
-
-Setting `USERMETA_VALID_KEYS` is recommended to prevent people from using your server as free storage. An additional self imposed limitation is that values can't be above 200 bytes.
+Change users' custom data.
 
 ### body (application/json)
 
@@ -140,12 +150,6 @@ Users' custom data.
         "key": "some-key",
         "value": "..."
     }
-
-# Metadata
-
-## /users/v1/:username/metadata/:id [GET]
-
-## /users/v1/auth/:authToken/metadata/:id [POST]
 
 # Friends [/users/v1/auth/:authToken/friends]
 

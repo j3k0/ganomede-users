@@ -94,11 +94,13 @@ createBackend = ({
         if err
           cb err
         else
+          defaultEmail = () ->
+            "#{account.id}@email-not-provided.local"
           facebookId = account.id
           cb undefined,
             facebookId: account.id
             fullName:   account.name
-            email:      account.email || "#{account.id}@email-not-provided.local"
+            email:      account.email || defaultEmail()
 
     # Load directory account
     # check in ganomede-directory if there's already a user with

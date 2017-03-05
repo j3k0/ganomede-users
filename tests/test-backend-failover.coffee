@@ -20,20 +20,22 @@ failover = require '../src/backend/failover'
 
 authenticatorTD = ->
 
-  authenticator = td.object [ 'add' ]
+  authenticator = td.object [ 'add', 'getAuthMetadata' ]
   td.when(authenticator.add(
     td.matchers.contains publicAccount EXISTING_USER))
       .thenReturn authAccount EXISTING_USER
 
-usermetaClientTD = ->
-  usermetaClient = td.object [ 'get' ]
-  td.when(usermetaClient.get td.matchers.anything(), td.matchers.anything())
-    .thenCallback null, null
-  td.when(usermetaClient.get EXISTING_USER.username, "auth")
-    .thenCallback null, 1
-  td.when(usermetaClient.get SECONDARY_USER.username, "auth")
-    .thenCallback null, 1
-  usermetaClient
+  td.when(authenticator.getAuthMetadata(td.matchers.anything()))
+      .thenCallback null, null
+  td.when(authenticator.getAuthMetadata(
+    td.matchers.contains(username: EXISTING_USER.username)))
+      .thenCallback null, 1
+  td.when(authenticator.getAuthMetadata(
+    td.matchers.contains(username: SECONDARY_USER.username)))
+      .thenCallback null, 1
+
+  authenticator
+
 
 backendTD = (existing) ->
   ret = td.object [ 'initialize' ]
@@ -78,13 +80,12 @@ baseTest = ->
   #td.when(log.debug(), {ignoreExtraArgs:true})
   #  .thenDo(tb.info.bind tb)
   authenticator = authenticatorTD()
-  usermetaClient = usermetaClientTD()
   primary = backendTD EXISTING_USER
   secondary = backendTD SECONDARY_USER
   backend = failover.createBackend {
-    log, authenticator, usermetaClient, primary, secondary }
+    log, authenticator, primary, secondary }
   callback = td.function 'callback'
-  { callback, backend, primary, secondary, usermetaClient }
+  { callback, backend, primary, secondary, authenticator }
 
 backendTest = ->
   ret = baseTest()

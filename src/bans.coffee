@@ -3,41 +3,30 @@ class BanInfo
     @createdAt = parseInt(String(creationTimestamp), 10) || 0
     @exists = !!@createdAt
 
+# callback(err, stuff...) => callback(err)
+wrapCallback = (cb) ->
+  (err) -> cb(err)
+
 class Bans
-  constructor: ({@redis, @prefix}) ->
-    @prefix = @prefix || 'bans'
+  constructor: ({@usermetaClient, @prefix}) ->
+    @prefix = @prefix || '$banned'
 
-  key: (parts...) ->
-    return [@prefix, parts...].join(':')
-
-  # callback(err, stuff...) => callback(err)
-  _wrapCallback: (cb) ->
-    return (err) -> cb(err)
+  # key: (parts...) ->
+  #   return [@prefix, parts...].join(':')
 
   # callback(err, BanInfo instance)
   get: (username, cb) ->
-    @redis.get(
-      @key(username),
-      (err, reply) ->
-        if (err)
-          return cb(err)
-
-        cb(null, new BanInfo(username, reply))
-    )
+    @usermetaClient.get username, @prefix, (err, reply) ->
+      if (err)
+        return cb(err)
+      cb(null, new BanInfo(username, reply))
 
   # callback(err)
   ban: (username, cb) ->
-    @redis.set(
-      @key(username)
-      Date.now(),
-      @_wrapCallback(cb)
-    )
+    @usermetaClient.set username, @prefix, Date.now(), wrapCallback(cb)
 
   # callback(err)
   unban: (username, cb) ->
-    @redis.del(
-      @key(username)
-      @_wrapCallback(cb)
-    )
+    @usermetaClient.set username, @prefix, null, wrapCallback(cb)
 
 module.exports = {Bans, BanInfo}

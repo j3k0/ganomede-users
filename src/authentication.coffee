@@ -5,10 +5,19 @@ defaultTimestamp = -> "" + (new Date().getTime())
 
 createAuthenticator = ({
   authdbClient
-  usermetaClient
+  localUsermetaClient
+  centralUsermetaClient
   genToken = defaultGenToken
   timestamp = defaultTimestamp
 }) ->
+
+  updateAuthMetadata: (account) ->
+    t = timestamp()
+    localUsermetaClient.set account.username, "auth", t, (err, reply) ->
+    centralUsermetaClient.set account.username, "auth", t, (err, reply) ->
+
+  getAuthMetadata: (account, cb) ->
+    centralUsermetaClient.get account.username, "auth", cb
 
   # Add authentication token in authDB, save 'auth' metadata.
   add: (account) ->
@@ -20,7 +29,7 @@ createAuthenticator = ({
       email: account.email
 
     # Store the auth date (in parallel, ignoring the outcome)
-    usermetaClient.set account.username, "auth", timestamp(), (err, reply) ->
+    @updateAuthMetadata account
 
     # Return REST-ready authentication data
     {

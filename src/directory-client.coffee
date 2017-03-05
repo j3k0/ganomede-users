@@ -2,6 +2,18 @@
 # Talks to directory server
 #
 
+#
+# DirectoryAccount: {
+#   "id": string
+#   aliases: {
+#     "<type>": "<value>"
+#     ...
+#   }
+#
+# example DirectoryAccount:
+# {"id":"aaa","aliases":{"email":"user@email.com","name":"aaa","tag":"aaa"}}
+#
+
 restify = require 'restify'
 logMod = require './log'
 clone = (obj) -> JSON.parse(JSON.stringify(obj))
@@ -143,39 +155,41 @@ createClient = ({
       else
         callback null, body
 
+  processGetResponse = (callback) -> (err, req, res, body) ->
+    if err
+      callback err
+    else if res.statusCode != 200
+      callback new Error "HTTP#{res.statusCode}"
+    else if !body
+      callback new restify.InvalidContentError(
+        'Server replied with no data')
+    else
+      callback null, body
+
   byAlias = ({ type, value, req_id }, callback) ->
 
     options = jsonOptions
       path: "/users/alias/#{type}/#{value}"
       req_id: req_id
-    jsonGet options, (err, req, res, body) ->
-      if err
-        callback err
-      else if res.statusCode != 200
-        callback new Error "HTTP#{res.statusCode}"
-      else if !body
-        callback new restify.InvalidContentError(
-          'Server replied with no data')
-      else
-        callback null, body
+    jsonGet options, processGetResponse(callback)
 
+  # callback(err, DirectoryAccount)
   byToken = ({ token, req_id }, callback) ->
 
     options = jsonOptions
       path: "/users/auth/#{token}"
       req_id: req_id
-    jsonGet options, (err, req, res, body) ->
-      if err
-        callback err
-      else if res.statusCode != 200
-        callback new Error "HTTP#{res.statusCode}"
-      else if !body
-        callback new restify.InvalidContentError(
-          'Server replied with no data')
-      else
-        callback null, body
+    jsonGet options, processGetResponse(callback)
 
-  { endpoint, authenticate, addAccount, byAlias, byToken, editAccount }
+  # callback(err, DirectoryAccount)
+  byId = ({ id, req_id }, callback) ->
+
+    options = jsonOptions
+      path: "/users/id/#{id}"
+      req_id: req_id
+    jsonGet options, processGetResponse(callback)
+
+  { endpoint, authenticate, addAccount, byId, byAlias, byToken, editAccount }
 
 module.exports = { createClient }
 # vim: ts=2:sw=2:et:

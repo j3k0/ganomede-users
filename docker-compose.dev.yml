@@ -1,0 +1,115 @@
+version: '3'
+services:
+
+  sut:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: sh -c "./run_tests.sh && ./tests/rest_api.sh"
+    volumes:
+     - ./src:/home/app/code/src
+     - ./tests:/home/app/code/tests
+     - ./run_tests.sh:/home/app/code/run_tests.sh
+    depends_on:
+     - users
+    environment:
+     - "BASE_URL=http://users:8000"
+     - "API_SECRET=1234"
+     - "LOG_LEVEL=error"
+     - "NODE_ENV="
+
+  users:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+     - ./src:/home/app/code/src
+    depends_on:
+     - authredis
+     - centralusermeta
+     - localusermeta
+     - directory
+    environment:
+     - "USE_DIRECTORY_ONLY=1"
+     - "LEGACY_ERROR_CODES=1"
+     - "API_SECRET=1234"
+     - "LOG_LEVEL=debug"
+     - "FACEBOOK_APP_ID=1234567890"
+     - "FACEBOOK_APP_SECRET="
+     - "NODE_ENV="
+     - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
+     - "CENTRAL_USERMETA_PORT_8000_TCP_ADDR=centralusermeta"
+     - "LOCAL_USERMETA_PORT_8000_TCP_ADDR=localusermeta"
+     - "LOCAL_USERMETA_PORT_8000_TCP_PORT=8000"
+     - "DIRECTORY_PORT_8000_TCP_ADDR=directory"
+    ports:
+     - "8001:8000"
+
+  centralusermeta:
+    image: ganomede/usermeta:v1.0.5
+    ports:
+     - "8004:8000"
+    depends_on:
+     - centralusermetaredis
+     - authredis
+    environment:
+     - "API_SECRET=1234"
+     - "USERMETA_PUBLIC_KEYS=country,yearofbirth"
+     - "USERMETA_PROTECTED_KEYS=$$friends"
+     - "USERMETA_PRIVATE_KEYS=$$banned,$$alias"
+     - "USERMETA_INTERNAL_KEYS="
+     - "USERMETA_MAX_LENGTH=1000"
+     - "REDIS_USERMETA_PORT_6379_TCP_ADDR=centralusermetaredis"
+     - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
+     - "NODE_ENV="
+
+  localusermeta:
+    image: ganomede/usermeta:v1.0.5
+    ports:
+     - "8003:8000"
+    depends_on:
+     - localusermetaredis
+     - authredis
+    environment:
+     - "API_SECRET=1234"
+     - "USERMETA_PUBLIC_KEYS=puzzles"
+     - "USERMETA_PROTECTED_KEYS="
+     - "USERMETA_PRIVATE_KEYS="
+     - "USERMETA_INTERNAL_KEYS="
+     - "USERMETA_MAX_LENGTH=10000"
+     - "REDIS_USERMETA_PORT_6379_TCP_ADDR=localusermetaredis"
+     - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
+     - "NODE_ENV="
+
+  directory:
+    image: ganomede/directory:v0.2.0
+    depends_on:
+      - directorysync
+    ports:
+     - "8002:8000"
+    environment:
+     - "COUCH_DIRECTORY_PORT_5984_TCP_ADDR=directorycouch"
+     - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
+     - "API_SECRET=1234"
+     - "COUCH_DIRECTORY_SYNC="
+
+  # will just sync the database
+  directorysync:
+    image: ganomede/directory:v0.2.0
+    depends_on:
+     - directorycouch
+     - authredis
+    environment:
+     - "COUCH_DIRECTORY_PORT_5984_TCP_ADDR=directorycouch"
+     - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
+     - "API_SECRET=1234"
+     - "COUCH_DIRECTORY_SYNC=1"
+
+  directorycouch:
+    image: klaemo/couchdb:1.6.1
+  authredis:
+    image: redis:alpine
+  centralusermetaredis:
+    image: redis:alpine
+  localusermetaredis:
+    image: redis:alpine

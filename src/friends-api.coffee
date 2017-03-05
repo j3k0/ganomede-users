@@ -1,4 +1,5 @@
 log = require "./log"
+restify = require "restify"
 
 class Api
 
@@ -18,8 +19,14 @@ class Api
   get: (req, res, next) ->
 
     username = req.params.user?.username
+    params =
+      log: req.log
+      req_id: req.id()
+      username: username
+      authToken: req.params.authToken || req.context.authToken
+      apiSecret: req.params.apiSecret
 
-    @friendsClient.get username, (err, friends) =>
+    @friendsClient.get params, (err, friends) =>
       if (err)
         @log.error
           message: "friendsClient.get"
@@ -48,8 +55,15 @@ class Api
       err = new restify.InvalidContentError "invalid content"
       return next(err)
 
+    params =
+      log: req.log
+      req_id: req.id()
+      username: username
+      authToken: req.params.authToken || req.context.authToken
+      apiSecret: req.params.apiSecret
+
     # Store
-    @friendsClient.add username, friends, (err, friends) =>
+    @friendsClient.add params, friends, (err, friends) =>
 
       if (err)
         @log.error
