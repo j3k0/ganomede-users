@@ -9,11 +9,6 @@ DEFAULT_MAX_LENGTH = 1000
 parseParams = (obj) ->
   if typeof obj == 'string' then {username: obj} else obj
 
-# TODO: implement virtual metadata
-#       'email' and 'username' (with ganomede-directory)
-# TODO: implement virtual metadata 'country' and 'yearofbirth'
-#       (with ganomede-directory)
-#
 # Design:
 #
 # Lets have 2 implementations of a usermeta client:

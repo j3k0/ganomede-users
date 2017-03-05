@@ -42,13 +42,13 @@ services:
      - "LOCAL_USERMETA_PORT_8000_TCP_ADDR=localusermeta"
      - "LOCAL_USERMETA_PORT_8000_TCP_PORT=8000"
      - "DIRECTORY_PORT_8000_TCP_ADDR=directory"
-    # ports:
-    #  - "8001:8000"
+    ports:
+     - "8001:8000"
 
   centralusermeta:
     image: ganomede/usermeta:v1.0.5
-    # ports:
-    #  - "8004:8000"
+    ports:
+     - "8004:8000"
     depends_on:
      - centralusermetaredis
      - authredis
@@ -65,8 +65,8 @@ services:
 
   localusermeta:
     image: ganomede/usermeta:v1.0.5
-    # ports:
-    #  - "8003:8000"
+    ports:
+     - "8003:8000"
     depends_on:
      - localusermetaredis
      - authredis
@@ -85,8 +85,8 @@ services:
     image: ganomede/directory:v0.2.0
     depends_on:
       - directorysync
-    # ports:
-    #  - "8002:8000"
+    ports:
+     - "8002:8000"
     environment:
      - "COUCH_DIRECTORY_PORT_5984_TCP_ADDR=directorycouch"
      - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
