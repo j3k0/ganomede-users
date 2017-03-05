@@ -16,8 +16,8 @@ users:
      - "FACEBOOK_APP_ID=1234567890"
      - "FACEBOOK_APP_SECRET="
      - "NODE_ENV="
-    ports:
-     - "8001:8000"
+    # ports:
+    #  - "8001:8000"
 
 sut:
     build: .
@@ -53,8 +53,8 @@ centralUsermeta:
 
 localUsermeta:
     image: ganomede/usermeta:v1.0.5
-    ports:
-      - "8003:8000"
+    # ports:
+    #   - "8003:8000"
     links:
      - localUsermetaRedis:redis_usermeta
      - authRedis:redis_auth
@@ -69,8 +69,8 @@ localUsermeta:
 
 directory:
     image: ganomede/directory:v0.2.0
-    ports:
-     - "8002:8000"
+    # ports:
+    #  - "8002:8000"
     links:
      - directoryCouch:couch_directory
      - authRedis:redis_auth

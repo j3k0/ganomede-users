@@ -34,6 +34,7 @@ parseParams = (obj) ->
 # It supports changing 'name' and 'email'
 #
 
+
 # Code shared between DirectoryAliases implementations
 directory = {
 
@@ -46,6 +47,11 @@ directory = {
     else
       cb null, (account.aliases[key] || null)
 
+  publicAlias:
+    email: false
+    name: true
+    tag: true
+
   invalidValue:
     email: (email) -> !validator.email email
     name: (name) -> !validator.name name
@@ -55,11 +61,14 @@ directory = {
     name: (directoryClient, params, key, value, cb) ->
       account = directory.account(params, "tag", tagizer(value))
       directoryClient.editAccount account, cb
+    tag: (directoryClient, params, key, value, cb) ->
+      cb new restify.NotAuthorizedError "tag is read-only"
 
   # create a directory account object suitable for POSTing
   account: (params, key, value) ->
     id: params.username
     aliases: [{
+      public: !!directory.publicAlias[key]
       type: key
       value: value
     }]
@@ -88,7 +97,7 @@ directory = {
 class DirectoryAliasesProtected
 
   constructor: (@directoryClient) ->
-    @validKeys = {email: true, name: true}
+    @validKeys = {email: true, name: true, tag: true}
     @type = "DirectoryAliasesProtected"
 
   isValid: (key) -> !!@validKeys[key]
@@ -115,7 +124,7 @@ class DirectoryAliasesProtected
 class DirectoryAliasesPublic
 
   constructor: (@directoryClient) ->
-    @validKeys = {name: true}
+    @validKeys = {name: true, tag: true}
     @type = "DirectoryAliasesPublic"
 
   isValid: (key) -> !!@validKeys[key]
