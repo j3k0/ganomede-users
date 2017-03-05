@@ -241,7 +241,8 @@ class UsermetaRouter
   }) ->
     @type = "UsermetaRouter"
     @routes =
-      name: @directoryPublic
+      name: @directoryPublic || @directoryProtected
+      tag: @directoryPublic || @directoryProtected
       email: @directoryProtected
       country: @ganomedeCentral
       yearofbirth: @ganomedeCentral

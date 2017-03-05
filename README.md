@@ -109,11 +109,24 @@ API
 
 ### response [202] Accepted
 
+# Metadata
+
+## /users/v1/auth/:token/metadata/:key [GET]
+
+Users' protected custom data.
+
+### body (application/json)
+
+### response [200] OK
+
+    {
+        "key": "some-key",
+        "value": "..."
+    }
+
 ## /users/v1/auth/:token/metadata/:key [POST]
 
-Users' custom data. Valid metadata keys can be restricted using the `USERMETA_VALID_KEYS` environment variable. A comma-separated list of keys.
-
-Setting `USERMETA_VALID_KEYS` is recommended to prevent people from using your server as free storage. An additional self imposed limitation is that values can't be above 200 bytes.
+Change users' custom data.
 
 ### body (application/json)
 
@@ -137,12 +150,6 @@ Users' custom data.
         "key": "some-key",
         "value": "..."
     }
-
-# Metadata
-
-## /users/v1/:username/metadata/:id [GET]
-
-## /users/v1/auth/:authToken/metadata/:id [POST]
 
 # Friends [/users/v1/auth/:authToken/friends]
 

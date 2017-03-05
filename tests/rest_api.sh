@@ -54,6 +54,7 @@ WRONG_PASSWORD='"password":"nononon"'
 
 it "registers the user"
     CURL $PREFIX/accounts -d "{$USERNAME, $PASSWORD, $EMAIL}"
+    CURL $PREFIX/accounts -d "{$USERNAME, $PASSWORD, $EMAIL}"
     outputIncludes StormpathResourceError2001
 
 it "logs the user in"
