@@ -14,7 +14,7 @@ fi
 BUNYAN_LEVEL=1000
 MOCHA_ARGS="--bail --compilers coffee:coffee-script/register"
 if [ -z "$1" ]; then
-    MORE_MOCHA_ARGS=tests
+    MORE_MOCHA_ARGS=tests/**/test-*.coffee
 fi
 echo "mocha..."
 ./node_modules/.bin/mocha ${MOCHA_ARGS} ${MORE_MOCHA_ARGS} "$@"

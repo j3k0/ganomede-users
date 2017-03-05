@@ -55,13 +55,15 @@ baseTest = ->
   td.when(backend.loginAccount data.validLogin)
     .thenCallback null, token:VALID_AUTH_TOKEN
 
+  directoryClient = td.object ['editAccount', 'byId', 'byToken']
+
   callback = td.function 'callback'
   authdbClient = fakeAuthdb.createClient()
   options = { log, localUsermetaClient, centralUsermetaClient,
-    createBackend, authdbClient, authenticator }
+    createBackend, authdbClient, authenticator, directoryClient }
   { callback, options,
     createBackend, backend, localUsermetaClient, centralUsermetaClient,
-    authdbClient, authdbClient }
+    authdbClient, authdbClient, directoryClient }
 
 i = 0
 restTest = (done) ->
@@ -100,6 +102,7 @@ restTest = (done) ->
       centralUsermetaClient: centralUsermeta
       authdbClient: ret.authdbClient
       createBackend: ret.createBackend
+      directoryClient: ret.directoryClient
       bans: ret.bans
     api.initialize (err) ->
       if err

@@ -67,25 +67,39 @@ describe "usermeta", ->
           expect(err).to.be.instanceof restify.NotAuthorizedError
           done()
 
+      it "accepts valid emails", (done) ->
+        usermetaClient.set {authToken:"abc"}, "email", "user@email.com",
+          (err, data) ->
+            expect(err).to.be.null
+            done()
+
+      it "refuses invalid emails", (done) ->
+        usermetaClient.set {authToken:"abc"}, "email", "useremail.com",
+          (err, data) ->
+            expect(err).to.be.instanceof restify.InvalidContentError
+            done()
+
+      it "accepts valid names", (done) ->
+        usermetaClient.set {authToken:"abc"}, "name", "abcdefgh",
+          (err, data) ->
+            expect(err).to.be.null
+            done()
+
+      it "refuses invalid names", (done) ->
+        usermetaClient.set {authToken:"abc"}, "name", "ab",
+          (err, data) ->
+            expect(err).to.be.instanceof restify.InvalidContentError
+            done()
+
       it "sets and gets data", (done) ->
-        usermetaClient.set {authToken:"abc"}, "email", "user@email.com", (err, data) ->
+        usermetaClient.set {authToken:"abc"}, "email", "user@email.com",
+        (err, data) ->
           expect(err).to.be.null
           usermetaClient.get {authToken:"abc"}, "email", (err, data) ->
             console.log err
             expect(err).to.be.null
             assert.equal "user@email.com", data
             done()
-
-  describe "GanomedeUsermeta", ->
-
-    usermetaClient = null
-    jsonClient = null
-    beforeEach ->
-      jsonClient = td.object []
-      usermetaClient = usermeta.create {ganomedeClient: jsonClient}
-
-    it "is created from a ganomedeClient", ->
-      assert.equal "GanomedeUsermeta", usermetaClient.type
 
   describe "RedisUsermeta", ->
 
@@ -139,6 +153,9 @@ describe "usermeta", ->
       jsonClient = td.object ['get', 'post']
       usermetaClient = usermeta.create ganomedeClient: jsonClient
 
+    it "is created from a ganomedeClient", ->
+      assert.equal "GanomedeUsermeta", usermetaClient.type
+
     describe ".get", ->
       it "delegates to the jsonClient", ->
         usermetaClient.get "username", "age", td.function('callback')
@@ -169,5 +186,47 @@ describe "usermeta", ->
           td.matchers.contains(path: '/usermeta/v1/username/age'),
           {value: "25"},
           td.callback))
+
+  describe "UsermetaRouter", ->
+
+    ganomedeLocal = null
+    ganomedeCentral = null
+    directoryPublic = null
+    directoryProtected = null
+    usermetaClient = null
+    username = "username"
+
+    usermetaTD = () ->
+      client = td.object ['get', 'post']
+      client
+
+    beforeEach ->
+      ganomedeLocal = usermetaTD()
+      ganomedeCentral = usermetaTD()
+      directoryProtected = usermetaTD()
+      directoryPublic = usermetaTD()
+      usermetaClient = usermeta.create router: {
+        ganomedeLocal, ganomedeCentral, directoryProtected, directoryPublic}
+
+    it "is created from a router configuration", ->
+      assert.equal "UsermetaRouter", usermetaClient.type
+
+    describe ".get", ->
+
+      it "delegates 'email' to the directoryProtected client", ->
+        usermetaClient.get {username}, "email", td.function('callback')
+        td.verify directoryProtected.get({username}, "email", td.callback)
+
+      it "delegates 'name' to the directoryPublic client", ->
+        usermetaClient.get {username}, "name", td.function('callback')
+        td.verify directoryPublic.get({username}, "name", td.callback)
+
+      it "delegates 'country' to the ganomedeCentral client", ->
+        usermetaClient.get {username}, "country", td.function('callback')
+        td.verify ganomedeCentral.get({username}, "country", td.callback)
+
+      it "delegates all others to the ganomedeLocal client", ->
+        usermetaClient.get {username}, "any", td.function('callback')
+        td.verify ganomedeLocal.get({username}, "any", td.callback)
 
 # vim: ts=2:sw=2:et:

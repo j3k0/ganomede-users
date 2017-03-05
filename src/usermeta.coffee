@@ -2,8 +2,9 @@ restify = require "restify"
 urllib = require 'url'
 log = require("./log").child(module:"usermeta")
 tagizer = require 'ganomede-tagizer'
+validator = require './validator'
 
-DEFAULT_MAX_LENGTH = 200
+DEFAULT_MAX_LENGTH = 1000
 
 parseParams = (obj) ->
   if typeof obj == 'string' then {username: obj} else obj
@@ -46,18 +47,14 @@ directory = {
       cb null, (account.aliases[key] || null)
 
   invalidValue:
-    email: (email) ->
-      re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/ # noqa
-      !re.test(email)
-    name: (name) ->
-      re = /^[a-zA-Z0-0]+/
-      name.length > 10 || name.length < 3 || !re.test(name)
+    email: (email) -> !validator.email email
+    name: (name) -> !validator.name name
 
   beforeEdit:
     # change the tag before changing the name
-    name: (params, key, value, cb) ->
+    name: (directoryClient, params, key, value, cb) ->
       account = directory.account(params, "tag", tagizer(value))
-      @directoryClient.editAccount account, cb
+      directoryClient.editAccount account, cb
 
   # create a directory account object suitable for POSTing
   account: (params, key, value) ->
@@ -79,8 +76,9 @@ directory = {
     if directory.invalidValue[key]?(value)
       return cb new restify.InvalidContentError("#{key} is invalid")
 
-    passTrough = (params, key, value, cb) -> cb(null)
-    (directory.beforeEdit[key] || passTrough) params, key, value, (err) ->
+    passTrough = (directoryClient, params, key, value, cb) -> cb(null)
+    beforeEdit = directory.beforeEdit[key] || passTrough
+    beforeEdit directoryClient, params, key, value, (err) ->
       if err
         return cb err
       directoryClient.editAccount directory.account(params, key, value), cb
@@ -215,6 +213,40 @@ class GanomedeUsermeta
       else
         cb err, body[params.username][key] || null
 
+# Routes metadata to one of its children
+#
+# For now, no complex genericity,
+# it's just hard-coded routes for our use case.
+#
+#  - 'name' -> DirectoryAliasesPublic
+#  - 'email' -> DirectoryAliasesProtected
+#  - 'country' -> GanomedeUsermeta.Central
+#  - 'yearofbirth' -> GanomedeUsermeta.Central
+#  - * -> GanomedeUsermeta.Local
+class UsermetaRouter
+  constructor: ({
+    @directoryPublic,
+    @directoryProtected,
+    @ganomedeCentral,
+    @ganomedeLocal
+  }) ->
+    @type = "UsermetaRouter"
+    @routes =
+      name: @directoryPublic
+      email: @directoryProtected
+      country: @ganomedeCentral
+      yearofbirth: @ganomedeCentral
+
+  set: (params, key, value, cb) ->
+    params = parseParams(params)
+    client = @routes[key] || @ganomedeLocal
+    client.set params, key, value, cb
+
+  get: (params, key, cb) ->
+    params = parseParams(params)
+    client = @routes[key] || @ganomedeLocal
+    client.get params, key, cb
+
 module.exports =
   create: (config) ->
 
@@ -244,6 +276,11 @@ module.exports =
       return new DirectoryAliasesPublic config.directoryClient
     if config.directoryClient
       return new DirectoryAliasesProtected config.directoryClient
+
+    # Create a usermeta router
+    # ganomedeLocal is required, other children are optional
+    if config.router and config.router.ganomedeLocal
+      return new UsermetaRouter config.router
 
     throw new Error("usermeta is missing valid config")
 

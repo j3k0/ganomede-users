@@ -1,10 +1,8 @@
 users:
     build: .
-    dockerfile: Dockerfile.dev
+    dockerfile: Dockerfile
     volumes:
      - ./src:/home/app/code/src
-     - ./tests:/home/app/code/tests
-     - ./run_tests.sh:/home/app/code/run_tests.sh
     links:
      - authRedis:redis_auth
      - centralUsermeta:central_usermeta
@@ -20,6 +18,22 @@ users:
      - "NODE_ENV="
     ports:
      - "8001:8000"
+
+sut:
+    build: .
+    dockerfile: Dockerfile.dev
+    command: sh -c "./run_tests.sh && ./tests/rest_api.sh"
+    volumes:
+     - ./src:/home/app/code/src
+     - ./tests:/home/app/code/tests
+     - ./run_tests.sh:/home/app/code/run_tests.sh
+    links:
+     - users:users
+    environment:
+     - "BASE_URL=http://users:8000"
+     - "API_SECRET=1234"
+     - "LOG_LEVEL=error"
+     - "NODE_ENV="
 
 centralUsermeta:
     image: ganomede/usermeta:v1.0.5

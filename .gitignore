@@ -1,5 +1,4 @@
 node_modules/
-Dockerfile.dev
 coverage/
 .curloutput.txt
 .testoutput.txt

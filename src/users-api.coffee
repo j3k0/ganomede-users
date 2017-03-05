@@ -284,7 +284,7 @@ getMetadata = (req, res, next) ->
   params =
     req_id: req.id()
     authToken: req.params.authToken || req.context.authToken
-    username: req.parms.user?.username || req.params.username
+    username: req.params.user?.username || req.params.username
   key = req.params.key
   rootUsermetaClient.get params, key, (err, reply) ->
     res.send
@@ -306,7 +306,23 @@ initialize = (cb, options = {}) ->
       host: redisAuthConfig.host
       port: redisAuthConfig.port
 
-  createUsermetaClient = (name, ganomedeEnv) ->
+  # Initialize the directory client (if possible)
+  directoryClient = options.directoryClient
+  createDirectoryClient = () ->
+    directoryService = serviceConfig 'DIRECTORY', 8000
+    if !directoryService.exists
+      return null
+    log.info {directoryService}, "Link to ganomede-directory"
+    jsonClient = restify.createJsonClient
+      url: urllib.format
+        protocol: directoryService.protocol || 'http'
+        hostname: directoryService.host
+        port:     directoryService.port
+        pathname: 'directory/v1'
+    require('./directory-client').createClient { log, jsonClient }
+  directoryClient = directoryClient || createDirectoryClient()
+
+  createGanomedeUsermetaClient = (name, ganomedeEnv) ->
     ganomedeConfig = serviceConfig(ganomedeEnv, 8000)
     if options[name]
       return options[name]
@@ -317,12 +333,15 @@ initialize = (cb, options = {}) ->
       log.warn "cant create usermeta client, no #{ganomedeEnv} config"
       return null
 
-  localUsermetaClient = createUsermetaClient(
+  localUsermetaClient = createGanomedeUsermetaClient(
     "localUsermetaClient", 'LOCAL_USERMETA')
-  centralUsermetaClient = createUsermetaClient(
+  centralUsermetaClient = createGanomedeUsermetaClient(
     "centralUsermetaClient", 'CENTRAL_USERMETA')
-  # TODO: create the root usermeta client
-  rootUsermetaClient = centralUsermetaClient
+  rootUsermetaClient = usermeta.create router:
+    directoryPublic: usermeta.create {directoryClient, mode: 'public'}
+    directoryProtected: usermeta.create {directoryClient}
+    ganomedeLocal: localUsermetaClient
+    ganomedeCentral: centralUsermetaClient
 
   if options.bans
     bans = options.bans
@@ -376,18 +395,10 @@ initialize = (cb, options = {}) ->
   }
 
   prepareDirectoryBackend = () ->
-    directoryService = serviceConfig 'DIRECTORY', 8000
-    if !directoryService.exists
+    directoryClient = directoryClient || createDirectoryClient()
+    if !directoryClient
       throw new Error "directory service not configured properly"
-    log.info { directoryService }
-    jsonClient = restify.createJsonClient
-      url: urllib.format
-        protocol: directoryService.protocol || 'http'
-        hostname: directoryService.host
-        port:     directoryService.port
-        pathname: 'directory/v1'
-    backendOpts.directoryClient = require('./directory-client')
-      .createClient { log, jsonClient }
+    backendOpts.directoryClient = directoryClient
     backendOpts.passwordResetTemplate = require('./mail-template')
       .createTemplate {
         subject: process.env.MAILER_SEND_SUBJECT
