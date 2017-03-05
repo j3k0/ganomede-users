@@ -1,16 +1,13 @@
 restify = require "restify"
 urllib = require 'url'
-log = require "./log"
+log = require("./log").child(module:"usermeta")
+tagizer = require 'ganomede-tagizer'
 
 DEFAULT_MAX_LENGTH = 200
 
 parseParams = (obj) ->
   if typeof obj == 'string' then {username: obj} else obj
 
-# TODO: connect to a ganomede-usermeta instance
-#       (remove all links to redis usermeta)
-# TODO: forget all about keys validation,
-#       ganomede-usermeta will take care of that
 # TODO: implement virtual metadata
 #       'email' and 'username' (with ganomede-directory)
 # TODO: implement virtual metadata 'country' and 'yearofbirth'
@@ -25,6 +22,114 @@ parseParams = (obj) ->
 #
 # Then create a UsermetaRouter that sends requests to the appropriate client
 #
+
+# DirectoryAliases* stores metadata as aliases in the directory client.
+#
+# * all will behave as a protected metatata.
+#     * read & write requires authToken
+# * except 'name', that will behave as a public metadata.
+#     * only write requires authToken
+#
+# It supports changing 'name' and 'email'
+#
+
+# Code shared between DirectoryAliases implementations
+directory = {
+
+  # handles replies from directoryClient's read requests
+  handleResponse: (params, cb) -> (err, account) ->
+    if err
+      log.error {err, req_id: params.req_id},
+        "GanomedeUsermeta.get failed"
+      cb err, null
+    else
+      cb null, (account.aliases[key] || null)
+
+  invalidValue:
+    email: (email) ->
+      re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/ # noqa
+      !re.test(email)
+    name: (name) ->
+      re = /^[a-zA-Z0-0]+/
+      name.length > 10 || name.length < 3 || !re.test(name)
+
+  beforeEdit:
+    # change the tag before changing the name
+    name: (params, key, value, cb) ->
+      account = directory.account(params, "tag", tagizer(value))
+      @directoryClient.editAccount account, cb
+
+  # create a directory account object suitable for POSTing
+  account: (params, key, value) ->
+    id: params.username
+    aliases: [{
+      type: key
+      value: value
+    }]
+    req_id: params.req_id
+
+  set: (directoryClient, params, key, value, cb) ->
+    params = parseParams(params)
+    if !params.authToken
+      return cb new restify.NotAuthorizedError("Protected meta")
+
+    # special cases:
+    #  * 'email' and 'name' have to be valid
+    #  * 'name' also changes 'tag'
+    if directory.invalidValue[key]?(value)
+      return cb new restify.InvalidContentError("#{key} is invalid")
+
+    passTrough = (params, key, value, cb) -> cb(null)
+    (directory.beforeEdit[key] || passTrough) params, key, value, (err) ->
+      if err
+        return cb err
+      directoryClient.editAccount directory.account(params, key, value), cb
+}
+
+# Stores "protected" metadata as directory account aliases
+class DirectoryAliasesProtected
+
+  constructor: (@directoryClient) ->
+    @validKeys = {email: true}
+
+  isValid: (key) -> !!@validKeys[key]
+
+  set: (params, key, value, cb) ->
+    if !@isValid key
+      return cb new restify.BadRequestError("Forbidden meta key")
+    directory.set @directoryClient, params, key, value, cb
+
+  get: (params, key, cb) ->
+    if !@isValid key
+      return cb new restify.BadRequestError("Forbidden meta key")
+    params = parseParams(params)
+    # protected metadata require an authToken for reading
+    if !params.authToken
+      return cb new restify.NotAuthorizedError("Protected meta")
+    directoryClient.byToken {token: params.authToken, req_id},
+      directory.handleResponse(params, cb)
+
+# Stores "public" metadata as directory account aliases
+class DirectoryAliasesPublic
+
+  constructor: (@directoryClient) ->
+    @validKeys = {name: true}
+
+  isValid: (key) -> !!@validKeys[key]
+
+  set: (params, key, value, cb) ->
+    if !@isValid key
+      return cb new restify.BadRequestError("Forbidden meta key")
+    directory.set @directoryClient, params, key, value, cb
+
+  get: (params, key, cb) ->
+    if !@isValid key
+      return cb new restify.BadRequestError("Forbidden meta key")
+    params = parseParams(params)
+    directoryClient.byId {id: params.username, req_id},
+      directory.handleResponse(params, cb)
+
+# Stores "public" metadata in redis
 class RedisUsermeta
   constructor: (@redisClient) ->
     @validKeys = null
@@ -39,7 +144,7 @@ class RedisUsermeta
     if maxLength > 0 and value?.length > maxLength
       return cb new restify.BadRequestError("Value too large")
     if !@isValid key
-      return cb new restify.BadRequestError("Forbidden meta")
+      return cb new restify.BadRequestError("Forbidden meta key")
     @redisClient.set "#{username}:#{key}", value, (err, reply) ->
       cb err, reply
 
@@ -68,6 +173,8 @@ authPath = (params) ->
   else
     return "/#{params.username}"
 
+# Stores metadata in ganomede-usermeta
+# ganomede-usermeta server will take care of key validation
 class GanomedeUsermeta
   constructor: (@jsonClient) ->
 
@@ -79,7 +186,8 @@ class GanomedeUsermeta
     body = value: value
     @jsonClient.post options, body, (err, req, res, body) ->
       if err
-        (params.log || log).error {err}, "GanomedeUsermeta.post failed"
+        log.error {err, req_id: params.req_id},
+          "GanomedeUsermeta.post failed"
         cb err, null
       else
         cb null, body
@@ -91,30 +199,42 @@ class GanomedeUsermeta
       req_id: params.req_id
     @jsonClient.get options, (err, req, res, body) ->
       if err
-        (params.log || log).error {err}, "GanomedeUsermeta.get failed"
+        log.error {err, req_id: params.req_id},
+          "GanomedeUsermeta.get failed"
         cb err, null
       else
         cb err, body[params.username][key] || null
 
 module.exports =
   create: (config) ->
+
+    # Linked with a ganomede-usermeta jsonClient
     if config.ganomedeClient
       return new GanomedeUsermeta config.ganomedeClient
-    else if config.ganomedeConfig
+    if config.ganomedeConfig
       return new GanomedeUsermeta restify.createJsonClient
         url: urllib.format
           protocol: config.ganomedeConfig.protocol || 'http'
           hostname: config.ganomedeConfig.host
           port:     config.ganomedeConfig.port
           pathname: config.ganomedeConfig.pathname || 'usermeta/v1'
-    else if config.redisClient
+
+    # Linked with redis
+    if config.redisClient
       return new RedisUsermeta config.redisClient
-    else if config.redisConfig
+    if config.redisConfig
       return new RedisUsermeta redis.createClient(
         config.redisConfig.port,
         config.redisConfig.host,
         config.redisConfig.options)
-    else
-      throw new Error("usermeta is missing valid config")
+
+    # Linked with a ganomede-directory client
+    # (see directory-client.coffee)
+    if config.directoryClient and config.mode == 'public'
+      return new DirectoryAliasesPublic config.directoryClient
+    if config.directoryClient
+      return new DirectoryAliasesProtected config.directoryClient
+
+    throw new Error("usermeta is missing valid config")
 
 # vim: ts=2:sw=2:et:

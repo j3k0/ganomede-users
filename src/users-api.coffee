@@ -269,7 +269,6 @@ postMetadata = (req, res, next) ->
     authToken: req.params.authToken || req.context.authToken
     apiSecret: req.params.apiSecret
     req_id: req.id()
-    log: req.log
   key = req.params.key
   value = req.body.value
   rootUsermetaClient.set params, key, value, (err, reply) ->
@@ -281,11 +280,13 @@ postMetadata = (req, res, next) ->
     next()
 
 # Get metadata
-# TODO: send who is the calling user
 getMetadata = (req, res, next) ->
-  username = req.params.username
+  params =
+    req_id: req.id()
+    authToken: req.params.authToken || req.context.authToken
+    username: req.parms.user?.username || req.params.username
   key = req.params.key
-  rootUsermetaClient.get username, key, (err, reply) ->
+  rootUsermetaClient.get params, key, (err, reply) ->
     res.send
       key: key
       value: reply
@@ -479,9 +480,14 @@ addRoutes = (prefix, server) ->
   endPoint = "/#{prefix}/passwordResetEmail"
   server.post endPoint, jsonBody, passwordResetEmail
 
+  # access to public metadata
+  server.get "/#{prefix}/:username/metadata/:key", getMetadata
+
+  # access to protected metadata
+  server.get "/#{prefix}/auth/:authToken/metadata/:key",
+    authMiddleware, getMetadata
   server.post "/#{prefix}/auth/:authToken/metadata/:key",
     jsonBody, authMiddleware, postMetadata
-  server.get "/#{prefix}/:username/metadata/:key", getMetadata
 
   friendsApi.addRoutes prefix, server
 
