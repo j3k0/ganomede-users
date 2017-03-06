@@ -102,7 +102,7 @@ describe 'directory-client', ->
 
     it 'invokes sendEvent(LOGIN, userId) on succesful creation', ->
       { sendEvent } = authenticate CREDS
-      td.verify sendEvent('LOGIN', EXISTING_USER.id)
+      td.verify sendEvent('LOGIN', {userId: EXISTING_USER.id, aliases: {}})
 
   describe '.byAlias()', ->
 
@@ -168,8 +168,21 @@ describe 'directory-client', ->
       td.verify callback td.matchers.isA(Error)
 
     it 'invokes sendEvent(CREATE, userId) on succesful creation', ->
-      { sendEvent } = addAccount directoryAccount(NEW_USER)
-      td.verify sendEvent('CREATE', NEW_USER.id)
+      account =
+        secret: API_SECRET
+        id: NEW_USER.id
+        password: '12345678'
+        aliases: [
+          {type: 'email', value: 'me@me.me', public: false}
+        ]
+
+      { sendEvent } = addAccount account
+      td.verify sendEvent('CREATE', {
+        userId: NEW_USER.id,
+        aliases: {
+          email: 'me@me.me'
+        }
+      })
 
     it.skip 'reports failure when directory server is not reachable', ->
       throw new Error "TODO"
@@ -186,6 +199,9 @@ describe 'directory-client', ->
         public: false
       }})
 
-      td.verify sendEvent('CHANGE', EXISTING_USER.id)
+      td.verify sendEvent('CHANGE', {
+        userId: EXISTING_USER.id,
+        aliases: {email: 'new@email'}
+      })
 
 # vim: ts=2:sw=2:et:

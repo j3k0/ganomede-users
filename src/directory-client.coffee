@@ -20,6 +20,16 @@ logMod = require './log'
 
 noop = () ->
 
+reduceAliases = (aliases) ->
+  aliases.reduce(
+    (ref, {type, value}) -> ref[type] = value; ref
+    {}
+  )
+
+eventData = (userId, aliases = []) ->
+  userId: userId,
+  aliases: reduceAliases(aliases)
+
 createClient = ({
   jsonClient
   log
@@ -105,7 +115,7 @@ createClient = ({
         callback new Error "HTTP#{res.statusCode}"
 
       else
-        sendEvent(LOGIN, credentials.id)
+        sendEvent(LOGIN, eventData(credentials.id))
         callback null, body
 
   addAccount = (account = {}, callback) ->
@@ -128,7 +138,7 @@ createClient = ({
       if err
         return callback(err)
 
-      sendEvent(CREATE, account.id)
+      sendEvent(CREATE, eventData(account.id, account.aliases))
       callback(null, bodyResult)
 
   editAccount = (account = {}, callback) ->
@@ -154,12 +164,11 @@ createClient = ({
         'Nothing to change')
 
     postAccount "edit", options, body, (err, bodyResult) ->
-      console.log('HAHAHA', err, bodyResult)
       if err
         return callback(err)
 
       if (triggerChangeEvent)
-        sendEvent(CHANGE, account.id)
+        sendEvent(CHANGE, eventData(account.id, body.aliases))
 
       callback(null, bodyResult)
 

@@ -30,11 +30,11 @@ const createSender = ({
     pathname
   });
 
-  const sendEvent = (type, userId, callback = noop) => {
+  const sendEvent = (type, data, callback = noop) => {
     const event = {
       type,
       from: fromField,
-      data: {userId}
+      data
     };
 
     client.send(channel, event, (err, eventHeader) => {
