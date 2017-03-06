@@ -58,13 +58,14 @@ jsonClientTD = ->
 
 baseTest = ->
   callback = td.function 'callback'
+  sendEvent = td.function 'sendEvent'
   jsonClient = jsonClientTD()
   log = td.object [ 'debug', 'info', 'warn', 'error' ]
   # log = require '../src/log'
   directoryClient = directoryClientMod.createClient {
-    log, jsonClient, apiSecret:API_SECRET }
+    log, jsonClient, sendEvent, apiSecret:API_SECRET }
 
-  { directoryClient, jsonClient, callback }
+  { directoryClient, jsonClient, callback, sendEvent }
 
 describe 'directory-data', ->
   it 'provides test data', ->
@@ -98,6 +99,10 @@ describe 'directory-client', ->
     it 'returns the generated token when response status is 200', ->
       { callback } = authenticate CREDS
       td.verify callback null, td.matchers.contains(authResult EXISTING_USER)
+
+    it 'invokes sendEvent(LOGIN, userId) on succesful creation', ->
+      { sendEvent } = authenticate CREDS
+      td.verify sendEvent('LOGIN', EXISTING_USER.id)
 
   describe '.byAlias()', ->
 
@@ -162,15 +167,25 @@ describe 'directory-client', ->
       { callback } = addAccount directoryAccount(EXISTING_USER)
       td.verify callback td.matchers.isA(Error)
 
+    it 'invokes sendEvent(CREATE, userId) on succesful creation', ->
+      { sendEvent } = addAccount directoryAccount(NEW_USER)
+      td.verify sendEvent('CREATE', NEW_USER.id)
+
     it.skip 'reports failure when directory server is not reachable', ->
       throw new Error "TODO"
 
-  describe.skip '.editAccount()', ->
-    it 'sends a POST request to /directory/v1/users/id/:id', ->
-      return
-    it 'reports failure when response status is not 200', ->
-      return
-    it 'reports failure when directory server is not reachable', ->
-      return
+  describe '.editAccount()', ->
+    it 'sends a POST request to /directory/v1/users/id/:id'
+    it 'reports failure when response status is not 200'
+    it 'reports failure when directory server is not reachable'
+
+    it.skip 'calls sendEvent(CHANGE, userId) on alias change', () ->
+      { sendEvent } = editAccount({id: EXISTING_USER.id, alias: {
+        type: 'email',
+        value: 'new@email',
+        public: false
+      }})
+
+      td.verify sendEvent('CHANGE', EXISTING_USER.id)
 
 # vim: ts=2:sw=2:et:

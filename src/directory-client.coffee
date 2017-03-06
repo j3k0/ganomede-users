@@ -16,16 +16,22 @@
 
 restify = require 'restify'
 logMod = require './log'
-clone = (obj) -> JSON.parse(JSON.stringify(obj))
+{CREATE, CHANGE, LOGIN} = require('./event-sender')
+
+noop = () ->
 
 createClient = ({
   jsonClient
   log
   apiSecret = process.env.API_SECRET
+  sendEvent = noop
 }) ->
 
   if !jsonClient
     throw new Error('jsonClient required')
+
+  if sendEvent == noop
+    log.warn('Directory client created with sendEvent set to noop')
 
   jsonPost = (options, reqBody, cb) ->
     jsonClient.post options, reqBody, (err, req, res, resBody) ->
@@ -99,6 +105,7 @@ createClient = ({
         callback new Error "HTTP#{res.statusCode}"
 
       else
+        sendEvent(LOGIN, credentials.id)
         callback null, body
 
   addAccount = (account = {}, callback) ->
@@ -117,7 +124,12 @@ createClient = ({
       password: account.password
       aliases: account.aliases
 
-    postAccount 'create', options, body, callback
+    postAccount 'create', options, body, (err, bodyResult) ->
+      if err
+        return callback(err)
+
+      sendEvent(CREATE, account.id)
+      callback(null, bodyResult)
 
   editAccount = (account = {}, callback) ->
 
@@ -139,7 +151,13 @@ createClient = ({
       return callback new restify.InvalidContentError(
         'Nothing to change')
 
-    postAccount "edit", options, body, callback
+    postAccount "edit", options, body, (err, bodyResult) ->
+      console.log('HAHAHA', err, bodyResult)
+      if err
+        return callback(err)
+
+      sendEvent(CHANGE, account.id)
+      callback(null, bodyResult)
 
   postAccount = (description, options, body, callback) ->
 
