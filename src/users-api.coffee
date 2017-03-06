@@ -19,7 +19,7 @@ usernameValidator = require "./username-validator"
 {Bans} = require './bans'
 urllib = require 'url'
 mailer = require './mailer'
-eventSender = require('event-sender')
+eventSender = require('./event-sender')
 
 sendError = (req, err, next) ->
   if err.rawError
