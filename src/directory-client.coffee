@@ -142,11 +142,13 @@ createClient = ({
       req_id: account.req_id
 
     body = secret: apiSecret
+    triggerChangeEvent = false
 
     if account.password
       body.password = account.password
     else if account.aliases and account.aliases.length
       body.aliases = account.aliases
+      triggerChangeEvent = true
     else
       return callback new restify.InvalidContentError(
         'Nothing to change')
@@ -156,7 +158,9 @@ createClient = ({
       if err
         return callback(err)
 
-      sendEvent(CHANGE, account.id)
+      if (triggerChangeEvent)
+        sendEvent(CHANGE, account.id)
+
       callback(null, bodyResult)
 
   postAccount = (description, options, body, callback) ->

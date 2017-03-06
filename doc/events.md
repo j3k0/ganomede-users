@@ -31,7 +31,7 @@ Events will be emited in the "users" channel, they'll all have the below format,
 ## Change
 
  * `type`: `"CHANGE"`
- * **emited when**: Some of the user's aliases have been changed successfully.
+ * **emited when**: Some of the user's aliases have been changed or new one was added successfully. *Note* this won't trigger on password changes.
 
 ## Login
 
