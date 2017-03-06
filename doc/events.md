@@ -10,15 +10,7 @@ Events will be emited in the "users" channel, they'll all have the below format,
     "channel": "users/v1",
     "from": "https://prod.ggs.ovh/users/v1",
     "type": "CREATED",
-    "data": {
-        "id": "hrry23",
-        "aliases": {
-            "name": "Harry",
-            "tag": "harry",
-            "email": "harryp@gmail.com",
-            "facebook": "138193819083"
-        }
-    }
+    "data": { "userId": "hrry23" }
 }
 ```
 
@@ -28,6 +20,8 @@ Events will be emited in the "users" channel, they'll all have the below format,
    * Server and URL the originating request was made to (up to its `v1` component)
  * **type**
    * Either of "CREATE", "CHANGE", "LOGIN"
+ * **data**
+   * single object with `userId` being String with id of affected user
 
 ## Registration
 
