@@ -63,7 +63,7 @@ createParamsMiddleware = ({
   }, (err, account) ->
 
     if err
-      log.warn {err, tag, value, req_id}, "directoryClient.byAlias failed"
+      log.warn {err, tag, req_id}, "directoryClient.byAlias failed"
       req.params.username = tag
     else if !account
       log.warn {tag, value, req_id},

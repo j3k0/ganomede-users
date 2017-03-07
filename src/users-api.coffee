@@ -261,6 +261,8 @@ authMiddleware = (req, res, next) ->
 
     req.params.user = req.params.user || {}
     req.params.user.username = account.username
+    if account.email
+      req.params.user.email = account.email
     next()
 
 # Set metadata
@@ -347,8 +349,10 @@ initialize = (cb, options = {}) ->
   centralUsermetaClient = createGanomedeUsermetaClient(
     "centralUsermetaClient", 'CENTRAL_USERMETA')
   rootUsermetaClient = usermeta.create router:
-    directoryPublic: usermeta.create {directoryClient, mode: 'public'}
-    directoryProtected: usermeta.create {directoryClient}
+    directoryPublic: usermeta.create {
+      directoryClient, authdbClient, mode: 'public'}
+    directoryProtected: usermeta.create {
+      directoryClient, authdbClient}
     ganomedeLocal: localUsermetaClient
     ganomedeCentral: centralUsermetaClient
 
