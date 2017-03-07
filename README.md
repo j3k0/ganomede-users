@@ -80,11 +80,12 @@ API
 ### response [200] OK
 
     {
-        "username": "tk421",
-        "email": "tk421@stormpath.com"
+        "username": "tk421"
     }
 
 ## /users/v1/login [POST]
+
+Create an authentication token.
 
 ### body (application/json)
 
@@ -92,6 +93,8 @@ API
         "username": "tk421",
         "password": "0000"
     }
+
+Note, tag instead of username also work (this allows mispellings).
 
 ### body (application/json)
 
@@ -110,6 +113,15 @@ API
 ### response [202] Accepted
 
 # Metadata
+
+Custom data associated with users.
+
+Additionnally to the custom metadata you can define, ganomede-users also exposes some predefined virtual metadata:
+
+ * `username` - unique and constant identifier for the user
+ * `name` - unique display name, that might change
+ * `tag` - tagized(name), see the [ganomede tagizer](https://github.com/j3k0/ganomede-tagizer)
+ * `email` - (only through `/auth/*` requests)
 
 ## /users/v1/auth/:token/metadata/:key [GET]
 
@@ -138,9 +150,11 @@ Change users' custom data.
 
 ### response [200] OK
 
-## /users/v1/:username/metadata/:key [GET]
+## /users/v1/:tag/metadata/:key [GET]
 
-Users' custom data.
+Users' custom data, retrieved using the users `tag`.
+
+Searching by tag will match any `username`, `name` (or similar looking name) the user ever had.
 
 ### body (application/json)
 
@@ -172,9 +186,9 @@ List of friends
 
 # Bans `/users/v1/banned-users/`
 
-## Check ban status `/users/v1/banned-users/:username [GET]`
+## Check ban status `/users/v1/banned-users/:tag [GET]`
 
-Returns `BanInfo` object describing account standing of `:username`.
+Returns `BanInfo` object describing account standing of `:tag`.
 
 ### response [200] OK
 
@@ -190,7 +204,8 @@ Returns `BanInfo` object describing account standing of `:username`.
 ### body (application/json)
 
 ``` json
-{ "username": "who-to-ban",
+{
+  "username": "who-to-ban",
   "apiSecret": "process.env.API_SECRET"
 }
 ```
@@ -203,7 +218,7 @@ Ban created successfully.
 
 Invalid or missing API secret.
 
-## Unban user `/users/v1/banned-users/:username [DELETE]`
+## Unban user `/users/v1/banned-users/:tag [DELETE]`
 
 ### body (application/json)
 

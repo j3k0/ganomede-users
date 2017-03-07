@@ -19,6 +19,7 @@ usernameValidator = require "./username-validator"
 {Bans} = require './bans'
 urllib = require 'url'
 mailer = require './mailer'
+parseTagMod = require './middlewares/parse-tag'
 
 sendError = (req, err, next) ->
   if err.rawError
@@ -51,6 +52,7 @@ friendsClient = null
 friendsApi = null
 bans = null
 authenticator = null
+directoryClient = null
 
 # backend, once initialized
 backend = null
@@ -247,8 +249,8 @@ authMiddleware = (req, res, next) ->
       username = authToken.substr(separatorIndex + 1, authToken.length)
       if apiSecret == reqApiSecret
         req.params.apiSecret = apiSecret
-        req.params.user =
-          username: username
+        req.params.user = req.params.user || {}
+        req.params.user.username = username
       next()
       return
 
@@ -257,7 +259,10 @@ authMiddleware = (req, res, next) ->
       return sendError(req, new restify.UnauthorizedError('
         not authorized'), next)
 
-    req.params.user = account
+    req.params.user = req.params.user || {}
+    req.params.user.username = account.username
+    if account.email
+      req.params.user.email = account.email
     next()
 
 # Set metadata
@@ -284,7 +289,13 @@ getMetadata = (req, res, next) ->
   params =
     req_id: req.id()
     authToken: req.params.authToken || req.context.authToken
-    username: req.params.user?.username || req.params.username
+    username: req.params.username
+  # fill in already loaded info when we have them
+  if req.params.user
+    params.username = req.params.user.username
+    params.tag      = req.params.user.tag
+    params.name     = req.params.user.name
+    params.email    = req.params.user.email
   key = req.params.key
   rootUsermetaClient.get params, key, (err, reply) ->
     res.send
@@ -338,8 +349,10 @@ initialize = (cb, options = {}) ->
   centralUsermetaClient = createGanomedeUsermetaClient(
     "centralUsermetaClient", 'CENTRAL_USERMETA')
   rootUsermetaClient = usermeta.create router:
-    directoryPublic: usermeta.create {directoryClient, mode: 'public'}
-    directoryProtected: usermeta.create {directoryClient}
+    directoryPublic: usermeta.create {
+      directoryClient, authdbClient, mode: 'public'}
+    directoryProtected: usermeta.create {
+      directoryClient, authdbClient}
     ganomedeLocal: localUsermetaClient
     ganomedeCentral: centralUsermetaClient
 
@@ -439,7 +452,10 @@ validateSecret = (req, res, next) ->
   present = apiSecret && req.body && req.body.apiSecret
   ok = if present then apiSecret == req.body.apiSecret else false
 
-  if ok then next() else res.send(403)
+  if ok
+    next()
+  else
+    next new restify.ForbiddenError()
 
 banAdd = (req, res, next) ->
   {username} = req.body
@@ -470,9 +486,14 @@ banStatus = (req, res, next) ->
 
 # Register routes in the server
 addRoutes = (prefix, server) ->
+
+  parseTag = parseTagMod.createParamsMiddleware {directoryClient, log}
+  bodyTag = parseTagMod.createBodyMiddleware {
+    directoryClient, log, field: "username"}
+
   server.post "/#{prefix}/accounts", createAccount
 
-  server.post "/#{prefix}/login", login
+  server.post "/#{prefix}/login", bodyTag, login
 
   server.get(
     "/#{prefix}/auth/:authToken/me",
@@ -481,9 +502,12 @@ addRoutes = (prefix, server) ->
     getAccountSend
   )
 
-  server.post("#{prefix}/banned-users", jsonBody, validateSecret, banAdd)
-  server.del("#{prefix}/banned-users/:username", validateSecret, banRemove)
-  server.get("#{prefix}/banned-users/:username", banStatus)
+  server.post "#{prefix}/banned-users",
+    jsonBody, validateSecret, bodyTag, banAdd
+  server.del "#{prefix}/banned-users/:tag",
+    validateSecret, parseTag, banRemove
+  server.get "#{prefix}/banned-users/:tag",
+    parseTag, banStatus
 
   endPoint = "/#{prefix}/auth/:authToken/passwordResetEmail"
   server.post endPoint, jsonBody, passwordResetEmail
@@ -492,7 +516,8 @@ addRoutes = (prefix, server) ->
   server.post endPoint, jsonBody, passwordResetEmail
 
   # access to public metadata
-  server.get "/#{prefix}/:username/metadata/:key", getMetadata
+  server.get "/#{prefix}/:tag/metadata/:key",
+    parseTag, getMetadata
 
   # access to protected metadata
   server.get "/#{prefix}/auth/:authToken/metadata/:key",

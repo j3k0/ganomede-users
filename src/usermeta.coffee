@@ -33,17 +33,50 @@ parseParams = (obj) ->
 # Code shared between DirectoryAliases implementations
 directory = {
 
+  # The user isn't in the directory, but might be in Stormpath.
+  # In stormpath, 'name' and 'username' are the same. 'email'
+  # was stored in the authdb. So we have some fallbacks.
+  userNotFound:
+    name: (authdbClient, params, cb) ->
+      cb null, (params.name|| params.username)
+    tag: (authdbClient, params, cb) ->
+      cb null, tagizer(params.tag || params.username)
+    email: (authdbClient, params, cb) ->
+      if params.email
+        return cb null, params.email
+      # stormpath users might have their emails in the authdb
+      if authdbClient and params.authToken
+        authdbClient.getAccount params.authToken,
+          (err, account) ->
+            cb err, account?.email
+      else
+        cb new restify.NotFoundError("no email")
+
   # handles replies from directoryClient's read requests
-  handleResponse: (params, key, cb) -> (err, account) ->
+  handleResponse: (authdbClient, params, key, cb) -> (err, account) ->
+
     if err
+
+      # the user isn't in the directory,
+      if err.restCode == 'UserNotFoundError'
+        # let's attempt some fallback.
+        if directory.userNotFound[key]
+          return directory.userNotFound[key](
+            authdbClient, params, cb)
+
+      # unexpectde error, or no fallback
       log.error {err, req_id: params.req_id},
-        "GanomedeUsermeta.get failed"
+        "directoryClient.get failed"
       cb err, null
+
+    # all but username stored as aliases
+    else if key == 'username'
+      cb null, (account.id || null)
     else
       cb null, (account.aliases[key] || null)
 
   publicAlias:
-    email: false
+    username: true
     name: true
     tag: true
 
@@ -56,8 +89,11 @@ directory = {
     name: (directoryClient, params, key, value, cb) ->
       account = directory.account(params, "tag", tagizer(value))
       directoryClient.editAccount account, cb
+    # tag and username are read-only
     tag: (directoryClient, params, key, value, cb) ->
       cb new restify.NotAuthorizedError "tag is read-only"
+    username: (directoryClient, params, key, value, cb) ->
+      cb new restify.NotAuthorizedError "username is read-only"
 
   # create a directory account object suitable for POSTing
   account: (params, key, value) ->
@@ -91,8 +127,8 @@ directory = {
 # Stores "protected" metadata as directory account aliases
 class DirectoryAliasesProtected
 
-  constructor: (@directoryClient) ->
-    @validKeys = {email: true, name: true, tag: true}
+  constructor: (@directoryClient, @authdbClient) ->
+    @validKeys = {email: true, name: true, tag: true, username: true}
     @type = "DirectoryAliasesProtected"
 
   isValid: (key) -> !!@validKeys[key]
@@ -109,17 +145,19 @@ class DirectoryAliasesProtected
     # protected metadata require an authToken for reading
     if !params.authToken
       return cb new restify.NotAuthorizedError("Protected meta")
+    if params[key]
+      return cb null, params[key]
     account =
       token: params.authToken
       req_id: params.req_id
     @directoryClient.byToken account,
-      directory.handleResponse(params, key, cb)
+      directory.handleResponse(@authdbClient, params, key, cb)
 
 # Stores "public" metadata as directory account aliases
 class DirectoryAliasesPublic
 
-  constructor: (@directoryClient) ->
-    @validKeys = {name: true, tag: true}
+  constructor: (@directoryClient, @authdbClient) ->
+    @validKeys = {name: true, tag: true, username: true}
     @type = "DirectoryAliasesPublic"
 
   isValid: (key) -> !!@validKeys[key]
@@ -133,11 +171,13 @@ class DirectoryAliasesPublic
     if !@isValid key
       return cb new restify.BadRequestError("Forbidden meta key")
     params = parseParams(params)
+    if params[key]
+      return cb null, params[key]
     account =
       id: params.username
       req_id: params.req_id
     @directoryClient.byId account,
-      directory.handleResponse(params, key, cb)
+      directory.handleResponse(@authdbClient, params, key, cb)
 
 # Stores "public" metadata in redis
 class RedisUsermeta
@@ -236,6 +276,7 @@ class UsermetaRouter
   }) ->
     @type = "UsermetaRouter"
     @routes =
+      username: @directoryPublic || @directoryProtected
       name: @directoryPublic || @directoryProtected
       tag: @directoryPublic || @directoryProtected
       email: @directoryProtected
@@ -278,9 +319,11 @@ module.exports =
     # Linked with a ganomede-directory client
     # (see directory-client.coffee)
     if config.directoryClient and config.mode == 'public'
-      return new DirectoryAliasesPublic config.directoryClient
+      return new DirectoryAliasesPublic(
+        config.directoryClient, config.authdbClient)
     if config.directoryClient
-      return new DirectoryAliasesProtected config.directoryClient
+      return new DirectoryAliasesProtected(
+        config.directoryClient, config.authdbClient)
 
     # Create a usermeta router
     # ganomedeLocal is required, other children are optional
