@@ -39,11 +39,13 @@ directory = {
       log.error {err, req_id: params.req_id},
         "GanomedeUsermeta.get failed"
       cb err, null
+    else if key == 'username'
+      cb null, (account.id || null)
     else
       cb null, (account.aliases[key] || null)
 
   publicAlias:
-    email: false
+    username: true
     name: true
     tag: true
 
@@ -56,8 +58,11 @@ directory = {
     name: (directoryClient, params, key, value, cb) ->
       account = directory.account(params, "tag", tagizer(value))
       directoryClient.editAccount account, cb
+    # tag and username are read-only
     tag: (directoryClient, params, key, value, cb) ->
       cb new restify.NotAuthorizedError "tag is read-only"
+    username: (directoryClient, params, key, value, cb) ->
+      cb new restify.NotAuthorizedError "username is read-only"
 
   # create a directory account object suitable for POSTing
   account: (params, key, value) ->
@@ -92,7 +97,7 @@ directory = {
 class DirectoryAliasesProtected
 
   constructor: (@directoryClient) ->
-    @validKeys = {email: true, name: true, tag: true}
+    @validKeys = {email: true, name: true, tag: true, username: true}
     @type = "DirectoryAliasesProtected"
 
   isValid: (key) -> !!@validKeys[key]
@@ -109,6 +114,8 @@ class DirectoryAliasesProtected
     # protected metadata require an authToken for reading
     if !params.authToken
       return cb new restify.NotAuthorizedError("Protected meta")
+    if params[key]
+      return cb null, params[key]
     account =
       token: params.authToken
       req_id: params.req_id
@@ -119,7 +126,7 @@ class DirectoryAliasesProtected
 class DirectoryAliasesPublic
 
   constructor: (@directoryClient) ->
-    @validKeys = {name: true, tag: true}
+    @validKeys = {name: true, tag: true, username: true}
     @type = "DirectoryAliasesPublic"
 
   isValid: (key) -> !!@validKeys[key]
@@ -133,6 +140,8 @@ class DirectoryAliasesPublic
     if !@isValid key
       return cb new restify.BadRequestError("Forbidden meta key")
     params = parseParams(params)
+    if params[key]
+      return cb null, params[key]
     account =
       id: params.username
       req_id: params.req_id
@@ -236,6 +245,7 @@ class UsermetaRouter
   }) ->
     @type = "UsermetaRouter"
     @routes =
+      username: @directoryPublic || @directoryProtected
       name: @directoryPublic || @directoryProtected
       tag: @directoryPublic || @directoryProtected
       email: @directoryProtected

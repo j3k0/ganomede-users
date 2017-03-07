@@ -111,6 +111,15 @@ API
 
 # Metadata
 
+Custom data associated with users.
+
+Additionnally to the custom metadata you can define, ganomede-users also exposes some predefined virtual metadata:
+
+ * `username` - unique and constant identifier for the user
+ * `name` - unique display name, that might change
+ * `tag` - tagized(name), see the [ganomede tagizer](https://github.com/j3k0/ganomede-tagizer)
+ * `email` - (only through `/auth/*` requests)
+
 ## /users/v1/auth/:token/metadata/:key [GET]
 
 Users' protected custom data.
@@ -138,9 +147,11 @@ Change users' custom data.
 
 ### response [200] OK
 
-## /users/v1/:username/metadata/:key [GET]
+## /users/v1/:tag/metadata/:key [GET]
 
-Users' custom data.
+Users' custom data, retrieved using the users `tag`.
+
+Searching by tag will match any `username`, `name` (or similar looking name) the user ever had.
 
 ### body (application/json)
 

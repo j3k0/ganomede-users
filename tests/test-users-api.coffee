@@ -55,7 +55,11 @@ baseTest = ->
   td.when(backend.loginAccount data.validLogin)
     .thenCallback null, token:VALID_AUTH_TOKEN
 
-  directoryClient = td.object ['editAccount', 'byId', 'byToken']
+  directoryClient = td.object ['editAccount', 'byId', 'byToken', 'byAlias']
+  td.when(directoryClient.byAlias(
+    td.matchers.contains({type: "tag"}),
+    td.matchers.isA(Function)))
+      .thenDo (alias, cb) -> cb(null, {id: alias.value})
 
   callback = td.function 'callback'
   authdbClient = fakeAuthdb.createClient()
@@ -310,6 +314,8 @@ describe 'users-api', ->
           superagent
             .get endpoint("/banned-users/#{username}")
             .end (err, res) ->
+              if err
+                console.dir err
               expect(err).to.be.null
               expect(res.status).to.equal(200)
               expect(res.body).to.be.instanceof(Object)
