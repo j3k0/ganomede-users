@@ -498,11 +498,12 @@ addRoutes = (prefix, server) ->
     getAccountSend
   )
 
-  server.post("#{prefix}/banned-users", jsonBody, validateSecret, banAdd)
-  server.del("#{prefix}/banned-users/:tag",
-    validateSecret, parseTag, banRemove)
-  server.get("#{prefix}/banned-users/:tag",
-    parseTag, banStatus)
+  server.post "#{prefix}/banned-users",
+    jsonBody, validateSecret, bodyTag, banAdd
+  server.del "#{prefix}/banned-users/:tag",
+    validateSecret, parseTag, banRemove
+  server.get "#{prefix}/banned-users/:tag",
+    parseTag, banStatus
 
   endPoint = "/#{prefix}/auth/:authToken/passwordResetEmail"
   server.post endPoint, jsonBody, passwordResetEmail

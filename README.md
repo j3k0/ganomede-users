@@ -80,8 +80,7 @@ API
 ### response [200] OK
 
     {
-        "username": "tk421",
-        "email": "tk421@stormpath.com"
+        "username": "tk421"
     }
 
 ## /users/v1/login [POST]
@@ -187,9 +186,9 @@ List of friends
 
 # Bans `/users/v1/banned-users/`
 
-## Check ban status `/users/v1/banned-users/:username [GET]`
+## Check ban status `/users/v1/banned-users/:tag [GET]`
 
-Returns `BanInfo` object describing account standing of `:username`.
+Returns `BanInfo` object describing account standing of `:tag`.
 
 ### response [200] OK
 
@@ -205,7 +204,8 @@ Returns `BanInfo` object describing account standing of `:username`.
 ### body (application/json)
 
 ``` json
-{ "username": "who-to-ban",
+{
+  "username": "who-to-ban",
   "apiSecret": "process.env.API_SECRET"
 }
 ```
@@ -218,7 +218,7 @@ Ban created successfully.
 
 Invalid or missing API secret.
 
-## Unban user `/users/v1/banned-users/:username [DELETE]`
+## Unban user `/users/v1/banned-users/:tag [DELETE]`
 
 ### body (application/json)
 
