@@ -86,12 +86,16 @@ API
 
 ## /users/v1/login [POST]
 
+Create an authentication token.
+
 ### body (application/json)
 
     {
         "username": "tk421",
         "password": "0000"
     }
+
+Note, tag instead of username also work (this allows mispellings).
 
 ### body (application/json)
 

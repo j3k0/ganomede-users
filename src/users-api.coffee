@@ -483,11 +483,13 @@ banStatus = (req, res, next) ->
 # Register routes in the server
 addRoutes = (prefix, server) ->
 
-  parseTag = parseTagMod.createMiddleware {directoryClient, log}
+  parseTag = parseTagMod.createParamsMiddleware {directoryClient, log}
+  bodyTag = parseTagMod.createBodyMiddleware {
+    directoryClient, log, field: "username"}
 
   server.post "/#{prefix}/accounts", createAccount
 
-  server.post "/#{prefix}/login", login
+  server.post "/#{prefix}/login", bodyTag, login
 
   server.get(
     "/#{prefix}/auth/:authToken/me",
