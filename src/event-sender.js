@@ -14,7 +14,7 @@ const createSender = ({
   // sender info
   clientId = config.api,
   channel = config.api,
-  fromField = `https://prod.ggs.ovh/${config.api}`, // TODO fix this one
+  from = `https://prod.ggs.ovh/${config.api}`, // TODO fix this one
   // events backend
   secret = config.secret,
   protocol = config.events.protocol,
@@ -30,25 +30,23 @@ const createSender = ({
     pathname
   });
 
-  const sendEvent = (type, data, callback = noop) => {
-    const event = {
-      type,
-      from: fromField,
-      data
-    };
+  const sender = (type, data, callback = noop) => {
+    const req_id = data.req_id;
+    delete data.req_id;
+    const event = {req_id, type, from, data};
 
     client.send(channel, event, (err, eventHeader) => {
       if (err) {
-        logger.error('Failed to send event', err);
+        logger.warn({err}, 'Failed to send event');
         return callback(err);
       }
 
-      logger.debug('Event %s sent', type, eventHeader);
+      logger.debug({type, eventHeader}, 'Event sent');
       callback(null, eventHeader);
     });
   };
 
-  return sendEvent;
+  return sender;
 };
 
 module.exports = {

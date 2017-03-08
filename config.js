@@ -2,6 +2,7 @@
 
 const helpers = require('ganomede-helpers');
 const pkg = require('./package.json');
+const serviceConfig = helpers.links.ServiceEnv.config;
 
 const parseApiSecret = () => {
   const valid = process.env.hasOwnProperty('API_SECRET')
@@ -18,8 +19,7 @@ module.exports = {
   name: pkg.name,
   api: pkg.api,
   secret: parseApiSecret(),
-
-  events: helpers.links.ServiceEnv.config('EVENTS', 8080)
+  events: serviceConfig('EVENTS', 8080)
 };
 
 if (!module.parent)

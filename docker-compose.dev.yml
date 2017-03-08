@@ -1,10 +1,10 @@
-version: '3'
+version: '2'
 services:
 
   sut:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     command: sh -c "./run_tests.sh && ./tests/rest_api.sh"
     volumes:
      - ./src:/home/app/code/src
@@ -21,7 +21,7 @@ services:
   users:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     volumes:
      - ./src:/home/app/code/src
     depends_on:

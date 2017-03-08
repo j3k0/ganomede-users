@@ -334,7 +334,7 @@ initialize = (cb, options = {}) ->
     require('./directory-client').createClient {
       log,
       jsonClient,
-      sendEvent: eventSender.create()
+      sendEvent: eventSender.createSender()
     }
   directoryClient = directoryClient || createDirectoryClient()
 
