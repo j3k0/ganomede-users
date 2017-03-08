@@ -16,16 +16,32 @@
 
 restify = require 'restify'
 logMod = require './log'
-clone = (obj) -> JSON.parse(JSON.stringify(obj))
+{CREATE, CHANGE, LOGIN} = require('./event-sender')
+
+noop = () ->
+
+reduceAliases = (aliases) ->
+  aliases.reduce(
+    (ref, {type, value}) -> ref[type] = value; ref
+    {}
+  )
+
+eventData = (userId, aliases = []) ->
+  userId: userId,
+  aliases: reduceAliases(aliases)
 
 createClient = ({
   jsonClient
   log
   apiSecret = process.env.API_SECRET
+  sendEvent = noop
 }) ->
 
   if !jsonClient
     throw new Error('jsonClient required')
+
+  if sendEvent == noop
+    log.warn('Directory client created with sendEvent set to noop')
 
   jsonPost = (options, reqBody, cb) ->
     jsonClient.post options, reqBody, (err, req, res, resBody) ->
@@ -99,6 +115,7 @@ createClient = ({
         callback new Error "HTTP#{res.statusCode}"
 
       else
+        sendEvent(LOGIN, eventData(credentials.id))
         callback null, body
 
   addAccount = (account = {}, callback) ->
@@ -117,7 +134,12 @@ createClient = ({
       password: account.password
       aliases: account.aliases
 
-    postAccount 'create', options, body, callback
+    postAccount 'create', options, body, (err, bodyResult) ->
+      if err
+        return callback(err)
+
+      sendEvent(CREATE, eventData(account.id, account.aliases))
+      callback(null, bodyResult)
 
   editAccount = (account = {}, callback) ->
 
@@ -130,16 +152,25 @@ createClient = ({
       req_id: account.req_id
 
     body = secret: apiSecret
+    triggerChangeEvent = false
 
     if account.password
       body.password = account.password
     else if account.aliases and account.aliases.length
       body.aliases = account.aliases
+      triggerChangeEvent = true
     else
       return callback new restify.InvalidContentError(
         'Nothing to change')
 
-    postAccount "edit", options, body, callback
+    postAccount "edit", options, body, (err, bodyResult) ->
+      if err
+        return callback(err)
+
+      if (triggerChangeEvent)
+        sendEvent(CHANGE, eventData(account.id, body.aliases))
+
+      callback(null, bodyResult)
 
   postAccount = (description, options, body, callback) ->
 

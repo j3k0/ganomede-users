@@ -20,6 +20,7 @@ usernameValidator = require "./username-validator"
 urllib = require 'url'
 mailer = require './mailer'
 parseTagMod = require './middlewares/parse-tag'
+eventSender = require './event-sender'
 
 sendError = (req, err, next) ->
   if err.rawError
@@ -209,7 +210,7 @@ getAccountSend = (req, res, next) ->
 
 # Send a password reset email
 passwordResetEmail = (req, res, next) ->
-  
+
   token = req.params?.authToken
   email = req.body?.email
 
@@ -330,7 +331,11 @@ initialize = (cb, options = {}) ->
         hostname: directoryService.host
         port:     directoryService.port
         pathname: 'directory/v1'
-    require('./directory-client').createClient { log, jsonClient }
+    require('./directory-client').createClient {
+      log,
+      jsonClient,
+      sendEvent: eventSender.createSender()
+    }
   directoryClient = directoryClient || createDirectoryClient()
 
   createGanomedeUsermetaClient = (name, ganomedeEnv) ->

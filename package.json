@@ -1,9 +1,8 @@
 {
-  "name": "users",
+  "name": "ganomede-users",
   "version": "1.5.12",
   "api": "users/v1",
   "description": "users micro service",
-  "private": true,
   "main": "index.js",
   "engines": {
     "node": ">=6"
@@ -12,10 +11,11 @@
     "start": "./node_modules/.bin/forever start index.js",
     "stop": "./node_modules/.bin/forever stop index.js",
     "test": "./run_tests.sh",
-    "testw": "./run_tests.sh --watch tests"
+    "testw": "./run_tests.sh --watch tests",
+    "lint": "eslint src/ tests/ index.js config.js && coffeelint --quiet src tests"
   },
   "author": "Jean-Christophe Hoelt <hoelt@fovea.cc>",
-  "license": "Private",
+  "license": "GPL",
   "dependencies": {
     "async": "^2.0.1",
     "authdb": "^0.3.0",
@@ -27,6 +27,7 @@
     "fakeredis": "^1.0.3",
     "fbgraph": "^1.0.0",
     "forever": "^0.15.3",
+    "ganomede-events": "^1.1.0",
     "ganomede-helpers": "^1.0.6",
     "ganomede-tagizer": "^1.0.0",
     "jshint": "^2.5.10",

@@ -27,7 +27,7 @@ createClient = ({
   client = new StatsD
     host: process.env.STATSD_HOST
     port: process.env.STATSD_PORT
-    prefix: process.env.STATSD_PREFIX
+    prefix: process.env.STATSD_PREFIX || 'ganomede.users.'
   client.socket.on 'error', (error) ->
     log.error "error in socket", error
   return client
