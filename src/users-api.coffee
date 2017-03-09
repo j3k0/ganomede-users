@@ -314,6 +314,11 @@ initialize = (cb, options = {}) ->
     authdbClient = options.authdbClient
   else
     redisAuthConfig = serviceConfig('REDIS_AUTH', 6379)
+    # TODO: create a authdb compatible client based upon directoryClient
+    #       (so we don't have to change the rest of the code)
+    #       make it part of ganomede-directory's client library
+    #       so everyone gets access to it:
+    #       require('ganomede-directory').createAuthdbClient(params)
     authdbClient = authdb.createClient
       host: redisAuthConfig.host
       port: redisAuthConfig.port
