@@ -9,6 +9,7 @@ authentication = require "./authentication"
 restify = require "restify"
 log = require "./log"
 helpers = require "ganomede-helpers"
+ganomedeDirectory = require "ganomede-directory"
 serviceConfig = helpers.links.ServiceEnv.config
 usermeta = require "./usermeta"
 aliases = require "./aliases"
@@ -310,27 +311,15 @@ initialize = (cb, options = {}) ->
   if options.log
     log = options.log
 
-  if options.authdbClient
-    authdbClient = options.authdbClient
-  else
-    redisAuthConfig = serviceConfig('REDIS_AUTH', 6379)
-    # TODO: create a authdb compatible client based upon directoryClient
-    #       (so we don't have to change the rest of the code)
-    #       make it part of ganomede-directory's client library
-    #       so everyone gets access to it:
-    #       require('ganomede-directory').createAuthdbClient(params)
-    authdbClient = authdb.createClient
-      host: redisAuthConfig.host
-      port: redisAuthConfig.port
-
   # Initialize the directory client (if possible)
   directoryClient = options.directoryClient
+  directoryJsonClient = null
   createDirectoryClient = () ->
     directoryService = serviceConfig 'DIRECTORY', 8000
     if !directoryService.exists
-      return null
+      throw new Error('Directory is not properly configured')
     log.info {directoryService}, "Link to ganomede-directory"
-    jsonClient = restify.createJsonClient
+    directoryJsonClient = restify.createJsonClient
       url: urllib.format
         protocol: directoryService.protocol || 'http'
         hostname: directoryService.host
@@ -338,10 +327,16 @@ initialize = (cb, options = {}) ->
         pathname: 'directory/v1'
     require('./directory-client').createClient {
       log,
-      jsonClient,
+      jsonClient: directoryJsonClient
       sendEvent: eventSender.createSender()
     }
   directoryClient = directoryClient || createDirectoryClient()
+
+  if options.authdbClient
+    authdbClient = options.authdbClient
+  else
+    authdbClient = ganomedeDirectory.createAuthdbClient {
+      jsonClient: directoryJsonClient, log, apiSecret}
 
   createGanomedeUsermetaClient = (name, ganomedeEnv) ->
     ganomedeConfig = serviceConfig(ganomedeEnv, 8000)

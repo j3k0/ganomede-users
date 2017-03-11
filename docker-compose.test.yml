@@ -37,10 +37,8 @@ services:
      - "FACEBOOK_APP_ID=1234567890"
      - "FACEBOOK_APP_SECRET="
      - "NODE_ENV="
-     - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
      - "CENTRAL_USERMETA_PORT_8000_TCP_ADDR=centralusermeta"
      - "LOCAL_USERMETA_PORT_8000_TCP_ADDR=localusermeta"
-     - "LOCAL_USERMETA_PORT_8000_TCP_PORT=8000"
      - "DIRECTORY_PORT_8000_TCP_ADDR=directory"
     ports:
      - "8001:8000"
@@ -82,7 +80,7 @@ services:
      - "NODE_ENV="
 
   directory:
-    image: ganomede/directory:v0.2.0
+    image: ganomede/directory:v0.3.1
     depends_on:
       - directorysync
     ports:
@@ -95,7 +93,7 @@ services:
 
   # will just sync the database
   directorysync:
-    image: ganomede/directory:v0.2.0
+    image: ganomede/directory:v0.3.1
     depends_on:
      - directorycouch
      - authredis
