@@ -8,17 +8,15 @@
     "node": ">=6"
   },
   "scripts": {
-    "start": "./node_modules/.bin/forever start index.js",
-    "stop": "./node_modules/.bin/forever stop index.js",
-    "test": "./run_tests.sh",
-    "testw": "./run_tests.sh --watch tests",
-    "lint": "eslint src/ tests/ index.js config.js && coffeelint --quiet src tests"
+    "start": "node index.js",
+    "test": "SKIP_LINT=1 ./run_tests.sh",
+    "testw": "SKIP_LINT=1 ./run_tests.sh --watch tests",
+    "lint": "SKIP_MOCHA=1 ./run_tests.sh"
   },
   "author": "Jean-Christophe Hoelt <hoelt@fovea.cc>",
   "license": "GPL",
   "dependencies": {
     "async": "^2.0.1",
-    "authdb": "^0.3.0",
     "bunyan": "^1.2.3",
     "coffee-script": "^1.8.0",
     "coffeelint": "^1.6.1",
@@ -27,6 +25,7 @@
     "fakeredis": "^1.0.3",
     "fbgraph": "^1.0.0",
     "forever": "^0.15.3",
+    "ganomede-directory": "^0.3.0",
     "ganomede-events": "^1.1.0",
     "ganomede-helpers": "^1.0.6",
     "ganomede-tagizer": "^1.0.0",
