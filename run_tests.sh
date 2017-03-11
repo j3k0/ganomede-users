@@ -11,12 +11,15 @@ if [ -z "$SKIP_LINT" ]; then
     echo "coffeelint..."
     ./node_modules/.bin/coffeelint -q src tests
 fi
-BUNYAN_LEVEL=1000
-MOCHA_ARGS="--bail --compilers coffee:coffee-script/register"
-if [ -z "$1" ]; then
-    MORE_MOCHA_ARGS=tests/**/test-*.coffee
+
+if [ -z "$SKIP_MOCHA" ]; then
+    BUNYAN_LEVEL=1000
+    MOCHA_ARGS="--bail --compilers coffee:coffee-script/register"
+    if [ -z "$1" ]; then
+        MORE_MOCHA_ARGS=tests/**/test-*.coffee
+    fi
+    echo "mocha..."
+    ./node_modules/.bin/mocha ${MOCHA_ARGS} ${MORE_MOCHA_ARGS} "$@"
+    # BUNYAN="./node_modules/.bin/bunyan -l ${BUNYAN_LEVEL}"
+    # ./node_modules/.bin/mocha ${MOCHA_ARGS} | ${BUNYAN}
 fi
-echo "mocha..."
-./node_modules/.bin/mocha ${MOCHA_ARGS} ${MORE_MOCHA_ARGS} "$@"
-# BUNYAN="./node_modules/.bin/bunyan -l ${BUNYAN_LEVEL}"
-# ./node_modules/.bin/mocha ${MOCHA_ARGS} | ${BUNYAN}
