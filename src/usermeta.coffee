@@ -40,7 +40,7 @@ directory = {
     name: (authdbClient, params, cb) ->
       cb null, (params.name|| params.username)
     tag: (authdbClient, params, cb) ->
-      cb null, tagizer(params.tag || params.username)
+      cb null, tagizer.tag(params.tag || params.username)
     email: (authdbClient, params, cb) ->
       if params.email
         return cb null, params.email
@@ -87,7 +87,7 @@ directory = {
   beforeEdit:
     # change the tag before changing the name
     name: (directoryClient, params, key, value, cb) ->
-      account = directory.account(params, "tag", tagizer(value))
+      account = directory.account(params, "tag", tagizer.tag(value))
       directoryClient.editAccount account, cb
     # tag and username are read-only
     tag: (directoryClient, params, key, value, cb) ->

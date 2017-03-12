@@ -9,9 +9,10 @@
   },
   "scripts": {
     "start": "node index.js",
-    "test": "SKIP_LINT=1 ./run_tests.sh",
-    "testw": "SKIP_LINT=1 ./run_tests.sh --watch tests",
-    "lint": "SKIP_MOCHA=1 ./run_tests.sh"
+    "test": "./run_tests.sh",
+    "testw": "SKIP_LINT=1 SKIP_COVERAGE=1 ./run_tests.sh --watch tests",
+	  "coverage": "SKIP_LINT=1 SKIP_MOCHA=1 mocha -b --compilers coffee:coffee-script/register --require coffee-coverage/register-istanbul tests/ && ./node_modules/.bin/istanbul report",
+    "lint": "SKIP_MOCHA=1 SKIP_COVERAGE=1 ./run_tests.sh"
   },
   "author": "Jean-Christophe Hoelt <hoelt@fovea.cc>",
   "license": "GPL",
@@ -28,10 +29,9 @@
     "ganomede-directory": "^0.3.0",
     "ganomede-events": "^1.1.0",
     "ganomede-helpers": "^1.0.6",
-    "ganomede-tagizer": "^1.0.0",
+    "ganomede-tagizer": "^2.0.1",
     "jshint": "^2.5.10",
     "lodash": "^4.17.4",
-    "mocha": "^3.2.0",
     "newrelic": "^1.20.2",
     "node-statsd": "^0.1.1",
     "nodemailer": "^2.7.2",
@@ -46,6 +46,7 @@
     "chai": "^3.5.0",
     "coffee-coverage": "^1.0.1",
     "istanbul": "^0.4.5",
+    "mocha": "^3.2.0",
     "superagent": "^3.4.0",
     "testdouble": "^1.11.0"
   }

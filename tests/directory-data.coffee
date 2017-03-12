@@ -33,7 +33,7 @@ directoryAliases: (account) ->
       public: true
     ret.push
       type: "tag"
-      value: tagizer(account.username)
+      value: tagizer.tag(account.username)
       public: true
   ret
 findAlias: (type, account) ->

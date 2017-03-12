@@ -23,3 +23,8 @@ if [ -z "$SKIP_MOCHA" ]; then
     # BUNYAN="./node_modules/.bin/bunyan -l ${BUNYAN_LEVEL}"
     # ./node_modules/.bin/mocha ${MOCHA_ARGS} | ${BUNYAN}
 fi
+
+if [ -z "$SKIP_COVERAGE" ]; then
+    ./node_modules/.bin/mocha -b --compilers coffee:coffee-script/register --require coffee-coverage/register-istanbul tests/
+    ./node_modules/.bin/istanbul report
+fi

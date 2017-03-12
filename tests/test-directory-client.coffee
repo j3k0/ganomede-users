@@ -75,7 +75,7 @@ describe 'directory-data', ->
       public: false
     expect(directoryAliasesObj EXISTING_USER).to.eql
       name: EXISTING_USER.username
-      tag: tagizer(EXISTING_USER.username)
+      tag: tagizer.tag(EXISTING_USER.username)
 
 describe 'directory-client', ->
 
