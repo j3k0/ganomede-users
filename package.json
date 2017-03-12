@@ -1,6 +1,6 @@
 {
   "name": "ganomede-users",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "api": "users/v1",
   "description": "users micro service",
   "main": "index.js",
@@ -11,7 +11,7 @@
     "start": "node index.js",
     "test": "./run_tests.sh",
     "testw": "SKIP_LINT=1 SKIP_COVERAGE=1 ./run_tests.sh --watch tests",
-	  "coverage": "SKIP_LINT=1 SKIP_MOCHA=1 mocha -b --compilers coffee:coffee-script/register --require coffee-coverage/register-istanbul tests/ && ./node_modules/.bin/istanbul report",
+    "coverage": "SKIP_LINT=1 SKIP_MOCHA=1 mocha -b --compilers coffee:coffee-script/register --require coffee-coverage/register-istanbul tests/ && ./node_modules/.bin/istanbul report",
     "lint": "SKIP_MOCHA=1 SKIP_COVERAGE=1 ./run_tests.sh"
   },
   "author": "Jean-Christophe Hoelt <hoelt@fovea.cc>",
