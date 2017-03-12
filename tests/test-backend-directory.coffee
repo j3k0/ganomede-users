@@ -251,7 +251,7 @@ describe 'backend/directory', ->
       tagAlias =
         type: 'tag'
         public: true
-        value: tagizer(NEW_USER.username)
+        value: tagizer.tag(NEW_USER.username)
       td.verify directoryClient.addAccount(
         td.matchers.argThat(hasAlias(tagAlias)),
         td.callback)

@@ -28,7 +28,7 @@ createBodyMiddleware = ({
   req_id = req.id()
   directoryClient.byAlias {
     type: "tag"
-    value: tagizer(tag)
+    value: tagizer.tag(tag)
     req_id
   }, (err, account) ->
 
@@ -58,7 +58,7 @@ createParamsMiddleware = ({
   req_id = req.id()
   directoryClient.byAlias {
     type: "tag"
-    value: tagizer(tag)
+    value: tagizer.tag(tag)
     req_id
   }, (err, account) ->
 

@@ -135,7 +135,7 @@ createBackend = ({
               id: username
               aliases:
                 name: username
-                tag: tagizer(username)
+                tag: tagizer.tag(username)
                 email: facebookAccount.email
             cb null, { facebookAccount, directoryAccount }
 
@@ -164,7 +164,7 @@ createBackend = ({
           public: true
         }, {
           type: 'tag'
-          value: tagizer(username)
+          value: tagizer.tag(username)
           public: true
         }, {
           type: 'facebook.id.' + facebookAppId
@@ -251,7 +251,7 @@ createBackend = ({
       public: true
     }, {
       type: 'tag'
-      value: tagizer(username)
+      value: tagizer.tag(username)
       public: true
     }]
     account = { id, password, aliases, req_id }
