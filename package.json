@@ -9,11 +9,10 @@
   },
   "scripts": {
     "start": "node index.js",
-    "test": "SKIP_LINT=1 ./run_tests.sh",
-    "testw": "SKIP_LINT=1 ./run_tests.sh --watch tests",
-    "xxxcoverage": "istanbul cover --dir doc _mocha -- --recursive --compilers coffee:coffee-script/register tests && istanbul report",
-	  "coverage": "mocha -b --compilers coffee:coffee-script/register --require coffee-coverage/register-istanbul tests/ && ./node_modules/.bin/istanbul report",
-    "lint": "SKIP_MOCHA=1 ./run_tests.sh"
+    "test": "./run_tests.sh",
+    "testw": "SKIP_LINT=1 SKIP_COVERAGE=1 ./run_tests.sh --watch tests",
+	  "coverage": "SKIP_LINT=1 SKIP_MOCHA=1 mocha -b --compilers coffee:coffee-script/register --require coffee-coverage/register-istanbul tests/ && ./node_modules/.bin/istanbul report",
+    "lint": "SKIP_MOCHA=1 SKIP_COVERAGE=1 ./run_tests.sh"
   },
   "author": "Jean-Christophe Hoelt <hoelt@fovea.cc>",
   "license": "GPL",

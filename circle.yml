@@ -3,9 +3,6 @@ machine:
     version: 6.9.4
 
 test:
-  pre:
-    - npm run lint
   post:
     - npm install https://github.com/nickmerwin/node-coveralls
-    - npm run coverage
     - cat ./coverage/lcov.info | ./node_modules/.bin/coveralls
