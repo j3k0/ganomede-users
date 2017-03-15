@@ -33,9 +33,9 @@ createBodyMiddleware = ({
   }, (err, account) ->
 
     if err
-      log.warn {err, tag, value, req_id}, "directoryClient.byAlias failed"
+      log.warn {err, tag, req_id}, "directoryClient.byAlias failed"
     else if !account
-      log.warn {tag, value, req_id},
+      log.warn {tag, req_id},
         "directoryClient.byAlias returned no account"
     else
       req.body[field] = account.id
