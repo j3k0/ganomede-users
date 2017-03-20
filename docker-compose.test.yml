@@ -29,6 +29,7 @@ services:
      - centralusermeta
      - localusermeta
      - directory
+     - events
     environment:
      - "USE_DIRECTORY_ONLY=1"
      - "LEGACY_ERROR_CODES=1"
@@ -40,6 +41,7 @@ services:
      - "CENTRAL_USERMETA_PORT_8000_TCP_ADDR=centralusermeta"
      - "LOCAL_USERMETA_PORT_8000_TCP_ADDR=localusermeta"
      - "DIRECTORY_PORT_8000_TCP_ADDR=directory"
+     - "EVENTS_PORT_8000_TCP_ADDR=events"
     ports:
      - "8001:8000"
 
@@ -59,6 +61,7 @@ services:
      - "USERMETA_MAX_LENGTH=1000"
      - "REDIS_USERMETA_PORT_6379_TCP_ADDR=centralusermetaredis"
      - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
+     - "LOG_LEVEL=debug"
      - "NODE_ENV="
 
   localusermeta:
@@ -77,6 +80,7 @@ services:
      - "USERMETA_MAX_LENGTH=10000"
      - "REDIS_USERMETA_PORT_6379_TCP_ADDR=localusermetaredis"
      - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
+     - "LOG_LEVEL=debug"
      - "NODE_ENV="
 
   directory:
@@ -90,6 +94,8 @@ services:
      - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
      - "API_SECRET=1234"
      - "COUCH_DIRECTORY_SYNC="
+     - "LOG_LEVEL=debug"
+     - "NODE_ENV="
 
   # will just sync the database
   directorysync:
@@ -102,6 +108,18 @@ services:
      - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
      - "API_SECRET=1234"
      - "COUCH_DIRECTORY_SYNC=1"
+     - "LOG_LEVEL=debug"
+     - "NODE_ENV="
+
+  events:
+    image: ganomede/events
+    depends_on:
+     - eventsredis
+    environment:
+     - "API_SECRET=1234"
+     - "REDIS_EVENTS_PORT_6379_TCP_ADDR=eventsredis"
+     - "LOG_LEVEL=debug"
+     - "NODE_ENV="
 
   directorycouch:
     image: klaemo/couchdb:1.6.1
@@ -110,4 +128,6 @@ services:
   centralusermetaredis:
     image: redis:alpine
   localusermetaredis:
+    image: redis:alpine
+  eventsredis:
     image: redis:alpine

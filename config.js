@@ -19,7 +19,7 @@ module.exports = {
   name: pkg.name,
   api: pkg.api,
   secret: parseApiSecret(),
-  events: serviceConfig('EVENTS', 8080)
+  events: serviceConfig('EVENTS', 8000)
 };
 
 if (!module.parent)

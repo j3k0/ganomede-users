@@ -22,6 +22,7 @@ urllib = require 'url'
 mailer = require './mailer'
 parseTagMod = require './middlewares/parse-tag'
 eventSender = require './event-sender'
+deferredEvents = require './deferred-events'
 
 sendError = (req, err, next) ->
   if err.rawError
@@ -91,6 +92,7 @@ createAccount = (req, res, next) ->
         metadata = {}
       async.eachOf metadata, add, ->
         res.send data
+        deferredEvents.editEvent req.id(), eventSender.CREATE, {metadata}
         next()
 
 # Login a user account
@@ -341,7 +343,7 @@ initialize = (cb, options = {}) ->
     require('./directory-client').createClient {
       log,
       jsonClient: directoryJsonClient
-      sendEvent: eventSender.createSender()
+      sendEvent: deferredEvents.sendEvent
     }
   directoryClient = directoryClient || createDirectoryClient()
 
@@ -544,6 +546,8 @@ addRoutes = (prefix, server) ->
     jsonBody, authMiddleware, postMetadata
 
   friendsApi.addRoutes prefix, server
+
+  server.on "after", deferredEvents.finalize(eventSender.createSender())
 
 module.exports =
   initialize: initialize
