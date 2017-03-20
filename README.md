@@ -50,11 +50,19 @@ API
 
 ### body (application/json)
 
-    {
-        username: 'tk421',
-        email: 'tk421@stormpath.com',
-        password: 'Changeme1'
+```json
+{
+    "username": "tk421",
+    "email": "tk421@stormpath.com",
+    "password": "Changeme1",
+    "metadata": {
+        "newsletter": "false",
+        "location": "Dublin, Ireland",
+        "country": "fr",
+        "birth": "1991"
     }
+}
+```
 
 ### response [201]
 
