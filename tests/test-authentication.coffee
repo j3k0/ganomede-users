@@ -46,10 +46,17 @@ describe 'authentication', ->
       td.verify authdbClient.addAccount TOKEN,
         username: USERNAME
         email: EMAIL
-      td.verify localUsermetaClient.set USERNAME, 'auth', TIMESTAMP,
-        td.matchers.isA(Function)
-      td.verify centralUsermetaClient.set USERNAME, 'auth', TIMESTAMP,
-        td.matchers.isA(Function)
+      td.verify localUsermetaClient.set(
+        td.matchers.contains({
+          username: USERNAME, apiSecret: process.env.API_SECRET}),
+        'auth',
+        TIMESTAMP,
+        td.matchers.isA(Function))
+      td.verify centralUsermetaClient.set(
+        td.matchers.contains({
+          username: USERNAME, apiSecret: process.env.API_SECRET}),
+        'auth', TIMESTAMP,
+        td.matchers.isA(Function))
 
   describe.skip 'authenticator.updateAuthMetadata()', ->
   describe.skip 'authenticator.getAuthMetadata()', ->
