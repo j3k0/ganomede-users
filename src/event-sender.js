@@ -31,9 +31,8 @@ const createSender = ({
   });
 
   const sender = (type, data, callback = noop) => {
-    const req_id = data.req_id;
+    const event = {req_id: data.req_id, type, from, data};
     delete data.req_id;
-    const event = {req_id, type, from, data};
 
     client.send(channel, event, (err, eventHeader) => {
       if (err) {

@@ -14,6 +14,9 @@ WRONG_CREDS = directoryAccount(NEW_USER)
 ADD_ACCOUNT = directoryAccount(NEW_USER)
 ADD_ACCOUNT.secret = API_SECRET
 
+REQ_ID = "my-request-id"
+CREDS.req_id = REQ_ID
+
 jsonClientTD = ->
   jsonClient = td.object [ 'post', 'get' ]
 
@@ -90,7 +93,7 @@ describe 'directory-client', ->
       { jsonClient } = authenticate CREDS
       td.verify jsonClient.post(
         td.matchers.contains(path: '/users/auth'),
-        CREDS, td.callback)
+        directoryAccount(CREDS), td.callback)
 
     it 'reports failure when response status is not 200', ->
       { callback } = authenticate WRONG_CREDS
@@ -102,7 +105,8 @@ describe 'directory-client', ->
 
     it 'invokes sendEvent(LOGIN, userId) on succesful creation', ->
       { sendEvent } = authenticate CREDS
-      td.verify sendEvent('LOGIN', {userId: EXISTING_USER.id, aliases: {}})
+      td.verify sendEvent('LOGIN', {
+        userId: EXISTING_USER.id, aliases: {}, req_id: REQ_ID})
 
   describe '.byAlias()', ->
 
@@ -170,6 +174,7 @@ describe 'directory-client', ->
     it 'invokes sendEvent(CREATE, userId) on succesful creation', ->
       account =
         secret: API_SECRET
+        req_id: REQ_ID
         id: NEW_USER.id
         password: '12345678'
         aliases: [
@@ -178,10 +183,10 @@ describe 'directory-client', ->
 
       { sendEvent } = addAccount account
       td.verify sendEvent('CREATE', {
-        userId: NEW_USER.id,
-        aliases: {
+        userId: NEW_USER.id
+        req_id: REQ_ID
+        aliases:
           email: 'me@me.me'
-        }
       })
 
     it.skip 'reports failure when directory server is not reachable', ->

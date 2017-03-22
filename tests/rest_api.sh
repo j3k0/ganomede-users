@@ -50,12 +50,18 @@ function it() {
 USERNAME='"username":"test124"'
 PASSWORD='"password":"azerty12345678"'
 EMAIL='"email":"test124@test.fovea.cc"'
+COUNTRY='"country":"fr"'
+BIRTH='"yearofbirth":"2015"'
 WRONG_PASSWORD='"password":"nononon"'
 
 it "registers the user"
-    CURL $PREFIX/accounts -d "{$USERNAME, $PASSWORD, $EMAIL}"
-    CURL $PREFIX/accounts -d "{$USERNAME, $PASSWORD, $EMAIL}"
+    CURL $PREFIX/accounts -d "{$USERNAME, $PASSWORD, $EMAIL, \"metadata\":{$COUNTRY, $BIRTH}}"
+    CURL $PREFIX/accounts -d "{$USERNAME, $PASSWORD, $EMAIL, \"metadata\":{$COUNTRY, $BIRTH}}"
     outputIncludes StormpathResourceError2001
+
+it "saves metadata at registrations"
+  CURL $PREFIX/test124/metadata/country
+  outputIncludes fr
 
 it "logs the user in"
     CURL $PREFIX/login -d "{$USERNAME, $PASSWORD}"

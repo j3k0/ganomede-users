@@ -4,7 +4,7 @@
 #
 
 _ = require 'lodash'
-authdb = require "authdb"
+async = require "async"
 authentication = require "./authentication"
 restify = require "restify"
 log = require "./log"
@@ -22,6 +22,7 @@ urllib = require 'url'
 mailer = require './mailer'
 parseTagMod = require './middlewares/parse-tag'
 eventSender = require './event-sender'
+deferredEvents = require './deferred-events'
 
 sendError = (req, err, next) ->
   if err.rawError
@@ -71,14 +72,28 @@ createAccount = (req, res, next) ->
     username: req.body.username
     email:    req.body.email
     password: req.body.password
-  log.info "register", account
+  req.log.info {account}, "createAccount"
 
   backend.createAccount account, (err, data) ->
     if err
       return sendError req, err, next
     else
-      res.send data
-      next()
+      params =
+        username: req.body.username
+        authToken: data.token
+        req_id: req.id()
+      metadata = req.body.metadata
+      add = (value, key, callback) ->
+        centralUsermetaClient.set params, key, value, (err, reply) ->
+          if err
+            req.log.warn {key, value, err}, "failed to set metadata"
+          callback()
+      if typeof metadata != 'object'
+        metadata = {}
+      async.eachOf metadata, add, ->
+        res.send data
+        deferredEvents.editEvent req.id(), eventSender.CREATE, {metadata}
+        next()
 
 # Login a user account
 login = (req, res, next) ->
@@ -328,7 +343,7 @@ initialize = (cb, options = {}) ->
     require('./directory-client').createClient {
       log,
       jsonClient: directoryJsonClient
-      sendEvent: eventSender.createSender()
+      sendEvent: deferredEvents.sendEvent
     }
   directoryClient = directoryClient || createDirectoryClient()
 
@@ -531,6 +546,8 @@ addRoutes = (prefix, server) ->
     jsonBody, authMiddleware, postMetadata
 
   friendsApi.addRoutes prefix, server
+
+  server.on "after", deferredEvents.finalize(eventSender.createSender())
 
 module.exports =
   initialize: initialize

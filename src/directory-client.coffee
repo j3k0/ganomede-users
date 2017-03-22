@@ -26,7 +26,8 @@ reduceAliases = (aliases) ->
     {}
   )
 
-eventData = (userId, aliases = []) ->
+eventData = (req_id, userId, aliases = []) ->
+  req_id: req_id
   userId: userId,
   aliases: reduceAliases(aliases)
 
@@ -80,9 +81,8 @@ createClient = ({
 
   authenticate = (credentials, callback) ->
 
-    options = jsonOptions
-      path: '/users/auth'
-      req_id: credentials.req_id
+    req_id = credentials.req_id
+    options = jsonOptions {path: '/users/auth', req_id}
     body =
       id: credentials.id
       password: credentials.password
@@ -91,7 +91,7 @@ createClient = ({
 
       if err?.restCode == 'UserNotFoundError'
         log.info {
-          req_id: credentials.req_id
+          req_id
           id: credentials.id
           code: 'UserNotFoundError'
         }, "failed to authenticate"
@@ -102,20 +102,20 @@ createClient = ({
 
       else if err
         log.error {
-          req_id: credentials.req_id
+          req_id
           err: err
         }, "authentication error"
         callback err
 
       else if res?.statusCode != 200
         log.error {
-          req_id: credentials.req_id
+          req_id
           code: res.statusCode
         }, "failed to authenticate"
         callback new Error "HTTP#{res.statusCode}"
 
       else
-        sendEvent(LOGIN, eventData(credentials.id))
+        sendEvent LOGIN, eventData(req_id, credentials.id)
         callback null, body
 
   addAccount = (account = {}, callback) ->
@@ -138,7 +138,7 @@ createClient = ({
       if err
         return callback(err)
 
-      sendEvent(CREATE, eventData(account.id, account.aliases))
+      sendEvent CREATE, eventData(account.req_id, account.id, account.aliases)
       callback(null, bodyResult)
 
   editAccount = (account = {}, callback) ->
@@ -168,7 +168,7 @@ createClient = ({
         return callback(err)
 
       if (triggerChangeEvent)
-        sendEvent(CHANGE, eventData(account.id, body.aliases))
+        sendEvent CHANGE, eventData(account.req_id, account.id, body.aliases)
 
       callback(null, bodyResult)
 
