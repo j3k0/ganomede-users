@@ -112,7 +112,7 @@ services:
      - "NODE_ENV="
 
   events:
-    image: ganomede/events
+    image: ganomede/events:v1.2.0
     depends_on:
      - eventsredis
     environment:

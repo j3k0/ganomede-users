@@ -60,8 +60,8 @@ it "registers the user"
     outputIncludes StormpathResourceError2001
 
 it "saves metadata at registrations"
-  CURL $PREFIX/test124/metadata/country
-  outputIncludes fr
+    CURL $PREFIX/test124/metadata/country
+    outputIncludes fr
 
 it "logs the user in"
     CURL $PREFIX/login -d "{$USERNAME, $PASSWORD}"
