@@ -236,9 +236,10 @@ class GanomedeUsermeta
       path: authPath(params) + "/#{key}"
       req_id: params.req_id
     body = value: value
+    url = @jsonClient.url
     @jsonClient.post options, body, (err, req, res, body) ->
       if err
-        log.error {err, req_id: params.req_id},
+        log.error {err, url, options, body, req_id: params.req_id},
           "GanomedeUsermeta.post failed"
         cb err, null
       else
@@ -249,9 +250,10 @@ class GanomedeUsermeta
     options = jsonOptions
       path: authPath(params) + "/#{key}"
       req_id: params.req_id
+    url = @jsonClient.url
     @jsonClient.get options, (err, req, res, body) ->
       if err
-        log.error {err, req_id: params.req_id},
+        log.error {err, url, options, body, req_id: params.req_id},
           "GanomedeUsermeta.get failed"
         cb err, null
       else

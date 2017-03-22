@@ -9,12 +9,17 @@ createAuthenticator = ({
   centralUsermetaClient
   genToken = defaultGenToken
   timestamp = defaultTimestamp
+  apiSecret = process.env.API_SECRET
 }) ->
 
   updateAuthMetadata: (account) ->
     t = timestamp()
-    localUsermetaClient.set account.username, "auth", t, (err, reply) ->
-    centralUsermetaClient.set account.username, "auth", t, (err, reply) ->
+    params =
+      req_id:    account.req_id
+      username:  account.username
+      apiSecret: apiSecret
+    localUsermetaClient.set params, "auth", t, (err, reply) ->
+    centralUsermetaClient.set params, "auth", t, (err, reply) ->
 
   getAuthMetadata: (account, cb) ->
     centralUsermetaClient.get account.username, "auth", cb

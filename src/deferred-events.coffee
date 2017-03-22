@@ -56,3 +56,5 @@ module.exports =
         sender type, data
       delete allEvents[req.id()]
 
+  reset: () -> allEvents = {}
+
