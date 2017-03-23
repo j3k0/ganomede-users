@@ -21,12 +21,13 @@ parseParams = (obj) ->
 
 # DirectoryAliases* stores metadata as aliases in the directory client.
 #
-# * all will behave as a protected metatata.
+# * all behave as a protected metatata.
 #     * read & write requires authToken
-# * except 'name', that will behave as a public metadata.
+# * 'name' behave as a public metadata.
 #     * only write requires authToken
+# * 'password' is write only
 #
-# It supports changing 'name' and 'email'
+# It supports changing 'name', 'email' and 'password'
 #
 
 
@@ -37,6 +38,8 @@ directory = {
   # In stormpath, 'name' and 'username' are the same. 'email'
   # was stored in the authdb. So we have some fallbacks.
   userNotFound:
+    password: (authdbClient, params, cb) ->
+      cb new restify.NotAuthorizedError("Forbidden")
     name: (authdbClient, params, cb) ->
       cb null, (params.name|| params.username)
     tag: (authdbClient, params, cb) ->
@@ -83,6 +86,7 @@ directory = {
   invalidValue:
     email: (email) -> !validator.email email
     name: (name) -> !validator.name name
+    password: (value) -> !validator.password value
 
   beforeEdit:
     # change the tag before changing the name
@@ -97,13 +101,18 @@ directory = {
 
   # create a directory account object suitable for POSTing
   account: (params, key, value) ->
-    id: params.username
-    aliases: [{
-      public: !!directory.publicAlias[key]
-      type: key
-      value: value
-    }]
-    req_id: params.req_id
+    if key == 'password'
+      id: params.username
+      password: value
+      req_id: params.req_id
+    else
+      id: params.username
+      aliases: [{
+        public: !!directory.publicAlias[key]
+        type: key
+        value: value
+      }]
+      req_id: params.req_id
 
   set: (directoryClient, params, key, value, cb) ->
     params = parseParams(params)
@@ -111,7 +120,7 @@ directory = {
       return cb new restify.NotAuthorizedError("Protected meta")
 
     # special cases:
-    #  * 'email' and 'name' have to be valid
+    #  * 'email', 'name', 'password' have to be valid
     #  * 'name' also changes 'tag'
     if directory.invalidValue[key]?(value)
       return cb new restify.InvalidContentError("#{key} is invalid")
@@ -128,18 +137,22 @@ directory = {
 class DirectoryAliasesProtected
 
   constructor: (@directoryClient, @authdbClient) ->
-    @validKeys = {email: true, name: true, tag: true, username: true}
+    @validKeys = {
+      email: true, name: true, tag: true,
+      username: true, password: true}
     @type = "DirectoryAliasesProtected"
 
   isValid: (key) -> !!@validKeys[key]
+  isReadOnly: (key) -> key == "tag"
+  isWriteOnly: (key) -> key == "password"
 
   set: (params, key, value, cb) ->
-    if !@isValid key
+    if !@isValid key || @isReadOnly key
       return cb new restify.BadRequestError("Forbidden meta key")
     directory.set @directoryClient, params, key, value, cb
 
   get: (params, key, cb) ->
-    if !@isValid key
+    if !@isValid(key) || @isWriteOnly(key)
       return cb new restify.BadRequestError("Forbidden meta key")
     params = parseParams(params)
     # protected metadata require an authToken for reading
@@ -266,6 +279,7 @@ class GanomedeUsermeta
 #
 #  - 'name' -> DirectoryAliasesPublic
 #  - 'email' -> DirectoryAliasesProtected
+#  - 'password' -> DirectoryAliasesProtected
 #  - 'country' -> GanomedeUsermeta.Central
 #  - 'yearofbirth' -> GanomedeUsermeta.Central
 #  - * -> GanomedeUsermeta.Local
@@ -282,6 +296,7 @@ class UsermetaRouter
       name: @directoryPublic || @directoryProtected
       tag: @directoryPublic || @directoryProtected
       email: @directoryProtected
+      password: @directoryProtected
       country: @ganomedeCentral
       yearofbirth: @ganomedeCentral
 

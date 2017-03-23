@@ -60,6 +60,10 @@ describe "usermeta", ->
           expect(data).to.equal "name"
           done()
 
+      it "does not allow 'password' to be read", (done) ->
+        usermetaClient.get "username", "password", (err, data) ->
+          expect(err).to.be.instanceof restify.BadRequestError
+          done()
 
     describe '.set', ->
       it "requires an authToken", (done) ->
@@ -87,6 +91,19 @@ describe "usermeta", ->
 
       it "refuses invalid names", (done) ->
         usermetaClient.set {authToken:"abc"}, "name", "ab",
+          (err, data) ->
+            expect(err).to.be.instanceof restify.InvalidContentError
+            done()
+
+      it "accepts valid passwords", (done) ->
+        usermetaClient.set {authToken:"abc"}, "password", "abcdefgh",
+          (err, data) ->
+            console.log err
+            expect(err).to.be.null
+            done()
+
+      it "refuses short passwords", (done) ->
+        usermetaClient.set {authToken:"abc"}, "password", "12345",
           (err, data) ->
             expect(err).to.be.instanceof restify.InvalidContentError
             done()
