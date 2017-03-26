@@ -3,7 +3,7 @@ services:
 
   sut:
     build: .
-    command: sh -c "./tests/wait-for-it users:8000 && ./run_tests.sh && ./tests/rest_api.sh"
+    command: sh -c "./tests/wait-for-it -t 0 users:8000 && ./run_tests.sh && ./tests/rest_api.sh"
     volumes:
      - ./src:/home/app/code/src
      - ./tests:/home/app/code/tests
@@ -22,7 +22,7 @@ services:
     volumes:
      - ./src:/home/app/code/src
      - ./tests:/home/app/code/tests
-    command: sh -c "./tests/wait-for-it centralusermeta:8000 && ./tests/wait-for-it directory:8000 && ./tests/wait-for-it localusermeta:8000 && ./tests/wait-for-it events:8000 && node index.js"
+    command: sh -c "./tests/wait-for-it -t 0 centralusermeta:8000 && ./tests/wait-for-it -t 0 directory:8000 && ./tests/wait-for-it -t 0 localusermeta:8000 && ./tests/wait-for-it -t 0 events:8000 && node index.js"
     depends_on:
      - authredis
      - centralusermeta
@@ -47,6 +47,7 @@ services:
 
   centralusermeta:
     image: ganomede/usermeta:v1.0.5
+    command: sh -c "/wait-for-it -t 0 centralusermetaredis:6379 && node index.js"
     ports:
      - "8004:8000"
     depends_on:
@@ -63,9 +64,12 @@ services:
      - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
      - "LOG_LEVEL=debug"
      - "NODE_ENV="
+    volumes:
+     - ./tests/wait-for-it:/wait-for-it
 
   localusermeta:
     image: ganomede/usermeta:v1.0.5
+    command: sh -c "/wait-for-it -t 0 localusermetaredis:6379 && node index.js"
     ports:
      - "8003:8000"
     depends_on:
@@ -82,9 +86,12 @@ services:
      - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
      - "LOG_LEVEL=debug"
      - "NODE_ENV="
+    volumes:
+     - ./tests/wait-for-it:/wait-for-it
 
   directory:
     image: ganomede/directory:v0.3.1
+    command: sh -c "/wait-for-it -t 0 authredis:6379 && /wait-for-it -t 0 directorycouch:5984 && node index.js"
     depends_on:
       - directorysync
     ports:
@@ -96,10 +103,13 @@ services:
      - "COUCH_DIRECTORY_SYNC="
      - "LOG_LEVEL=debug"
      - "NODE_ENV="
+    volumes:
+     - ./tests/wait-for-it:/wait-for-it
 
   # will just sync the database
   directorysync:
     image: ganomede/directory:v0.3.1
+    command: sh -c "/wait-for-it -t 0 authredis:6379 && /wait-for-it -t 0 directorycouch:5984 && node index.js"
     depends_on:
      - directorycouch
      - authredis
@@ -110,9 +120,12 @@ services:
      - "COUCH_DIRECTORY_SYNC=1"
      - "LOG_LEVEL=debug"
      - "NODE_ENV="
+    volumes:
+     - ./tests/wait-for-it:/wait-for-it
 
   events:
     image: ganomede/events:v1.2.0
+    command: sh -c "/wait-for-it -t 0 eventsredis:6379 && node index.js"
     depends_on:
      - eventsredis
     environment:
@@ -120,6 +133,8 @@ services:
      - "REDIS_EVENTS_PORT_6379_TCP_ADDR=eventsredis"
      - "LOG_LEVEL=debug"
      - "NODE_ENV="
+    volumes:
+     - ./tests/wait-for-it:/wait-for-it
 
   directorycouch:
     image: klaemo/couchdb:1.6.1
