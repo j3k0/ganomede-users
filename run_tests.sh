@@ -5,6 +5,7 @@ export PATH="$HOME/nvm/versions/node/v6.9.4/bin:$PATH"
 
 set -e
 export API_SECRET=secret
+export APP_NAME=app
 if [ -z "$SKIP_LINT" ]; then
     echo "eslint..."
     ./node_modules/.bin/eslint src/ tests/

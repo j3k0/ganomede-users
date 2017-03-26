@@ -14,7 +14,7 @@ const createSender = ({
   // sender info
   clientId = config.api,
   channel = config.api,
-  from = `https://prod.ggs.ovh/${config.api}`, // TODO fix this one
+  from = config.appName,
   // events backend
   secret = config.secret,
   protocol = config.events.protocol,

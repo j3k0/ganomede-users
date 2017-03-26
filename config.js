@@ -15,10 +15,18 @@ const parseApiSecret = () => {
   return process.env.API_SECRET;
 };
 
+const parseAppName = () => {
+  var appName = process.env.APP_NAME;
+  if (!appName)
+    throw new Error('APP_NAME is missing');
+  return appName;
+}
+
 module.exports = {
   name: pkg.name,
   api: pkg.api,
   secret: parseApiSecret(),
+  appName: parseAppName(),
   events: serviceConfig('EVENTS', 8000)
 };
 
