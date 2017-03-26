@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: sh -c "./run_tests.sh && ./tests/rest_api.sh"
+    command: sh -c "./tests/wait-for-it users:8000 && ./run_tests.sh && ./tests/rest_api.sh"
     volumes:
      - ./src:/home/app/code/src
      - ./tests:/home/app/code/tests
@@ -25,6 +25,8 @@ services:
       dockerfile: Dockerfile
     volumes:
      - ./src:/home/app/code/src
+     - ./tests:/home/app/code/tests
+    command: sh -c "./tests/wait-for-it centralusermeta:8000 && ./tests/wait-for-it directory:8000 && ./tests/wait-for-it localusermeta:8000 && ./tests/wait-for-it events:8000 && node index.js"
     depends_on:
      - authredis
      - centralusermeta
