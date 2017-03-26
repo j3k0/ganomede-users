@@ -2,9 +2,7 @@ version: '2'
 services:
 
   sut:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     command: sh -c "./tests/wait-for-it users:8000 && ./run_tests.sh && ./tests/rest_api.sh"
     volumes:
      - ./src:/home/app/code/src
@@ -20,9 +18,7 @@ services:
      - "NODE_ENV="
 
   users:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     volumes:
      - ./src:/home/app/code/src
      - ./tests:/home/app/code/tests
@@ -37,6 +33,7 @@ services:
      - "USE_DIRECTORY_ONLY=1"
      - "LEGACY_ERROR_CODES=1"
      - "API_SECRET=1234"
+     - "APP_NAME=app"
      - "LOG_LEVEL=debug"
      - "FACEBOOK_APP_ID=1234567890"
      - "FACEBOOK_APP_SECRET="
@@ -120,7 +117,6 @@ services:
      - eventsredis
     environment:
      - "API_SECRET=1234"
-     - "APP_NAME=app"
      - "REDIS_EVENTS_PORT_6379_TCP_ADDR=eventsredis"
      - "LOG_LEVEL=debug"
      - "NODE_ENV="
