@@ -15,6 +15,7 @@ services:
     environment:
      - "BASE_URL=http://users:8000"
      - "API_SECRET=1234"
+     - "APP_NAME=app"
      - "LOG_LEVEL=error"
      - "NODE_ENV="
 
@@ -117,6 +118,7 @@ services:
      - eventsredis
     environment:
      - "API_SECRET=1234"
+     - "APP_NAME=app"
      - "REDIS_EVENTS_PORT_6379_TCP_ADDR=eventsredis"
      - "LOG_LEVEL=debug"
      - "NODE_ENV="
