@@ -84,15 +84,22 @@ createAccount = (req, res, next) ->
         req_id: req.id()
       metadata = req.body.metadata
       add = (value, key, callback) ->
-        centralUsermetaClient.set params, key, value, (err, reply) ->
+        rootUsermetaClient.set params, key, value, (err, reply) ->
           if err
             req.log.warn {key, value, err}, "failed to set metadata"
           callback()
       if typeof metadata != 'object'
         metadata = {}
+
+      # Make sure aliases are not set (createAccount already did)
+      delete metadata.email
+      delete metadata.name
+      delete metadata.tag
+
       async.eachOf metadata, add, ->
-        res.send data
+        req.log.info {metadata}, 'Adding metadata to CREATE event'
         deferredEvents.editEvent req.id(), eventSender.CREATE, {metadata}
+        res.send data
         next()
 
 # Login a user account
