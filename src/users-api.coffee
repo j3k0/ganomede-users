@@ -98,7 +98,8 @@ createAccount = (req, res, next) ->
 
       async.eachOf metadata, add, ->
         req.log.info {metadata}, 'Adding metadata to CREATE event'
-        deferredEvents.editEvent req.id(), eventSender.CREATE, {metadata}
+        deferredEvents.editEvent(
+          req.id(), eventSender.CREATE, "metadata", metadata)
         res.send data
         next()
 
