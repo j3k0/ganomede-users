@@ -60,6 +60,7 @@ EXISTING_USER:
   facebook_id: '1000'
   facebook_access_token: 'access-token'
   fullName: "Existing User"
+  birthday: '21/09/2010'
 
 SECONDARY_USER:
   id: 's3cdary'
@@ -70,6 +71,7 @@ SECONDARY_USER:
   facebook_id: '2000'
   facebook_access_token: 'secondary-access-token'
   fullName: "Secondary User"
+  birthday: '01/01/1940'
 
 NEW_USER:
   id: '1newUser'
@@ -80,5 +82,12 @@ NEW_USER:
   facebook_id: '3000'
   facebook_access_token: 'new-access-token'
   fullName: "New User"
+  birthday: '24/12/2000'
+  location:
+    id: "kj12345"
+    location:
+      country_code: "FR"
+      latitude: 12.34
+      longitude: 55.1
 }
 # vim: ts=2:sw=2:et:

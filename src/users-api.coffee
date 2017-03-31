@@ -122,6 +122,7 @@ loginFacebook = (req, res, next) ->
     username: req.body.username
     password: req.body.password
     facebookId: req.body.facebookId
+    
   backend.loginFacebook account, (err, result) ->
     if err
       return next err
@@ -423,7 +424,9 @@ initialize = (cb, options = {}) ->
     apiId: options.stormpathApiId
     apiSecret: options.stormpathApiSecret
     appName: options.stormpathAppName
+    usermetaClient: rootUsermetaClient
     log
+    deferredEvents
     authdbClient
     aliasesClient
     fullnamesClient

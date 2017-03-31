@@ -10,6 +10,8 @@ global.setImmediate = (func) -> func()
 
 directory = require '../src/backend/directory'
 
+REQ_ID = "my-request-id"
+
 { EXISTING_USER, SECONDARY_USER, NEW_USER, APP_ID,
   credentials, publicAccount, authResult,
   account, authAccount, facebookAccount,
@@ -92,12 +94,15 @@ fbgraphTD = ->
     .thenCallback new Error("fbgraph.get failed")
   addUser = (user) ->
     token = "access_token=#{user.facebook_access_token}"
-    uri = "/me?fields=id,name,email&#{token}"
+    location = "location{location{country_code,longitude,latitude}}"
+    uri = "/me?fields=id,name,email,#{location},birthday&#{token}"
     td.when(fbgraph.get(uri))
       .thenCallback null,
         id: user.facebook_id
         email: user.email
         name: user.fullName
+        birthday: user.birthday
+        location: user.location
   [ EXISTING_USER, SECONDARY_USER, NEW_USER ].forEach addUser
   fbgraph
 
@@ -113,6 +118,11 @@ aliasesClientTD = ->
   aliasesClient
 
 fullnamesClientTD = -> td.object [ 'set' ]
+usermetaClientTD = ->
+  ret = td.object [ 'set' ]
+  td.when(ret.set(anything(), anything(), anything()))
+    .thenCallback null, {ok:true}
+  ret
 friendsClientTD = -> td.object []
 facebookFriendsTD = -> td.object [ 'storeFriends' ]
 facebookClientTD = -> td.object []
@@ -132,6 +142,8 @@ mailerTransportTD = ->
     .thenCallback null, {messageId:'1234',response:'ok'}
   mt
 
+deferredEventsTD = -> td.object ['editEvent']
+
 GENERATED_PASSWORD = 'blah1234'
 generatePasswordTD = ->
   gp = td.function 'generatePassword'
@@ -145,20 +157,22 @@ baseTest = ->
   authenticator = authenticatorTD()
   aliasesClient = aliasesClientTD()
   fullnamesClient = fullnamesClientTD()
+  usermetaClient = usermetaClientTD()
   friendsClient = friendsClientTD()
   facebookFriends = facebookFriendsTD()
   facebookClient = facebookClientTD()
   mailerTransport = mailerTransportTD()
+  deferredEvents = deferredEventsTD()
   passwordResetTemplate = passwordResetTemplateTD()
   generatePassword = generatePasswordTD()
   backend = directory.createBackend {
-    log, authenticator, directoryClient, fbgraph,
+    log, authenticator, directoryClient, fbgraph, deferredEvents,
     facebookAppId: APP_ID, aliasesClient, fullnamesClient,
-    friendsClient, facebookFriends, facebookClient,
+    usermetaClient, friendsClient, facebookFriends, facebookClient,
     passwordResetTemplate, mailerTransport, generatePassword }
   callback = td.function 'callback'
-  { callback, directoryClient, backend, aliasesClient,
-    fullnamesClient, friendsClient, facebookFriends,
+  { callback, directoryClient, backend, aliasesClient, deferredEvents,
+    usermetaClient, fullnamesClient, friendsClient, facebookFriends,
     facebookClient }
 
 backendTest = ->
@@ -290,6 +304,7 @@ describe 'backend/directory', ->
 
     loginFacebook = (account, callback) ->
       ret = backendTest()
+      account.req_id = REQ_ID
       ret.backend.loginFacebook account, callback || ret.callback
       ret
 
@@ -340,6 +355,32 @@ describe 'backend/directory', ->
       td.verify directoryClient.addAccount(
         td.matchers.contains(id:NEW_USER.id),
         td.callback)
+
+    it 'adds metadata to CREATE events', ->
+      { deferredEvents } =
+        loginFacebook facebookLogin(NEW_USER)
+      td.verify deferredEvents.editEvent(
+        REQ_ID, 'CREATE', "metadata", {
+          country: NEW_USER.location.location.country_code
+          latitude: String(NEW_USER.location.location.latitude)
+          longitude: String(NEW_USER.location.location.longitude)
+          yearofbirth: NEW_USER.birthday.split('/')[2]
+        })
+
+    itSavesBirthday = (user) ->
+      { usermetaClient } = loginFacebook facebookLogin(user)
+      td.verify usermetaClient.set(
+        user.username, "yearofbirth", user.birthday.split('/')[2], td.callback)
+
+    it 'saves the birthday of new users', ->
+      itSavesBirthday NEW_USER
+
+    #itSavesCountry = (user) ->
+    #  { usermetaClient } = loginFacebook facebookLogin(user)
+    #  td.verify usermetaClient.set(
+    #    user.username, user.birthday, td.callback)
+    #it 'saves the birthday of new users', ->
+    #  itSavesBirthday NEW_USER
 
     itSavesFullName = (user) ->
       { fullnamesClient } = loginFacebook facebookLogin(user)

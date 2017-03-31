@@ -15,12 +15,14 @@ createBackend = ({
   authenticator   # see src/authentication.coffee
   aliasesClient   # see src/aliases.coffee
   fullnamesClient # see src/fullnames.coffee
+  usermetaClient  # see src/usermeta.coffee
   friendsClient   # see src/friends-store.coffee
   facebookClient  # see src/facebook.coffee
   checkBan        # signature: checkban(callback)
                   #            callback(err, banned)
   facebookFriends # see src/facebook-friends.coffee
   mailerTransport # see src/mailer.coffee
+  deferredEvents  # see src/deferredEvents
   tagizer = require 'ganomede-tagizer'
   log = require '../log'
   fbgraph = require 'fbgraph'
@@ -42,6 +44,12 @@ createBackend = ({
 
   if !mailerTransport
     throw new Error("mailerTransport missing")
+
+  if !usermetaClient
+    throw new Error("usermetaClient missing")
+
+  if !deferredEvents
+    throw new Error("deferredEvents missing")
 
   if process.env.LEGACY_ERROR_CODES
     legacyError = (err, req_id) ->
@@ -89,7 +97,8 @@ createBackend = ({
     # Load facebook data from fbgraph API
     loadFacebookAccount = (cb) ->
       token = "access_token=#{accessToken}"
-      uri = "/me?fields=id,name,email&#{token}"
+      location = "location{location{country_code,longitude,latitude}}"
+      uri = "/me?fields=id,name,email,#{location},birthday&#{token}"
       fbgraph.get uri, (err, account) ->
         if err
           cb err
@@ -101,6 +110,8 @@ createBackend = ({
             facebookId: account.id
             fullName:   account.name
             email:      account.email || defaultEmail()
+            birthday:   account.birthday || ''
+            location:   account.location
 
     # Load directory account
     # check in ganomede-directory if there's already a user with
@@ -147,6 +158,8 @@ createBackend = ({
           username: directoryAccount.id
           email: facebookAccount.email
           fullName: facebookAccount.fullName
+          birthday: facebookAccount.birthday
+          location: facebookAccount.location
       else
         if !allowCreate
           return cb new restify.ForbiddenError(
@@ -154,6 +167,8 @@ createBackend = ({
         id = username
         email = facebookAccount.email
         fullName = facebookAccount.fullName
+        birthday = facebookAccount.birthday
+        location = facebookAccount.location
         aliases = [{
           type: 'email'
           value: email
@@ -176,7 +191,7 @@ createBackend = ({
           if err
             cb err
           else
-            cb null, { username, email, fullName }
+            cb null, { username, email, fullName, birthday, location }
 
     # log user in
     loginUser = ({ username, email }, cb) ->
@@ -187,6 +202,46 @@ createBackend = ({
       else
         authResult = authenticator.add { username, email }
         cb null, authResult
+
+    # if login triggers a CREATE event,
+    # it'll be extended with extra metadata
+    extendCreateEvent = (user, cb) ->
+      deferredEvents.editEvent req_id, 'CREATE', 'metadata',
+        yearofbirth: yearofbirth(user.birthday)
+        country: user.location?.location?.country_code
+        latitude: String(user.location?.location?.latitude)
+        longitude: String(user.location?.location?.longitude)
+      cb null, user
+
+    # extract yearofbirth from birthday
+    yearofbirth = (birthday) ->
+      if birthday
+        ret = birthday.split('/')
+        return ret[ret.length - 1]
+      return null
+
+    # save the user's birthday
+    saveBirthday = (user, cb) ->
+      if user.username and user.birthday
+        yob = yearofbirth(user.birthday)
+        if yob
+          usermetaClient.set username, "yearofbirth", yob, (err, reply) ->
+            if err
+              log.warn {err, user}, "failed to store birthday"
+            cb null, user
+          return
+      cb null, user
+
+    # save the user's country
+    saveCountry = (user, cb) ->
+      if user.username and user.location?.location?.country_code
+        cc = user.location?.location?.country_code
+        usermetaClient.set username, "country", cc, (err, reply) ->
+          if err
+            log.warn {err, user}, "failed to store country code"
+          cb null, user
+      else
+        cb null, user
 
     # save the user's full name (for future reference)
     saveFullName = ({ username, email, fullName }, cb) ->
@@ -218,6 +273,9 @@ createBackend = ({
       loadDirectoryAccount
       loadLegacyAlias
       registerDirectoryAccount
+      extendCreateEvent
+      saveBirthday
+      saveCountry
       saveFullName
       saveFriends
       loginUser
