@@ -62,6 +62,7 @@ services:
      - "USERMETA_MAX_LENGTH=1000"
      - "REDIS_USERMETA_PORT_6379_TCP_ADDR=centralusermetaredis"
      - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
+     - "DIRECTORY_PORT_8000_TCP_ADDR=directory"
      - "LOG_LEVEL=debug"
      - "NODE_ENV="
     volumes:
@@ -84,6 +85,7 @@ services:
      - "USERMETA_MAX_LENGTH=10000"
      - "REDIS_USERMETA_PORT_6379_TCP_ADDR=localusermetaredis"
      - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
+     - "DIRECTORY_PORT_8000_TCP_ADDR=directory"
      - "LOG_LEVEL=debug"
      - "NODE_ENV="
     volumes:
