@@ -46,7 +46,7 @@ services:
      - "8001:8000"
 
   centralusermeta:
-    image: ganomede/usermeta:v1.0.5
+    image: ganomede/usermeta:v1.2.3
     command: sh -c "/wait-for-it -t 0 centralusermetaredis:6379 && node index.js"
     ports:
      - "8004:8000"
@@ -68,7 +68,7 @@ services:
      - ./tests/wait-for-it:/wait-for-it
 
   localusermeta:
-    image: ganomede/usermeta:v1.0.5
+    image: ganomede/usermeta:v1.2.3
     command: sh -c "/wait-for-it -t 0 localusermetaredis:6379 && node index.js"
     ports:
      - "8003:8000"

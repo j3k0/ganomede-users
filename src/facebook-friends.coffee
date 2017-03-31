@@ -11,6 +11,7 @@ storeFriends = (options) ->
   callback = options.callback
   rootLog = options.rootLog || logDefault
   log = options.log || rootLog.child(module:"facebook-friends")
+  apiSecret = options.apiSecret || process.env.API_SECRET
 
   # Retrive usernames using aliases
   retrieveUsernames = (fbFriends, cb) ->
@@ -49,7 +50,7 @@ storeFriends = (options) ->
       (names, cb) ->
         friends = names
         log.info "add them as friends"
-        friendsClient.add username, names, cb
+        friendsClient.add {username, apiSecret}, names, cb
     ],
     (err, result) ->
       callback err, friends

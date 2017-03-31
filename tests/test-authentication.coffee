@@ -46,6 +46,7 @@ describe 'authentication', ->
       td.verify authdbClient.addAccount TOKEN,
         username: USERNAME
         email: EMAIL
+      , td.callback()
       td.verify localUsermetaClient.set(
         td.matchers.contains({
           username: USERNAME, apiSecret: process.env.API_SECRET}),

@@ -36,33 +36,33 @@ createStore = (options) ->
 
   {
     # Retrieve account friends
-    get: (username, cb) ->
+    get: (account, cb) ->
       done = (err, result) ->
         if result
           cb err, result.split(SEPARATOR)
         else
           cb err, EMPTY_SET
-      usermetaClient.get username, KEY_NAME, done
+      usermetaClient.get account, KEY_NAME, done
 
     # Save the account friends
-    set: (username, friends, cb) ->
+    set: (account, friends, cb) ->
       friends = friends.splice(0, MAX_FRIENDS)
-      usermetaClient.set username, KEY_NAME, friends.join(SEPARATOR), cb, 0
+      usermetaClient.set account, KEY_NAME, friends.join(SEPARATOR), cb, 0
 
     # Add a friend
-    add: (username, newFriends, cb) ->
+    add: (account, newFriends, cb) ->
 
       if typeof newFriends == "string"
-        return @add(username, [ newFriends ], cb)
+        return @add(account, [ newFriends ], cb)
 
-      @get username, (err, friends) =>
+      @get account, (err, friends) =>
         if err
           return cb err
         if friends == EMPTY_SET
           friends = newFriends
         else
           friends = friends.concat(newFriends)
-        @set username, uniq(friends), cb
+        @set account, uniq(friends), cb
   }
 
 module.exports =

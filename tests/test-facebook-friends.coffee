@@ -1,4 +1,5 @@
 assert = require "assert"
+{expect} = require 'chai'
 facebookFriends = require "../src/facebook-friends"
 
 describe "facebook-friends", ->
@@ -49,7 +50,9 @@ describe "facebook-friends", ->
 
       myFriendsClient =
         add: (username, friends, callback) ->
-          assert.equal "jeko", username
+          expect(username).to.eql
+            username: "jeko"
+            apiSecret: process.env.API_SECRET
           assert.equal 3, friends.length
           callback null, ok:true
 

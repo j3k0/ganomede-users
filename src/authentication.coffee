@@ -2,6 +2,7 @@
 rand = -> Math.random().toString(36).substr(2)
 defaultGenToken = -> rand() + rand()
 defaultTimestamp = -> "" + (new Date().getTime())
+log = require './log'
 
 createAuthenticator = ({
   authdbClient
@@ -32,6 +33,9 @@ createAuthenticator = ({
     authdbClient.addAccount token,
       username: account.username
       email: account.email
+    , (err) ->
+      if err
+        log.warn {err}, "authdbClient.addAccount failed"
 
     # Store the auth date (in parallel, ignoring the outcome)
     @updateAuthMetadata account

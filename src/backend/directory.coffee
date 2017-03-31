@@ -273,6 +273,7 @@ createBackend = ({
         facebookClient
         accessToken
         username: user.username
+        apiSecret: apiSecret
         callback: (err, usernames) ->
           if err
             log.warn "Failed to store friends", err
