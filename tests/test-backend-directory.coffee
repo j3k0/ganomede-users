@@ -117,14 +117,25 @@ aliasesClientTD = ->
 
   aliasesClient
 
-fullnamesClientTD = -> td.object [ 'set' ]
 usermetaClientTD = ->
   ret = td.object [ 'set' ]
-  td.when(ret.set(anything(), anything(), anything()))
+  td.when(ret.set(contains(apiSecret:process.env.API_SECRET),
+    anything(), anything()))
     .thenCallback null, {ok:true}
+  addUser = (user) ->
+    td.when(ret.set(contains(token:user.token), anything(), anything()))
+      .thenCallback null, {ok:true}
+  [ EXISTING_USER, SECONDARY_USER, NEW_USER ].forEach addUser
   ret
+
 friendsClientTD = -> td.object []
-facebookFriendsTD = -> td.object [ 'storeFriends' ]
+
+facebookFriendsTD = ->
+  ret = td.object [ 'storeFriends' ]
+  td.when(ret.storeFriends(anything()))
+    .thenDo(({callback}) -> callback?(null, {ok:true}))
+  ret
+
 facebookClientTD = -> td.object []
 
 passwordResetTemplateTD = ->
@@ -156,7 +167,6 @@ baseTest = ->
   directoryClient = directoryClientTD()
   authenticator = authenticatorTD()
   aliasesClient = aliasesClientTD()
-  fullnamesClient = fullnamesClientTD()
   usermetaClient = usermetaClientTD()
   friendsClient = friendsClientTD()
   facebookFriends = facebookFriendsTD()
@@ -167,12 +177,12 @@ baseTest = ->
   generatePassword = generatePasswordTD()
   backend = directory.createBackend {
     log, authenticator, directoryClient, fbgraph, deferredEvents,
-    facebookAppId: APP_ID, aliasesClient, fullnamesClient,
+    facebookAppId: APP_ID, aliasesClient,
     usermetaClient, friendsClient, facebookFriends, facebookClient,
     passwordResetTemplate, mailerTransport, generatePassword }
   callback = td.function 'callback'
   { callback, directoryClient, backend, aliasesClient, deferredEvents,
-    usermetaClient, fullnamesClient, friendsClient, facebookFriends,
+    usermetaClient, friendsClient, facebookFriends,
     facebookClient }
 
 backendTest = ->
@@ -322,9 +332,8 @@ describe 'backend/directory', ->
     it 'requires an password', -> loginWithout 'password'
 
     it 'checks facebook id with directory client', ->
-      { directoryClient, callback } =
+      { directoryClient } =
         loginFacebook facebookLogin(NEW_USER)
-      td.verify callback null, td.matchers.anything()
       td.verify directoryClient.byAlias(
         td.matchers.contains(
           type: "facebook.id.#{APP_ID}"
@@ -335,25 +344,6 @@ describe 'backend/directory', ->
       { aliasesClient, callback } = loginFacebook facebookLogin(NEW_USER)
       td.verify aliasesClient.get(
         "fb:#{NEW_USER.facebook_id}",
-        td.callback)
-
-    it 'logins directory-existing users', ->
-      { callback } = loginFacebook facebookLogin(EXISTING_USER)
-      td.verify callback null, td.matchers.contains
-        token: EXISTING_USER.token
-
-    it 'logins legacy-existing users', ->
-      { callback } = loginFacebook facebookLogin(SECONDARY_USER)
-      td.verify callback null, td.matchers.contains
-        token: SECONDARY_USER.token
-
-    it 'registers non existing user', ->
-      { directoryClient, callback } =
-        loginFacebook facebookLogin(NEW_USER)
-      td.verify callback null, td.matchers.contains
-        token:NEW_USER.token
-      td.verify directoryClient.addAccount(
-        td.matchers.contains(id:NEW_USER.id),
         td.callback)
 
     it 'adds metadata to CREATE events', ->
@@ -370,7 +360,12 @@ describe 'backend/directory', ->
     itSavesBirthday = (user) ->
       { usermetaClient } = loginFacebook facebookLogin(user)
       td.verify usermetaClient.set(
-        user.username, "yearofbirth", user.birthday.split('/')[2], td.callback)
+        contains(
+          username: user.username
+          apiSecret: process.env.API_SECRET),
+        "yearofbirth",
+        user.birthday.split('/')[2],
+        td.callback)
 
     it 'saves the birthday of new users', ->
       itSavesBirthday NEW_USER
@@ -383,9 +378,12 @@ describe 'backend/directory', ->
     #  itSavesBirthday NEW_USER
 
     itSavesFullName = (user) ->
-      { fullnamesClient } = loginFacebook facebookLogin(user)
-      td.verify fullnamesClient.set(
-        user.username, user.fullName, td.callback)
+      { usermetaClient } = loginFacebook facebookLogin(user)
+      td.verify usermetaClient.set(
+        contains(
+          username: user.username
+          apiSecret: process.env.API_SECRET),
+        "fullname", user.fullName, td.callback)
 
     it 'saves the full name of new users', ->
       itSavesFullName NEW_USER
@@ -409,5 +407,24 @@ describe 'backend/directory', ->
       itSavesFriends NEW_USER
     it 'saves the users friends for existing users', ->
       itSavesFriends EXISTING_USER
+
+    it 'logins directory-existing users', ->
+      { callback } = loginFacebook facebookLogin(EXISTING_USER)
+      td.verify callback null, td.matchers.contains
+        token: EXISTING_USER.token
+
+    it 'logins legacy-existing users', ->
+      { callback } = loginFacebook facebookLogin(SECONDARY_USER)
+      td.verify callback null, td.matchers.contains
+        token: SECONDARY_USER.token
+
+    it 'registers non existing user', ->
+      { directoryClient, callback } =
+        loginFacebook facebookLogin(NEW_USER)
+      td.verify callback null, td.matchers.contains
+        token:NEW_USER.token
+      td.verify directoryClient.addAccount(
+        td.matchers.contains(id:NEW_USER.id),
+        td.callback)
 
 # vim: ts=2:sw=2:et:

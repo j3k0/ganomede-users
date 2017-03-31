@@ -14,7 +14,6 @@ createBackend = ({
   directoryClient # see src/directory-client.coffee
   authenticator   # see src/authentication.coffee
   aliasesClient   # see src/aliases.coffee
-  fullnamesClient # see src/fullnames.coffee
   usermetaClient  # see src/usermeta.coffee
   friendsClient   # see src/friends-store.coffee
   facebookClient  # see src/facebook.coffee
@@ -194,14 +193,16 @@ createBackend = ({
             cb null, { username, email, fullName, birthday, location }
 
     # log user in
-    loginUser = ({ username, email }, cb) ->
+    loginUser = (user, cb) ->
+      { username, email } = user
       if !username
         cb new Error("missing username")
       else if !password
         cb new Error("missing password")
       else
         authResult = authenticator.add { username, email }
-        cb null, authResult
+        user.token = authResult.token
+        cb null, user
 
     # if login triggers a CREATE event,
     # it'll be extended with extra metadata
@@ -220,12 +221,19 @@ createBackend = ({
         return ret[ret.length - 1]
       return null
 
+    apiSecret = process.env.API_SECRET
+    usermetaData = (user) ->
+      username: user.username
+      apiSecret: apiSecret
+      req_id: req_id
+
     # save the user's birthday
     saveBirthday = (user, cb) ->
       if user.username and user.birthday
         yob = yearofbirth(user.birthday)
         if yob
-          usermetaClient.set username, "yearofbirth", yob, (err, reply) ->
+          data = usermetaData user
+          usermetaClient.set data, "yearofbirth", yob, (err, reply) ->
             if err
               log.warn {err, user}, "failed to store birthday"
             cb null, user
@@ -236,7 +244,8 @@ createBackend = ({
     saveCountry = (user, cb) ->
       if user.username and user.location?.location?.country_code
         cc = user.location?.location?.country_code
-        usermetaClient.set username, "country", cc, (err, reply) ->
+        data = usermetaData user
+        usermetaClient.set data, "country", cc, (err, reply) ->
           if err
             log.warn {err, user}, "failed to store country code"
           cb null, user
@@ -244,29 +253,40 @@ createBackend = ({
         cb null, user
 
     # save the user's full name (for future reference)
-    saveFullName = ({ username, email, fullName }, cb) ->
-      cb null, { username, email }
+    saveFullName = (user, cb) ->
+      { username, fullName } = user
       if username and fullName
-        fullnamesClient.set username, fullName, (err, reply) ->
+        data = usermetaData user
+        usermetaClient.set data, "fullname", fullName, (err, reply) ->
           if err
             log.warn "failed to store full name", err, {
               username, fullName }
+          cb null, user
+      else
+        cb null, user
 
     # save the user's friends
-    saveFriends = ({ username, email }, cb) ->
-      cb null, { username, email }
+    saveFriends = (user, cb) ->
       facebookFriends.storeFriends {
         aliasesClient
         friendsClient
         facebookClient
-        username
         accessToken
+        username: user.username
         callback: (err, usernames) ->
           if err
-            log.error "Failed to store friends", err
+            log.warn "Failed to store friends", err
           #else
           #  log.info "Friends stored", usernames
+          cb null, user
       }
+
+    # Generate the requests' output
+    formatOutput = (user, cb) ->
+      cb null,
+        username: user.username
+        email: user.email
+        token: user.token
 
     vasync.waterfall [
       loadFacebookAccount
@@ -274,11 +294,12 @@ createBackend = ({
       loadLegacyAlias
       registerDirectoryAccount
       extendCreateEvent
+      loginUser
       saveBirthday
       saveCountry
       saveFullName
       saveFriends
-      loginUser
+      formatOutput
     ], callback
 
   # credentials: { username, password }
