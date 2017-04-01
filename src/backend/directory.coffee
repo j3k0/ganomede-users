@@ -25,6 +25,7 @@ createBackend = ({
   tagizer = require 'ganomede-tagizer'
   log = require '../log'
   fbgraph = require 'fbgraph'
+  emails = require '../emails'
   generatePassword = require("password-generator").bind(null,8)
   passwordResetTemplate # template with (subject, text and/or html)
                         # see src/mail-template.coffee
@@ -103,7 +104,7 @@ createBackend = ({
           cb err
         else
           defaultEmail = () ->
-            "#{account.id}@email-not-provided.local"
+            "#{account.id}@#{emails.noEmailDomain}"
           facebookId = account.id
           cb undefined,
             facebookId: account.id

@@ -23,6 +23,7 @@ mailer = require './mailer'
 parseTagMod = require './middlewares/parse-tag'
 eventSender = require './event-sender'
 deferredEvents = require './deferred-events'
+emails = require './emails'
 
 sendError = (req, err, next) ->
   if err.rawError
@@ -68,9 +69,9 @@ createAccount = (req, res, next) ->
 
   account =
     req_id:   req.id() # pass over request id for better tracking
-    id:       req.body.username
-    username: req.body.username
-    email:    req.body.email
+    id:       req.body.username?.replace(/ /g, '')
+    username: req.body.username?.replace(/ /g, '')
+    email:    req.body.email?.replace(/ /g, '')
     password: req.body.password
   req.log.info {account}, "createAccount"
 
@@ -79,7 +80,7 @@ createAccount = (req, res, next) ->
       return sendError req, err, next
     else
       params =
-        username: req.body.username
+        username: account.username
         authToken: data.token
         req_id: req.id()
       metadata = req.body.metadata
@@ -98,6 +99,8 @@ createAccount = (req, res, next) ->
 
       async.eachOf metadata, add, ->
         req.log.info {metadata}, 'Adding metadata to CREATE event'
+        if emails.isGuestEmail(account.email) || emails.isNoEmail(account.email)
+          metadata.newsletter = false
         deferredEvents.editEvent(
           req.id(), eventSender.CREATE, "metadata", metadata)
         res.send data

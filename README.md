@@ -43,6 +43,8 @@ Mailer options (for password reset emails)
  * `MAILER_SOCKET_TIMEOUT` - how many milliseconds of inactivity to allow
  * `MAILER_DEBUG` - set to true, then logs SMTP traffic, otherwise logs only transaction events
  * `MAILER_AUTH_METHOD` - defines preferred authentication method, eg. 'PLAIN'
+ * `NO_EMAIL_DOMAIN` - fake domain to use for users without an email address (default "email-not-provided.local")
+ * `GUEST_EMAIL_DOMAIN` - domain used for guest users email address (default none)
 
 API
 ---
