@@ -215,9 +215,11 @@ getAccountFromAuthDb = (req, res, next) ->
     req._store = {account}
     req.body = req.body || {}
     req.body.username = req.body.username || account.username
+    console.log 'next', account
     next()
 
-getAccountMetadata= (req, res, next) ->
+getAccountMetadata = (req, res, next) ->
+  console.log 'getAccountMetadata'
   { account } = req._store
   params =
     req_id: req.id()
@@ -235,6 +237,7 @@ getAccountMetadata= (req, res, next) ->
       next()
 
 getAccountSend = (req, res, next) ->
+  console.log 'getAccountSend'
   # Respond to request.
   { account } = req._store
   res.send(account)
