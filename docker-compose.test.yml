@@ -93,7 +93,7 @@ services:
 
   directory:
     image: ganomede/directory:v0.3.1
-    command: sh -c "/wait-for-it -t 0 authredis:6379 && /wait-for-it -t 0 directorycouch:5984 && node index.js"
+    command: sh -c "/wait-for-it -t 0 authredis:6379 && /wait-for-it -t 0 directorycouch:5984 && sleep 3 && node index.js"
     depends_on:
       - directorysync
     ports:
