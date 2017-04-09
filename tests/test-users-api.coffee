@@ -67,7 +67,7 @@ baseTest = ->
     createBackend, authdbClient, authenticator, directoryClient }
   { callback, options,
     createBackend, backend, localUsermetaClient, centralUsermetaClient,
-    authdbClient, authdbClient, directoryClient }
+    authdbClient, directoryClient }
 
 i = 0
 restTest = (done) ->
@@ -165,6 +165,25 @@ describe 'users-api', ->
             noError err
             assert.equal 200, res.status
             expect(res.body).to.eql token:VALID_AUTH_TOKEN
+            done()
+        return
+
+    describe '/auth/:token/me [GET] - Retrieve user data', () ->
+
+      it "responds with user data", (done) ->
+        username = data.createAccount.valid.username
+        td.when(test.bans.get username)
+          .thenCallback null, new BanInfo(username, 0)
+        superagent
+          .get endpoint(VALID_AUTH_TOKEN, "/me")
+          .end (err, res) ->
+            noError err
+            assert.equal 200, res.status
+            expect(res.body).to.eql(
+              username: username
+              metadata:
+                country: null
+                yearofbirth: null)
             done()
         return
 

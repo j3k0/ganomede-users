@@ -215,9 +215,29 @@ getAccountFromAuthDb = (req, res, next) ->
     req._store = {account}
     req.body = req.body || {}
     req.body.username = req.body.username || account.username
+    console.log 'next', account
     next()
 
+getAccountMetadata = (req, res, next) ->
+  console.log 'getAccountMetadata'
+  { account } = req._store
+  params =
+    req_id: req.id()
+    authToken: req.params.authToken
+    username: account.username
+  # fill in already loaded info when we have them
+  if req.params.user
+    params.username = account.username
+    params.tag      = account.tag
+    params.name     = account.name
+    params.email    = account.email
+  rootUsermetaClient.get params, "country", (err, country) ->
+    rootUsermetaClient.get params, "yearofbirth", (err, yearofbirth) ->
+      req._store.account.metadata = {country, yearofbirth}
+      next()
+
 getAccountSend = (req, res, next) ->
+  console.log 'getAccountSend'
   # Respond to request.
   { account } = req._store
   res.send(account)
@@ -533,6 +553,7 @@ addRoutes = (prefix, server) ->
     "/#{prefix}/auth/:authToken/me",
     getAccountFromAuthDb,
     checkBanMiddleware,
+    getAccountMetadata,
     getAccountSend
   )
 
