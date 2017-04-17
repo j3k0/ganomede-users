@@ -24,7 +24,7 @@ createBackend = ({
   deferredEvents  # see src/deferredEvents
   tagizer = require 'ganomede-tagizer'
   log = require '../log'
-  fbgraph = require 'fbgraph'
+  fbgraphClient # a restify.JsonClient connected to facebook graph API
   emails = require '../emails'
   generatePassword = require("password-generator").bind(null,8)
   passwordResetTemplate # template with (subject, text and/or html)
@@ -50,6 +50,11 @@ createBackend = ({
 
   if !deferredEvents
     throw new Error("deferredEvents missing")
+
+  if !fbgraphClient
+    fbgraphClient = restify.createJsonClient
+      url: "https://graph.facebook.com"
+      version: '*'
 
   if process.env.LEGACY_ERROR_CODES
     legacyError = (err, req_id) ->
@@ -98,9 +103,12 @@ createBackend = ({
     loadFacebookAccount = (cb) ->
       token = "access_token=#{accessToken}"
       location = "location{location{country_code,longitude,latitude}}"
-      uri = "/me?fields=id,name,email,#{location},birthday&#{token}"
-      fbgraph.get uri, (err, account) ->
+      uri = "/v2.8/me?fields=id,name,email,#{location},birthday&#{token}"
+      log.debug {req_id, accessToken, uri}, 'loadFacebookAccount'
+      fbgraphClient.get uri, (err, req, res, account) ->
+        log.debug {req_id, uri, err, account}, 'fbgraph.get response'
         if err
+          log.warn {req_id, uri, err}, 'fbgraph.get failed'
           cb err
         else
           defaultEmail = () ->

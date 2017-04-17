@@ -24,7 +24,6 @@
     "concat-stream": "^1.4.7",
     "eslint": "^3.14.1",
     "fakeredis": "^1.0.3",
-    "fbgraph": "^1.0.0",
     "forever": "^0.15.3",
     "ganomede-directory": "^0.3.0",
     "ganomede-events": "^1.1.0",

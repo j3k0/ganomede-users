@@ -87,24 +87,24 @@ authenticatorTD = ->
   [ EXISTING_USER, SECONDARY_USER, NEW_USER ].forEach addUser
   authenticator
 
-fbgraphTD = ->
+fbgraphClientTD = ->
 
-  fbgraph = td.object [ 'get' ]
-  td.when(fbgraph.get(td.matchers.anything()))
+  fbgraphClient = td.object [ 'get' ]
+  td.when(fbgraphClient.get(td.matchers.anything()))
     .thenCallback new Error("fbgraph.get failed")
   addUser = (user) ->
     token = "access_token=#{user.facebook_access_token}"
     location = "location{location{country_code,longitude,latitude}}"
-    uri = "/me?fields=id,name,email,#{location},birthday&#{token}"
-    td.when(fbgraph.get(uri))
-      .thenCallback null,
+    uri = "/v2.8/me?fields=id,name,email,#{location},birthday&#{token}"
+    td.when(fbgraphClient.get(uri))
+      .thenCallback null, null, null,
         id: user.facebook_id
         email: user.email
         name: user.fullName
         birthday: user.birthday
         location: user.location
   [ EXISTING_USER, SECONDARY_USER, NEW_USER ].forEach addUser
-  fbgraph
+  fbgraphClient
 
 aliasesClientTD = ->
   aliasesClient = td.object [ 'get' ]
@@ -163,7 +163,7 @@ generatePasswordTD = ->
 
 baseTest = ->
   log = td.object [ 'debug', 'info', 'warn', 'error' ]
-  fbgraph = fbgraphTD()
+  fbgraphClient = fbgraphClientTD()
   directoryClient = directoryClientTD()
   authenticator = authenticatorTD()
   aliasesClient = aliasesClientTD()
@@ -176,7 +176,7 @@ baseTest = ->
   passwordResetTemplate = passwordResetTemplateTD()
   generatePassword = generatePasswordTD()
   backend = directory.createBackend {
-    log, authenticator, directoryClient, fbgraph, deferredEvents,
+    log, authenticator, directoryClient, fbgraphClient, deferredEvents,
     facebookAppId: APP_ID, aliasesClient,
     usermetaClient, friendsClient, facebookFriends, facebookClient,
     passwordResetTemplate, mailerTransport, generatePassword }

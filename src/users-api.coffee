@@ -38,9 +38,7 @@ stats = require('./statsd-wrapper').createClient()
 apiSecret = process.env.API_SECRET || null
 
 # Facebook
-facebookAppSecret = process.env.FACEBOOK_APP_SECRET
-facebookClient = facebook.createClient
-  facebookAppSecret: facebookAppSecret
+facebookClient = facebook.createClient()
 
 # Connection to AuthDB
 authdbClient = null
@@ -109,6 +107,7 @@ createAccount = (req, res, next) ->
 # Login a user account
 login = (req, res, next) ->
   if req.body.facebookToken
+    req.log.debug {body:req.body}, 'facebook token found, using loginFacebook'
     return loginFacebook req, res, next
 
   checkBanMiddleware req, res, (err) ->
@@ -125,12 +124,17 @@ loginFacebook = (req, res, next) ->
     username: req.body.username
     password: req.body.password
     facebookId: req.body.facebookId
-    
+
+  req.log.debug {account}, 'backend.loginFacebook'
   backend.loginFacebook account, (err, result) ->
     if err
+      req.log.warn {err}, 'backend.loginFacebook failed'
       return next err
-    if typeof result != 'undefined'
+    else if typeof result != 'undefined'
+      req.log.debug {result}, 'backend.loginFacebook succeeded'
       res.send result
+    else
+      req.log.warn 'backend.loginFacebook returns no result'
     next()
 
 loginDefault = (req, res, next) ->
