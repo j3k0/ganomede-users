@@ -12,7 +12,7 @@ directory = require '../src/backend/directory'
 
 REQ_ID = "my-request-id"
 
-{ EXISTING_USER, SECONDARY_USER, NEW_USER, APP_ID,
+{ EXISTING_USER, SECONDARY_USER, TERNARY_USER, NEW_USER, APP_ID,
   credentials, publicAccount, authResult,
   account, authAccount, facebookAccount,
   directoryAccount, directoryAliasesObj,
@@ -75,6 +75,13 @@ directoryClientTD = ->
     id: EXISTING_USER.id
     aliases: directoryAliasesObj EXISTING_USER
 
+  # .byAlias() loads existing user by email
+  td.when(directoryClient.byAlias(
+    contains {type: 'email', value: TERNARY_USER.email}
+  )).thenCallback null,
+    id: TERNARY_USER.id
+    aliases: directoryAliasesObj TERNARY_USER
+
   directoryClient
 
 authenticatorTD = ->
@@ -84,7 +91,7 @@ authenticatorTD = ->
     td.when(authenticator.add(
       td.matchers.contains publicAccount user))
         .thenReturn authAccount user
-  [ EXISTING_USER, SECONDARY_USER, NEW_USER ].forEach addUser
+  [ EXISTING_USER, SECONDARY_USER, TERNARY_USER, NEW_USER ].forEach addUser
   authenticator
 
 fbgraphClientTD = ->
@@ -103,7 +110,7 @@ fbgraphClientTD = ->
         name: user.fullName
         birthday: user.birthday
         location: user.location
-  [ EXISTING_USER, SECONDARY_USER, NEW_USER ].forEach addUser
+  [ EXISTING_USER, SECONDARY_USER, TERNARY_USER, NEW_USER ].forEach addUser
   fbgraphClient
 
 aliasesClientTD = ->
@@ -125,7 +132,7 @@ usermetaClientTD = ->
   addUser = (user) ->
     td.when(ret.set(contains(token:user.token), anything(), anything()))
       .thenCallback null, {ok:true}
-  [ EXISTING_USER, SECONDARY_USER, NEW_USER ].forEach addUser
+  [ EXISTING_USER, SECONDARY_USER, TERNARY_USER, NEW_USER ].forEach addUser
   ret
 
 friendsClientTD = -> td.object []
@@ -426,5 +433,22 @@ describe 'backend/directory', ->
       td.verify directoryClient.addAccount(
         td.matchers.contains(id:NEW_USER.id),
         td.callback)
+
+    it 'logins existing non-facebook directory users', ->
+      { callback } = loginFacebook facebookLogin(TERNARY_USER)
+      td.verify callback null, td.matchers.contains
+        token: TERNARY_USER.token
+
+    it 'associates non-facebook directory users with facebook id', ->
+      { directoryClient } = loginFacebook facebookLogin(TERNARY_USER)
+      td.verify directoryClient.editAccount {
+        id: TERNARY_USER.id
+        aliases: [{
+          type: "facebook.id.cc.fovea.test"
+          value: TERNARY_USER.facebook_id
+          public: false
+        }]
+        req_id: REQ_ID
+      }, td.callback
 
 # vim: ts=2:sw=2:et:

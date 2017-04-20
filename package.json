@@ -26,7 +26,7 @@
     "fakeredis": "^1.0.3",
     "forever": "^0.15.3",
     "ganomede-directory": "^0.3.0",
-    "ganomede-events": "^1.1.0",
+    "ganomede-events": "^1.2.3",
     "ganomede-helpers": "^1.0.6",
     "ganomede-tagizer": "^2.0.1",
     "jshint": "^2.5.10",

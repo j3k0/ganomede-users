@@ -73,6 +73,17 @@ SECONDARY_USER:
   fullName: "Secondary User"
   birthday: '01/01/1940'
 
+TERNARY_USER:
+  id: 't3rnary'
+  username: 't3rnary'
+  email: 'third@email.com'
+  password: '123456'
+  token: 'token3-auth'
+  facebook_id: '3000'
+  facebook_access_token: 'ternary-access-token'
+  fullName: "Ternary User"
+  birthday: '01/05/1933'
+
 NEW_USER:
   id: '1newUser'
   username: '1newUser'
