@@ -6,6 +6,7 @@
 tagizer = require 'ganomede-tagizer'
 
 saveAccount = (req, account) ->
+  req.log.debug {account}, "saveAccount"
   req.params = req.params || {}
   req.params.username = account.id
   req.params.user = req.params.user || {}
@@ -21,6 +22,7 @@ createBodyMiddleware = ({
   field = "tag"
 }) -> (req, res, next) ->
 
+  req.log.info {field}, 'bodyTag middleware'
   tag = req.body[field]
   if !directoryClient
     return next()
@@ -32,12 +34,13 @@ createBodyMiddleware = ({
     req_id
   }, (err, account) ->
 
-    if err
-      log.warn {err, tag, req_id}, "directoryClient.byAlias failed"
+    if err and err.statusCode != 404
+      req.log.warn {err, tag}, "directoryClient.byAlias failed"
     else if !account
-      log.warn {tag, req_id},
+      req.log.info {tag},
         "directoryClient.byAlias returned no account"
     else
+      req.log.debug {account}, "directoryClient.byAlias succeeded"
       req.body[field] = account.id
       saveAccount req, account
 

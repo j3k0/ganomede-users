@@ -1,23 +1,25 @@
-graph = require 'fbgraph'
 log = require "./log"
+restify = require "restify"
 
 class FacebookClient
   constructor: (options = {}) ->
-    if options.facebookAppSecret
-      graph.setAppSecret options.facebookAppSecret
     @log = options.log || log.child(module:"facebook")
+    @fbgraphClient = options.fbgraphClient || restify.createJsonClient
+      url: "https://graph.facebook.com"
+      version: '*'
 
   _getFriendsPage: (accessToken, uri, list, cb) ->
-    graph.get "#{uri}&access_token=#{accessToken}", (err, res) =>
+    uri = "#{uri}&access_token=#{accessToken}"
+    @fbgraphClient.get uri, (err, req, res, result) =>
 
       # Add new friends to the list
-      if res?.data
-        for friend in res.data
+      if result?.data
+        for friend in result.data
           list.push friend
 
       # Go to the next page, if any
-      if res?.paging?.next
-        @_getFriendsPage accessToken, res.paging.next, list, cb
+      if result?.paging?.next
+        @_getFriendsPage accessToken, result.paging.next, list, cb
       else
         cb err, list
 

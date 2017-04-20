@@ -24,7 +24,7 @@ createBackend = ({
   deferredEvents  # see src/deferredEvents
   tagizer = require 'ganomede-tagizer'
   log = require '../log'
-  fbgraph = require 'fbgraph'
+  fbgraphClient # a restify.JsonClient connected to facebook graph API
   emails = require '../emails'
   generatePassword = require("password-generator").bind(null,8)
   passwordResetTemplate # template with (subject, text and/or html)
@@ -50,6 +50,11 @@ createBackend = ({
 
   if !deferredEvents
     throw new Error("deferredEvents missing")
+
+  if !fbgraphClient
+    fbgraphClient = restify.createJsonClient
+      url: "https://graph.facebook.com"
+      version: '*'
 
   if process.env.LEGACY_ERROR_CODES
     legacyError = (err, req_id) ->
@@ -98,10 +103,16 @@ createBackend = ({
     loadFacebookAccount = (cb) ->
       token = "access_token=#{accessToken}"
       location = "location{location{country_code,longitude,latitude}}"
-      uri = "/me?fields=id,name,email,#{location},birthday&#{token}"
-      fbgraph.get uri, (err, account) ->
+      uri = "/v2.8/me?fields=id,name,email,#{location},birthday&#{token}"
+      log.debug {req_id, accessToken, uri}, 'loadFacebookAccount'
+      fbgraphClient.get uri, (err, req, res, account) ->
+        log.debug {req_id, uri, err, account}, 'fbgraph.get response'
         if err
+          log.warn {req_id, uri, err}, 'fbgraph.get failed'
           cb err
+        else if !account
+          log.warn {req_id, uri}, 'fbgraph.get returned no account'
+          cb new restify.NotFoundError "Account not found"
         else
           defaultEmail = () ->
             "#{account.id}@#{emails.noEmailDomain}"
@@ -124,12 +135,27 @@ createBackend = ({
       directoryClient.byAlias alias, (err, directoryAccount) ->
         cb null, { facebookAccount, directoryAccount }
 
+    # Load directory account by email
+    # check in ganomede-directory if there's already a user with
+    # this email
+    loadDirectoryAccountByEmail = ({ facebookAccount, directoryAccount }, cb) ->
+      if directoryAccount
+        return cb null, { facebookAccount, directoryAccount }
+      alias =
+        type: "email"
+        value: facebookAccount.email
+
+      directoryClient.byAlias alias, (err, directoryAccountAlt) ->
+        cb null, { facebookAccount, directoryAccountAlt, directoryAccount }
+
     # when user isn't in ganomede-directory,
     # check fb:#{facebookId} alias (for legacy support)
     # if there's a username saved there, we'll log him in
-    loadLegacyAlias = ({ facebookAccount, directoryAccount }, cb) ->
-      if directoryAccount
-        cb null, { facebookAccount, directoryAccount }
+    loadLegacyAlias = ({
+      facebookAccount, directoryAccount, directoryAccountAlt
+    }, cb) ->
+      if directoryAccount or directoryAccountAlt
+        cb null, { facebookAccount, directoryAccount, directoryAccountAlt }
       else
         aliasesClient.get "fb:#{facebookId}", (err, value) ->
           if err
@@ -152,8 +178,27 @@ createBackend = ({
 
     # when user is neither in directory nor in stormpath
     # register it in the directory.
-    registerDirectoryAccount = ({ facebookAccount, directoryAccount }, cb) ->
-      if directoryAccount
+    registerDirectoryAccount = ({
+      facebookAccount, directoryAccount, directoryAccountAlt
+    }, cb) ->
+      if directoryAccountAlt
+        id = directoryAccountAlt.id
+        email = facebookAccount.email
+        fullName = facebookAccount.fullName
+        birthday = facebookAccount.birthday
+        location = facebookAccount.location
+        aliases = [{
+          type: 'facebook.id.' + facebookAppId
+          value: facebookAccount.facebookId
+          public: false
+        }]
+        account = { id, aliases, req_id }
+        directoryClient.editAccount account, (err) ->
+          if err
+            cb err
+          else
+            cb null, { username:id, email, fullName, birthday, location }
+      else if directoryAccount
         cb null,
           username: directoryAccount.id
           email: facebookAccount.email
@@ -293,6 +338,7 @@ createBackend = ({
     vasync.waterfall [
       loadFacebookAccount
       loadDirectoryAccount
+      loadDirectoryAccountByEmail
       loadLegacyAlias
       registerDirectoryAccount
       extendCreateEvent
