@@ -40,7 +40,7 @@ else {
   });
 
   const shouldLogRequest = (req) =>
-        (req.url !== `/${pkg.api}/ping/_health_check`);
+        (req.url.indexOf(`/${pkg.api}/ping/_health_check`) < 0);
 
   const shouldLogResponse = (res) =>
         (res && res.statusCode >= 500);
