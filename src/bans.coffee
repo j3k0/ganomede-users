@@ -23,10 +23,12 @@ class Bans
 
   # callback(err)
   ban: (username, cb) ->
-    @usermetaClient.set username, @prefix, Date.now(), wrapCallback(cb)
+    @usermetaClient.set username, @prefix,
+      String(Date.now()), wrapCallback(cb)
 
   # callback(err)
   unban: (username, cb) ->
-    @usermetaClient.set username, @prefix, null, wrapCallback(cb)
+    @usermetaClient.set username, @prefix,
+      null, wrapCallback(cb)
 
 module.exports = {Bans, BanInfo}

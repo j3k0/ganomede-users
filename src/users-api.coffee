@@ -522,7 +522,7 @@ banAdd = (req, res, next) ->
   }
   bans.ban params, (err) ->
     if (err)
-      log.error('banAdd() failed', {err, username})
+      log.error('banAdd() failed', {err, username: params.username})
       return next(err)
 
     res.send(200)
@@ -534,7 +534,7 @@ banRemove = (req, res, next) ->
   }
   bans.unban params, (err) ->
     if (err)
-      log.error('banRemove() failed', {err, username})
+      log.error('banRemove() failed', {err, username: params.username})
       return next(err)
 
     res.send(200)

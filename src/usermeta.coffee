@@ -252,7 +252,8 @@ class GanomedeUsermeta
     url = @jsonClient.url
     @jsonClient.post options, body, (err, req, res, body) ->
       if err
-        log.error {err, url, options, body, req_id: params.req_id},
+        log.error { req_id: params.req_id,
+          err, url, options, body, value },
           "GanomedeUsermeta.post failed"
         cb err, null
       else
