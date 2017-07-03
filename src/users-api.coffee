@@ -516,8 +516,11 @@ validateSecret = (req, res, next) ->
     next new restify.ForbiddenError()
 
 banAdd = (req, res, next) ->
-  {username} = req.body
-  bans.ban username, (err) ->
+  params = {
+    username: req.body.username,
+    apiSecret: req.body.apiSecret
+  }
+  bans.ban params, (err) ->
     if (err)
       log.error('banAdd() failed', {err, username})
       return next(err)
@@ -525,8 +528,11 @@ banAdd = (req, res, next) ->
     res.send(200)
 
 banRemove = (req, res, next) ->
-  {username} = req.params
-  bans.unban username, (err) ->
+  params = {
+    username: req.params.username,
+    apiSecret: req.body.apiSecret
+  }
+  bans.unban params, (err) ->
     if (err)
       log.error('banRemove() failed', {err, username})
       return next(err)

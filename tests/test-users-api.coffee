@@ -28,6 +28,7 @@ data =
     createAccountKey: 'valid'
     token: VALID_AUTH_TOKEN
   }]
+apiSecret = process.env.API_SECRET
 
 baseTest = ->
   #log = require '../src/log'
@@ -273,10 +274,13 @@ describe 'users-api', ->
       describe 'POST', () ->
 
         it 'bans people', (done) ->
-          td.when(test.bans.ban username).thenCallback null
+          td.when(test.bans.ban {
+            username
+            apiSecret
+          }).thenCallback null
           superagent
             .post endpoint('/banned-users')
-            .send({username, apiSecret: process.env.API_SECRET})
+            .send({username, apiSecret})
             .end (err, res) ->
               noError err
               expect(res.status).to.equal(200)
@@ -347,14 +351,14 @@ describe 'users-api', ->
 
       describe 'DELETE', () ->
         it 'removes bans', (done) ->
-          td.when(test.bans.unban td.matchers.isA String)
+          td.when(test.bans.unban td.matchers.isA Object)
             .thenCallback null
           superagent
             .del endpoint("/banned-users/#{username}")
-            .send({apiSecret: process.env.API_SECRET})
+            .send({apiSecret})
             .end (err, res) ->
               noError err
-              td.verify(test.bans.unban username, td.callback)
+              td.verify(test.bans.unban {username, apiSecret}, td.callback)
               done()
           return
 
