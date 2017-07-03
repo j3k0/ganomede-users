@@ -164,7 +164,7 @@ loginDefault = (req, res, next) ->
 
 # callback(error, isBannedBoolean)
 checkBan = (username, callback) ->
-  bans.get username, (err, ban) ->
+  bans.get {username,apiSecret}, (err, ban) ->
     if (err)
       log.error('checkBan() failed', {err, username})
       return callback(err)
@@ -541,7 +541,7 @@ banRemove = (req, res, next) ->
 
 banStatus = (req, res, next) ->
   {username} = req.params
-  bans.get username, (err, ban) ->
+  bans.get {username,apiSecret}, (err, ban) ->
     if (err)
       log.error('banStatus() failed', {err, username})
       return next(err)

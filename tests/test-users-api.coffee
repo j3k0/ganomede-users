@@ -173,7 +173,7 @@ describe 'users-api', ->
 
       it "responds with user data", (done) ->
         username = data.createAccount.valid.username
-        td.when(test.bans.get username)
+        td.when(test.bans.get {username,apiSecret})
           .thenCallback null, new BanInfo(username, 0)
         superagent
           .get endpoint(VALID_AUTH_TOKEN, "/me")
@@ -268,7 +268,7 @@ describe 'users-api', ->
       username = data.createAccount.valid.username
       BAN_TIMESTAMP=123
       beforeEach ->
-        td.when(test.bans.get username)
+        td.when(test.bans.get {username,apiSecret})
           .thenCallback null, new BanInfo(username, ''+BAN_TIMESTAMP)
 
       describe 'POST', () ->
