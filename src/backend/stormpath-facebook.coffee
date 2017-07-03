@@ -261,7 +261,7 @@ createClient = ({
       .state 'checkBanState', enter: checkBanState
       .state 'sendToken', enter: sendToken
       .state 'storeFriends', enter: storeFriends
-      .state 'done', enter: (-> cb()) # next with no arguments
+      .state 'done', {enter: (-> cb())} # next with no arguments
 
       .event 'start', 'start', 'getAccount'
 
