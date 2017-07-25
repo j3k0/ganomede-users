@@ -196,6 +196,7 @@ createBackend = ({
         loadEmail (err) ->
           if err
             return cb err
+          stats.increment 'stormpath.application.passwordreset'
           application.sendPasswordResetEmail {email}, (err) ->
             if err
               if err.code == 2016

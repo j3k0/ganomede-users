@@ -273,7 +273,6 @@ passwordResetEmail = (req, res, next) ->
     err = new restify.InvalidContentError "invalid content"
     return sendError req, err, next
 
-  stats.increment 'stormpath.application.passwordreset'
   backend.sendPasswordResetEmail {email, token, req_id: req.id()}, (err) ->
     if err
       log.error err

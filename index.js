@@ -20,7 +20,7 @@ const routePrefix = process.env.ROUTE_PREFIX || pkg.api;
 
 if (cluster.isMaster) {
 
-    // master
+  // master
   log.info('running with env', process.env);
   cluster.fork();
   cluster.on('disconnect', function (worker) {
@@ -30,7 +30,7 @@ if (cluster.isMaster) {
 }
 else {
 
-    // worker
+  // worker
   const restify = require('restify');
   const main = require('./src/main');
 
