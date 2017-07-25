@@ -2,6 +2,8 @@
 //
 // Will send requests statistics to a statsd server
 
+'use strict';
+
 const stats = require('./statsd-wrapper').createClient();
 
 const cleanupStatsKey = (key) => key.replace(/[-.]/g, '_').toLowerCase();
