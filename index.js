@@ -68,6 +68,10 @@ else {
   server.on('after', filteredLogger(process.env.NODE_ENV === 'production',
         restify.auditLogger({log: log, body: true})));
 
+  // Send audit statistics
+  const sendAuditStats = require('./src/send-audit-stats');
+  server.on('after', sendAuditStats);
+
     // Automatically add a request-id to the response
   function setRequestId (req, res, next) {
     res.setHeader('x-request-id', req.id());
