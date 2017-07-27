@@ -5,6 +5,24 @@
 # in case of error, sets req.params.username = req.params.tag
 tagizer = require 'ganomede-tagizer'
 
+# Link tag -> user id
+idFromTag = {}
+
+# Check for known user id from tag, store in
+# req.params.user.username and req.params.username
+loadFromCache = (req, tag) ->
+  id = idFromTag[tag]
+  if id
+    req.params = req.params || {}
+    req.params.username = id
+    req.params.user = req.params.user || {}
+    req.params.user.username = id
+    return true
+
+# Cache link user tag -> id
+saveToCache = (tag, account) ->
+  idFromTag[tag] = account.id
+
 saveAccount = (req, account) ->
   req.log.debug {account}, "saveAccount"
   req.params = req.params || {}
@@ -27,10 +45,12 @@ createBodyMiddleware = ({
   if !directoryClient
     return next()
 
+  tagtag = tagizer.tag(tag)
+
   req_id = req.id()
   directoryClient.byAlias {
     type: "tag"
-    value: tagizer.tag(tag)
+    value: tagtag
     req_id
   }, (err, account) ->
 
@@ -43,6 +63,7 @@ createBodyMiddleware = ({
       req.log.debug {account}, "directoryClient.byAlias succeeded"
       req.body[field] = account.id
       saveAccount req, account
+      saveToCache tagtag, account
 
     next()
 
@@ -58,10 +79,15 @@ createParamsMiddleware = ({
     req.params.username = tag
     return next()
 
+  tagtag = tagizer.tag(tag)
+
+  if loadFromCache req, tagtag
+    return next()
+
   req_id = req.id()
   directoryClient.byAlias {
     type: "tag"
-    value: tagizer.tag(tag)
+    value: tagtag
     req_id
   }, (err, account) ->
 
@@ -74,6 +100,7 @@ createParamsMiddleware = ({
       req.params.username = tag
     else
       saveAccount req, account
+      saveToCache tagtag, account
 
     next()
 

@@ -260,6 +260,8 @@ getAccountSend = (req, res, next) ->
   if account.username
     authenticator.updateAuthMetadata account
 
+  next()
+
 # Send a password reset email
 passwordResetEmail = (req, res, next) ->
 
@@ -551,8 +553,10 @@ banStatus = (req, res, next) ->
 addRoutes = (prefix, server) ->
 
   parseTag = parseTagMod.createParamsMiddleware {directoryClient, log}
+  Object.defineProperty parseTag, "name", {value: "parseTag"}
   bodyTag = parseTagMod.createBodyMiddleware {
     directoryClient, log, field: "username"}
+  Object.defineProperty bodyTag, "name", {value: "bodyTag"}
 
   server.post "/#{prefix}/accounts", createAccount
 
