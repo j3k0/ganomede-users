@@ -306,7 +306,7 @@ describe 'users-api', ->
             .end (err, res) ->
               expect(err).to.be.instanceof(Error)
               expect(res.status).to.be.equal(403)
-              expect(res.text).to.be.equal('')
+              expect(res.body.code).to.be.equal('ForbiddenError')
               done()
           return
 
@@ -316,7 +316,7 @@ describe 'users-api', ->
             .end (err, res) ->
               expect(err).to.be.instanceof(Error)
               expect(res.status).to.be.equal(403)
-              expect(res.text).to.be.equal('')
+              expect(res.body.code).to.be.equal('ForbiddenError')
               done()
           return
 

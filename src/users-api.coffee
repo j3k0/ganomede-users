@@ -173,7 +173,7 @@ checkBan = (username, callback) ->
 
 # next() - no error, no ban
 # next(err) - error
-# res.send(403) - no error, ban
+# next(ForbiddenError) - ban
 checkBanMiddleware = (req, res, next) ->
   username = (req.params && req.params.username) ||
              (req.body && req.body.username) ||
@@ -191,9 +191,10 @@ checkBanMiddleware = (req, res, next) ->
       if (req.params.authToken)
         authdbClient.addAccount(req.params.authToken, null, () ->)
 
-      return res.send(403)
+      next(new restify.ForbiddenError('user is banned'))
 
-    next()
+    else
+      next()
 
 # Load account details. This call most generally made by a client connecting
 # to the server, using a restored session. It's a good place to check
@@ -527,6 +528,7 @@ banAdd = (req, res, next) ->
       return next(err)
 
     res.send(200)
+    next()
 
 banRemove = (req, res, next) ->
   params = {
@@ -539,6 +541,7 @@ banRemove = (req, res, next) ->
       return next(err)
 
     res.send(200)
+    next()
 
 banStatus = (req, res, next) ->
   {username} = req.params
@@ -548,6 +551,7 @@ banStatus = (req, res, next) ->
       return next(err)
 
     res.json(ban)
+    next()
 
 # Register routes in the server
 addRoutes = (prefix, server) ->
