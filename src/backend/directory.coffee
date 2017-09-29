@@ -255,7 +255,7 @@ createBackend = ({
     extendCreateEvent = (user, cb) ->
       deferredEvents.editEvent req_id, 'CREATE', 'metadata',
         yearofbirth: yearofbirth(user.birthday)
-        country: user.location?.location?.country_code
+        country: user.location?.location?.country_code?.toLowerCase()
         latitude: String(user.location?.location?.latitude)
         longitude: String(user.location?.location?.longitude)
       cb null, user
@@ -289,7 +289,7 @@ createBackend = ({
     # save the user's country
     saveCountry = (user, cb) ->
       if user.username and user.location?.location?.country_code
-        cc = user.location?.location?.country_code
+        cc = user.location?.location?.country_code.toLowerCase()
         data = usermetaData user
         usermetaClient.set data, "country", cc, (err, reply) ->
           if err

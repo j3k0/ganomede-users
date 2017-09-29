@@ -97,7 +97,7 @@ NEW_USER:
   location:
     id: "kj12345"
     location:
-      country_code: "FR"
+      country_code: "fr"
       latitude: 12.34
       longitude: 55.1
 }
