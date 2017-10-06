@@ -50,46 +50,46 @@ describe 'Bans', () ->
     bans = new Bans({usermetaClient})
 
   started = Date.now()
-  usernames = {
-    banned: 'bad-person',
-    notBanned: 'good-citizen'
+  params = {
+    banned: {username: 'bad-person', apiSecret: 'wever'},
+    notBanned: {username: 'good-citizen', apiSecret: 'wever'}
   }
 
   describe '#ban()', () ->
     it 'adds bans', (done) ->
-      bans.ban usernames.banned, (err) ->
+      bans.ban params.banned, (err) ->
         expect(err).to.be.null
         td.verify usermetaClient.set(
-          usernames.banned, '$banned', td.matchers.anything(),
+          params.banned, '$banned', td.matchers.anything(),
           td.callback)
         done()
 
   describe '#get()', () ->
     it 'returns BanInfo instances', (done) ->
-      bans.get usernames.banned, (err, info) ->
+      bans.get params.banned.username, (err, info) ->
         expect(err).to.be.null
         expect(info).to.be.instanceof(BanInfo)
         done()
 
     it.skip 'results are correct', (done) ->
       async.mapValues(
-        usernames,
-        (username, key, cb) -> bans.get(username, cb),
+        params,
+        (username, key, cb) -> bans.get(params.username, cb),
         (err, infos) ->
           expect(err).to.be.null
-          expect(infos.banned.username).to.equal(usernames.banned)
+          expect(infos.banned.username).to.equal(params.banned.username)
           expect(infos.banned.exists).to.be.true
-          expect(infos.notBanned.username).to.equal(usernames.notBanned)
+          expect(infos.notBanned.username).to.equal(params.notBanned.username)
           expect(infos.notBanned.exists).to.be.false
           done()
       )
 
   describe.skip '#unban()', () ->
     it 'removes existing bans', (done) ->
-      bans.unban usernames.banned, (err) ->
+      bans.unban params.banned.username, (err) ->
         expect(err).to.be.null
 
-        client.exists "bans:#{usernames.banned}", (err, reply) ->
+        client.exists "bans:#{params.banned.username}", (err, reply) ->
           expect(err).to.be.null
           expect(reply).to.be.equal(0)
           done()
