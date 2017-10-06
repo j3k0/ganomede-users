@@ -21,7 +21,6 @@ class Bans
       if (err)
         return cb(err)
       info = new BanInfo(username, reply)
-      require('./log').warn('Bans#get()', {username, reply, info})
       cb(null, info)
 
   # callback(err)
