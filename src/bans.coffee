@@ -15,20 +15,22 @@ class Bans
   #   return [@prefix, parts...].join(':')
 
   # callback(err, BanInfo instance)
-  get: (username, cb) ->
-    @usermetaClient.get username, @prefix, (err, reply) ->
+  get: (params, cb) ->
+    {username} = params
+    @usermetaClient.get params, @prefix, (err, reply) ->
       if (err)
         return cb(err)
-      cb(null, new BanInfo(username, reply))
+      info = new BanInfo(username, reply)
+      cb(null, info)
 
   # callback(err)
-  ban: (username, cb) ->
-    @usermetaClient.set username, @prefix,
+  ban: (params, cb) ->
+    @usermetaClient.set params, @prefix,
       String(Date.now()), wrapCallback(cb)
 
   # callback(err)
-  unban: (username, cb) ->
-    @usermetaClient.set username, @prefix,
+  unban: (params, cb) ->
+    @usermetaClient.set params, @prefix,
       null, wrapCallback(cb)
 
 module.exports = {Bans, BanInfo}
