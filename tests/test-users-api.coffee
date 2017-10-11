@@ -266,10 +266,10 @@ describe 'users-api', ->
     describe '/banned-users Banning Users', () ->
 
       username = data.createAccount.valid.username
-      BAN_TIMESTAMP=123
+      BAN_TIMESTAMP=Date.now()
       beforeEach ->
         td.when(test.bans.get {username,apiSecret})
-          .thenCallback null, new BanInfo(username, ''+BAN_TIMESTAMP)
+          .thenCallback null, new BanInfo(username, String(BAN_TIMESTAMP))
 
       describe 'POST', () ->
 
