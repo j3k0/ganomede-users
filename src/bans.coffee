@@ -10,7 +10,6 @@ class BanInfo
     @username = username
     @exists = exists
     @createdAt = createdAt
-    console.log(this)
 
 # callback(err, stuff...) => callback(err)
 wrapCallback = (cb) ->
