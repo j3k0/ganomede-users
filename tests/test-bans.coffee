@@ -7,29 +7,33 @@ describe 'BanInfo', () ->
   username = 'someone'
 
   describe 'Existing ban', () ->
-    now = Date.now()
-    ban = new BanInfo(username, now)
+    it 'timestamps means ban exists', () ->
+      info = new BanInfo(username, Date.now())
+      expect(info.exists).to.be.true
 
-    it 'contains #username', () ->
-      expect(ban.username).to.equal(username)
-
-    it '#createdAt has creation timestamp', () ->
-      expect(ban.createdAt).to.equal(now)
-
-    it '#exists is true', () ->
-      expect(ban.exists).to.be.true
+    it 'existent bans have correct props', () ->
+      now = Date.now()
+      expect(new BanInfo(username, String(now))).to.eql({
+        username,
+        exists: true,
+        createdAt: now
+      })
 
   describe 'Non-existing ban', () ->
-    ban = new BanInfo(username, null)
+    it '<null> means no ban', () ->
+      expect(new BanInfo(username, null).exists).to.be.false
 
-    it 'contains #username', () ->
-      expect(ban.username).to.equal(username)
+    it 'non-timestamp string means no ban', () ->
+      expect(new BanInfo(username, '').exists).to.be.false
+      expect(new BanInfo(username, '<no>').exists).to.be.false
+      expect(new BanInfo(username, '123').exists).to.be.false
 
-    it '#createdAt is null', () ->
-      expect(ban.createdAt).to.equal(0)
-
-    it '#exists returns false', () ->
-      expect(ban.exists).to.be.false
+    it 'non existent ban has correct fields', () ->
+      expect(new BanInfo(username, null)).to.eql({
+        username,
+        createdAt: 0,
+        exists: false
+      })
 
 describe 'Bans', () ->
 

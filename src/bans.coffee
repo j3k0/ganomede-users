@@ -1,7 +1,15 @@
+parseTimestampString = (value) ->
+  str = String(value)
+  int = parseInt(str, 10)
+  okay = isFinite(int) && /\d{13}/.test(str) # 13 digits should cover it :)
+  return {okay, value: if okay then int else 0}
+
 class BanInfo
-  constructor: (@username, creationTimestamp) ->
-    @createdAt = parseInt(String(creationTimestamp), 10) || 0
-    @exists = !!@createdAt
+  constructor: (username, creationTimestamp) ->
+    {okay: exists, value: createdAt} = parseTimestampString(creationTimestamp)
+    @username = username
+    @exists = exists
+    @createdAt = createdAt
 
 # callback(err, stuff...) => callback(err)
 wrapCallback = (cb) ->
@@ -30,7 +38,6 @@ class Bans
 
   # callback(err)
   unban: (params, cb) ->
-    @usermetaClient.set params, @prefix,
-      null, wrapCallback(cb)
+    @usermetaClient.set params, @prefix, '<no>', wrapCallback(cb)
 
 module.exports = {Bans, BanInfo}
