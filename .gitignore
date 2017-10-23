@@ -2,3 +2,6 @@ node_modules/
 coverage/
 .curloutput.txt
 .testoutput.txt
+
+# We keep test docker-compose, but this one is sever-specific.
+docker-compose.yml
