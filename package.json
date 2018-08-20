@@ -31,22 +31,20 @@
     "ganomede-tagizer": "^2.0.1",
     "jshint": "^2.5.10",
     "lodash": "^4.17.4",
-    "newrelic": "^1.20.2",
     "node-statsd": "^0.1.1",
     "nodemailer": "^2.7.2",
     "password-generator": "^2.1.0",
     "redis": "^2.6.5",
     "restify": "^4.3.0",
     "state-machine": "0.0.3",
-    "stormpath": "^0.20.0",
     "vasync": "^1.6.2"
   },
   "devDependencies": {
     "chai": "^3.5.0",
     "coffee-coverage": "^1.0.1",
     "istanbul": "^0.4.5",
-    "mocha": "^3.2.0",
-    "superagent": "^3.4.0",
+    "mocha": "^3.5.3",
+    "superagent": "^3.8.3",
     "testdouble": "^1.11.0"
   }
 }

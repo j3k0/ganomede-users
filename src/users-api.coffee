@@ -481,23 +481,9 @@ initialize = (cb, options = {}) ->
 
   createBackend = options.createBackend
   if !createBackend
-    if process.env.USE_STORMPATH_ONLY
-      log.info "Using stormpath backend only"
-      { createBackend } = require './backend/stormpath'
-    else if process.env.USE_DIRECTORY_ONLY
-      log.info "Using directory backend only"
-      prepareDirectoryBackend()
-      { createBackend } = require './backend/directory'
-    else
-      log.info "Using directory + stormpath backend"
-      createInStormpath = !!process.env.CREATE_USERS_IN_STORMPATH
-      prepareDirectoryBackend()
-      backendOpts.primary = require('./backend/directory')
-        .createBackend _.extend({allowCreate: !createInStormpath}, backendOpts)
-      backendOpts.secondary = require('./backend/stormpath')
-        .createBackend(backendOpts)
-      backendOpts.createAccountFromSecondary = createInStormpath
-      { createBackend } = require './backend/failover'
+    log.info "Using directory backend only"
+    prepareDirectoryBackend()
+    { createBackend } = require './backend/directory'
 
   be = createBackend backendOpts
   be.initialize (err, be) ->
