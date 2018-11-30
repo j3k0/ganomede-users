@@ -48,14 +48,12 @@ jsonClientTD = ->
     td.matchers.anything()))
       .thenCallback null, null, status(404)
 
-  # fails when loading unknown aliases
-  uri = "/users/alias/email/#{EXISTING_USER.email}"
+  # loads existing user by alias
+  uri = "/users/alias/email/#{encodeURIComponent(EXISTING_USER.email)}"
   td.when(jsonClient.get(td.matchers.contains path: uri))
     .thenCallback null, null, status(200),
       id: EXISTING_USER.id
       aliases: directoryAliasesObj EXISTING_USER
-
-  # loads existing user by alias
 
   jsonClient
 
@@ -63,8 +61,11 @@ baseTest = ->
   callback = td.function 'callback'
   sendEvent = td.function 'sendEvent'
   jsonClient = jsonClientTD()
-  log = td.object [ 'debug', 'info', 'warn', 'error' ]
+  # log = td.object [ 'debug', 'info', 'warn', 'error' ]
   # log = require '../src/log'
+  log = require("bunyan").createLogger
+    name: "users"
+    level: "debug"
   directoryClient = directoryClientMod.createClient {
     log, jsonClient, sendEvent, apiSecret:API_SECRET }
 
@@ -119,7 +120,7 @@ describe 'directory-client', ->
       alias = findAlias "email", EXISTING_USER
       { jsonClient } = byAlias alias
 
-      uri = "/users/alias/#{alias.type}/#{alias.value}"
+      uri = "/users/alias/#{alias.type}/#{encodeURIComponent(alias.value)}"
       td.verify jsonClient.get(
         td.matchers.contains(path: uri),
         td.callback)

@@ -148,7 +148,7 @@ createClient = ({
         'Missing account id')
 
     options = jsonOptions
-      path: "/users/id/#{account.id}"
+      path: "/users/id/" + encodeURIComponent(account.id)
       req_id: account.req_id
 
     body = secret: apiSecret
@@ -200,7 +200,9 @@ createClient = ({
   byAlias = ({ type, value, req_id }, callback) ->
 
     options = jsonOptions
-      path: "/users/alias/#{type}/#{value}"
+      path: ("/users/alias/" +
+        encodeURIComponent(type) + "/" +
+        encodeURIComponent(value))
       req_id: req_id
     jsonGet options, processGetResponse(callback)
 
@@ -208,7 +210,7 @@ createClient = ({
   byToken = ({ token, req_id }, callback) ->
 
     options = jsonOptions
-      path: "/users/auth/#{token}"
+      path: "/users/auth/" + encodeURIComponent(token)
       req_id: req_id
     jsonGet options, processGetResponse(callback)
 
@@ -216,7 +218,7 @@ createClient = ({
   byId = ({ id, req_id }, callback) ->
 
     options = jsonOptions
-      path: "/users/id/#{id}"
+      path: "/users/id/" + encodeURIComponent(id)
       req_id: req_id
     jsonGet options, processGetResponse(callback)
 
