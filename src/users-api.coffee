@@ -213,7 +213,7 @@ getAccountFromAuthDb = (req, res, next) ->
   #  - facebookToken (optionally)
   authdbClient.getAccount token, (err, account) ->
     if err
-      log.error err
+      req.log.warn {err}, "NotAuthorizedError"
       err = new restify.NotAuthorizedError "not authorized"
       return sendError req, err, next
 

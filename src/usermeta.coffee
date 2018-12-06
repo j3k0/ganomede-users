@@ -246,7 +246,7 @@ class GanomedeUsermeta
   set: (params, key, value, cb) ->
     params = parseParams(params)
     options = jsonOptions
-      path: authPath(params) + "/#{key}"
+      path: authPath(params) + "/#{encodeURIComponent(key)}"
       req_id: params.req_id
     body = value: value
     url = @jsonClient.url
@@ -262,7 +262,7 @@ class GanomedeUsermeta
   get: (params, key, cb) ->
     params = parseParams(params)
     options = jsonOptions
-      path: authPath(params) + "/#{key}"
+      path: authPath(params) + "/#{encodeURIComponent(key)}"
       req_id: params.req_id
     url = @jsonClient.url
     @jsonClient.get options, (err, req, res, body) ->
