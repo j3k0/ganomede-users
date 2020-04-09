@@ -231,11 +231,11 @@ jsonOptions = ({ path, req_id }) ->
 
 authPath = (params) ->
   if params.apiSecret
-    return "/auth/#{params.apiSecret}.#{params.username}"
+    return "/auth/#{encodeURIComponent(params.apiSecret)}.#{encodeURIComponent(params.username)}"
   else if params.authToken
-    return "/auth/#{params.authToken}"
+    return "/auth/#{encodeURIComponent(params.authToken)}"
   else
-    return "/#{params.username}"
+    return "/#{encodeURIComponent(params.username)}"
 
 # Stores metadata in ganomede-usermeta
 # ganomede-usermeta server will take care of key validation
