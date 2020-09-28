@@ -1,0 +1,723 @@
+/*
+ * decaffeinate suggestions:
+ * DS102: Remove unnecessary code created because of implicit returns
+ * DS207: Consider shorter variations of null checks
+ * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
+ */
+// Users API
+//
+// Implements the users API
+//
+
+import _ from 'lodash';
+
+import async from "async";
+import authentication from "./authentication";
+import restify from "restify";
+import log from "./log";
+import helpers from "ganomede-helpers";
+import ganomedeDirectory from "ganomede-directory";
+const serviceConfig = helpers.links.ServiceEnv.config;
+import usermeta from "./usermeta";
+import aliases from "./aliases";
+import fullnames from "./fullnames";
+import friendsStore from "./friends-store";
+import facebook from "./facebook";
+import usernameValidator from "./username-validator";
+import { Bans } from './bans';
+import urllib from 'url';
+import mailer from './mailer';
+import parseTagMod from './middlewares/parse-tag';
+import eventSender from './event-sender';
+import deferredEvents from './deferred-events';
+import emails from './emails';
+
+const sendError = function(req, err, next) {
+  if (err.rawError) {
+    req.log.error(err.rawError);
+  } else {
+    req.log.error(err);
+  }
+  return next(err);
+};
+
+const stats = require('./statsd-wrapper').createClient();
+
+// Retrieve Stormpath configuration from environment
+const apiSecret = process.env.API_SECRET || null;
+
+// Facebook
+const facebookClient = facebook.createClient();
+
+// Connection to AuthDB
+let authdbClient = null;
+
+// Extra user data
+let rootUsermetaClient = null;
+let localUsermetaClient = null;
+let centralUsermetaClient = null;
+const bansClient = null;
+let aliasesClient = null;
+let fullnamesClient = null;
+let friendsClient = null;
+let friendsApi = null;
+let bans = null;
+let authenticator = null;
+let directoryClient = null;
+
+// backend, once initialized
+let backend = null;
+
+// Create a user account
+const createAccount = function(req, res, next) {
+
+  let usernameError;
+  if (usernameError = usernameValidator(req.body.username)) {
+    return sendError(req, usernameError, next);
+  }
+
+  const account = {
+    req_id:   req.id(), // pass over request id for better tracking
+    id:       (req.body.username != null ? req.body.username.replace(/ /g, '') : undefined),
+    username: (req.body.username != null ? req.body.username.replace(/ /g, '') : undefined),
+    email:    (req.body.email != null ? req.body.email.replace(/ /g, '') : undefined),
+    password: req.body.password
+  };
+  req.log.info({account}, "createAccount");
+
+  return backend.createAccount(account, function(err, data) {
+    if (err) {
+      return sendError(req, err, next);
+    } else {
+      const params = {
+        username: account.username,
+        authToken: data.token,
+        req_id: req.id()
+      };
+      let {
+        metadata
+      } = req.body;
+      const add = (value, key, callback) => rootUsermetaClient.set(params, key, value, function(err, reply) {
+        if (err) {
+          req.log.warn({key, value, err}, "failed to set metadata");
+        }
+        return callback();
+      });
+      if (typeof metadata !== 'object') {
+        metadata = {};
+      }
+
+      // Make sure aliases are not set (createAccount already did)
+      delete metadata.email;
+      delete metadata.name;
+      delete metadata.tag;
+
+      return async.eachOf(metadata, add, function() {
+        req.log.info({metadata}, 'Adding metadata to CREATE event');
+        if (emails.isGuestEmail(account.email) || emails.isNoEmail(account.email)) {
+          metadata.newsletter = false;
+        }
+        deferredEvents.editEvent(
+          req.id(), eventSender.CREATE, "metadata", metadata);
+        res.send(data);
+        return next();
+      });
+    }
+  });
+};
+
+// Login a user account
+const login = function(req, res, next) {
+  if (req.body.facebookToken) {
+    req.log.debug({body:req.body}, 'facebook token found, using loginFacebook');
+    return loginFacebook(req, res, next);
+  }
+
+  return checkBanMiddleware(req, res, function(err) {
+    if (err) {
+      return next(err);
+    }
+
+    return loginDefault(req, res, next);
+  });
+};
+
+// Login (or register) a facebook user account
+var loginFacebook = function(req, res, next) {
+  const account = {
+    req_id: req.id(), // pass over request id for better tracking
+    accessToken: req.body.facebookToken,
+    username: req.body.username,
+    password: req.body.password,
+    facebookId: req.body.facebookId
+  };
+
+  req.log.debug({account}, 'backend.loginFacebook');
+  return backend.loginFacebook(account, function(err, result) {
+    if (err) {
+      req.log.warn({err}, 'backend.loginFacebook failed');
+      return next(err);
+    } else if (typeof result !== 'undefined') {
+      req.log.debug({result}, 'backend.loginFacebook succeeded');
+      res.send(result);
+    } else {
+      req.log.warn('backend.loginFacebook returns no result');
+    }
+    return next();
+  });
+};
+
+var loginDefault = function(req, res, next) {
+
+  const account = {
+    req_id:   req.id(), // pass over request id for better tracking
+    username: req.body.username,
+    password: req.body.password
+  };
+  return backend.loginAccount(account, function(err, data) {
+    if (err) {
+      return sendError(req, err, next);
+    }
+
+    // login successful.
+    // however, there may be an an alias for this account.
+    // in this case, we need to log the user as the alias!
+    return aliasesClient.get(account.username, function(err, alias) {
+
+      if (err) {
+        log.warn("Error retrieving alias", err);
+      }
+
+      // No alias found, return the source user.
+      if (err || !alias) {
+        res.send(data);
+      } else {
+        res.send(authenticator.add(alias));
+      }
+      return next();
+    });
+  });
+};
+
+// callback(error, isBannedBoolean)
+const checkBan = (username, callback) => bans.get({username,apiSecret}, function(err, ban) {
+  if (err) {
+    log.error('checkBan() failed', {err, username});
+    return callback(err);
+  }
+
+  return callback(null, ban.exists);
+});
+
+// next() - no error, no ban
+// next(err) - error
+// next(ForbiddenError) - ban
+var checkBanMiddleware = function(req, res, next) {
+  const username = (req.params && req.params.username) ||
+             (req.body && req.body.username) ||
+             null;
+
+  if (!username) {
+    return sendError(req, new restify.BadRequestError, next);
+  }
+
+  return checkBan(username, function(err, exists) {
+    if (err) {
+      return next(err);
+    }
+
+    if (exists) {
+      // Remove authToken of banned accounts
+      if (req.params.authToken) {
+        authdbClient.addAccount(req.params.authToken, null, function() {});
+      }
+
+      return next(new restify.ForbiddenError('user is banned'));
+
+    } else {
+      return next();
+    }
+  });
+};
+
+// Load account details. This call most generally made by a client connecting
+// to the server, using a restored session. It's a good place to check
+// and refresh a few things, namely facebook friends for now.
+const getAccountFromAuthDb = function(req, res, next) {
+  // We're loading the account from a token (required)
+  const token = req.params.authToken;
+  if (!token) {
+    const err = new restify.InvalidContentError("invalid content");
+    return sendError(req, err, next);
+  }
+
+  // Use the authentication database to retrieve more about the user.
+  // see `addAuth` for details of what's in the account, for now:
+  //  - username
+  //  - email
+  //  - facebookToken (optionally)
+  return authdbClient.getAccount(token, function(err, account) {
+    if (err) {
+      req.log.warn({err}, "NotAuthorizedError");
+      err = new restify.NotAuthorizedError("not authorized");
+      return sendError(req, err, next);
+    }
+
+    req._store = {account};
+    req.body = req.body || {};
+    req.body.username = req.body.username || account.username;
+    // console.log 'next', account
+    return next();
+  });
+};
+
+const getAccountMetadata = function(req, res, next) {
+  // console.log 'getAccountMetadata'
+  const { account } = req._store;
+  const params = {
+    req_id: req.id(),
+    authToken: req.params.authToken,
+    username: account.username
+  };
+  // fill in already loaded info when we have them
+  if (req.params.user) {
+    params.username = account.username;
+    params.tag      = account.tag;
+    params.name     = account.name;
+    params.email    = account.email;
+  }
+  return rootUsermetaClient.get(params, "country", (err, country) => rootUsermetaClient.get(params, "yearofbirth", function(err, yearofbirth) {
+    req._store.account.metadata = {country, yearofbirth};
+    return next();
+  }));
+};
+
+const getAccountSend = function(req, res, next) {
+  // console.log 'getAccountSend'
+  // Respond to request.
+  const { account } = req._store;
+  res.send(account);
+
+  // Reload facebook friends in the background
+  // (next has been called)
+  if (account.facebookToken) {
+    storeFacebookFriends({
+      username: account.username,
+      accessToken: account.facebookToken,
+      callback(err) {
+        if (err) {
+          return log.error(`Failed to store friends for ${account.username}`, err);
+        }
+      }
+    });
+  }
+
+  // Update the "auth" metadata
+  if (account.username) {
+    authenticator.updateAuthMetadata(account);
+  }
+
+  return next();
+};
+
+// Send a password reset email
+const passwordResetEmail = function(req, res, next) {
+
+  const token = req.params != null ? req.params.authToken : undefined;
+  const email = req.body != null ? req.body.email : undefined;
+
+  // Send emails using backend, check for failure
+  req.log.info("reset password", {token, email});
+
+  if (!token && !email) {
+    const err = new restify.InvalidContentError("invalid content");
+    return sendError(req, err, next);
+  }
+
+  return backend.sendPasswordResetEmail({email, token, req_id: req.id()}, function(err) {
+    if (err) {
+      log.error(err);
+      return sendError(req, err, next);
+    } else {
+      res.send({ok:true});
+      return next();
+    }
+  });
+};
+
+const jsonBody = function(req, res, next) {
+  if (typeof req.params !== 'object') {
+    return sendError(req, new restify.BadRequestError(
+      'Body is not json'), next);
+  }
+  return next();
+};
+
+const authMiddleware = function(req, res, next) {
+
+  let username;
+  const authToken = req.params.authToken || req.context.authToken;
+  if (!authToken) {
+    return sendError(req, new restify.InvalidContentError(
+      'invalid content'), next);
+  }
+
+  if (apiSecret) {
+    const separatorIndex = authToken.indexOf(":");
+    if (separatorIndex > 0) {
+      const reqApiSecret = authToken.substr(0, separatorIndex);
+      username = authToken.substr(separatorIndex + 1, authToken.length);
+      if (apiSecret === reqApiSecret) {
+        req.params.apiSecret = apiSecret;
+        req.params.user = req.params.user || {};
+        req.params.user.username = username;
+      }
+      next();
+      return;
+    }
+  }
+
+  return authdbClient.getAccount(authToken, function(err, account) {
+    if (err || !account) {
+      return sendError(req, new restify.UnauthorizedError(`\
+not authorized`), next);
+    }
+
+    req.params.user = req.params.user || {};
+    req.params.user.username = account.username;
+    if (account.email) {
+      req.params.user.email = account.email;
+    }
+    return next();
+  });
+};
+
+// Set metadata
+const postMetadata = function(req, res, next) {
+  // send who is the calling user, or null if not known
+  // (so GanomedeUsermeta can check access rights)
+  const params = {
+    username: req.params.user.username,
+    authToken: req.params.authToken || req.context.authToken,
+    apiSecret: req.params.apiSecret,
+    req_id: req.id()
+  };
+  const {
+    key
+  } = req.params;
+  const {
+    value
+  } = req.body;
+  return rootUsermetaClient.set(params, key, value, function(err, reply) {
+    if (err) {
+      log.error({
+        err,
+        reply
+      });
+    }
+    res.send({ok:!err});
+    return next();
+  });
+};
+
+// Get metadata
+const getMetadata = function(req, res, next) {
+  const params = {
+    req_id: req.id(),
+    authToken: req.params.authToken || req.context.authToken,
+    username: req.params.username
+  };
+  // fill in already loaded info when we have them
+  if (req.params.user) {
+    params.username = req.params.user.username;
+    params.tag      = req.params.user.tag;
+    params.name     = req.params.user.name;
+    params.email    = req.params.user.email;
+  }
+  const {
+    key
+  } = req.params;
+  return rootUsermetaClient.get(params, key, function(err, reply) {
+    res.send({
+      key,
+      value: reply
+    });
+    return next();
+  });
+};
+
+// Initialize the module
+const initialize = function(cb, options) {
+
+  if (options == null) { options = {}; }
+  if (options.log) {
+    ({
+      log
+    } = options);
+  }
+
+  // Initialize the directory client (if possible)
+  ({
+    directoryClient
+  } = options);
+  let directoryJsonClient = null;
+  const createDirectoryClient = function() {
+    const directoryService = serviceConfig('DIRECTORY', 8000);
+    if (!directoryService.exists) {
+      throw new Error('Directory is not properly configured');
+    }
+    log.info({directoryService}, "Link to ganomede-directory");
+    directoryJsonClient = restify.createJsonClient({
+      url: urllib.format({
+        protocol: directoryService.protocol || 'http',
+        hostname: directoryService.host,
+        port:     directoryService.port,
+        pathname: 'directory/v1'
+      })
+    });
+    return require('./directory-client').createClient({
+      log,
+      jsonClient: directoryJsonClient,
+      sendEvent: deferredEvents.sendEvent
+    });
+  };
+  directoryClient = directoryClient || createDirectoryClient();
+
+  if (options.authdbClient) {
+    ({
+      authdbClient
+    } = options);
+  } else {
+    authdbClient = ganomedeDirectory.createAuthdbClient({
+      jsonClient: directoryJsonClient, log, apiSecret});
+  }
+
+  const createGanomedeUsermetaClient = function(name, ganomedeEnv) {
+    const ganomedeConfig = serviceConfig(ganomedeEnv, 8000);
+    if (options[name]) {
+      return options[name];
+    } else if (ganomedeConfig.exists) {
+      log.info({ganomedeConfig}, `usermeta[${name}]`);
+      return usermeta.create({ganomedeConfig});
+    } else {
+      log.warn(`cant create usermeta client, no ${ganomedeEnv} config`);
+      return null;
+    }
+  };
+
+  localUsermetaClient = createGanomedeUsermetaClient(
+    "localUsermetaClient", 'LOCAL_USERMETA');
+  centralUsermetaClient = createGanomedeUsermetaClient(
+    "centralUsermetaClient", 'CENTRAL_USERMETA');
+  rootUsermetaClient = usermeta.create({router: {
+    directoryPublic: usermeta.create({
+      directoryClient, authdbClient, mode: 'public'}),
+    directoryProtected: usermeta.create({
+      directoryClient, authdbClient}),
+    ganomedeLocal: localUsermetaClient,
+    ganomedeCentral: centralUsermetaClient
+  }
+  });
+
+  if (options.bans) {
+    ({
+      bans
+    } = options);
+  } else {
+    bans = new Bans({usermetaClient: centralUsermetaClient});
+  }
+
+  // Aliases
+  aliasesClient = aliases.createClient({
+    usermetaClient: centralUsermetaClient});
+
+  // Full names
+  fullnamesClient = fullnames.createClient({
+    usermetaClient: centralUsermetaClient});
+
+  // Friends
+  friendsClient = friendsStore.createClient({
+    log, usermetaClient: centralUsermetaClient });
+
+  // Authenticator
+  authenticator = authentication.createAuthenticator({
+    authdbClient, localUsermetaClient, centralUsermetaClient });
+
+  // Facebook friends
+  const facebookFriends = require("./facebook-friends");
+  const storeFacebookFriends = options => facebookFriends.storeFriends({
+    username: options.username,
+    accessToken: options.accessToken,
+    callback: options.callback || function() {},
+    aliasesClient: options.aliasesClient || aliasesClient,
+    friendsClient: options.friendsClient || friendsClient,
+    facebookClient: options.facebookClient || facebookClient
+  });
+
+  friendsApi = options.friendsApi || require("./friends-api").createApi({
+    friendsClient, authMiddleware });
+
+  const backendOpts = {
+    apiId: options.stormpathApiId,
+    apiSecret: options.stormpathApiSecret,
+    appName: options.stormpathAppName,
+    usermetaClient: rootUsermetaClient,
+    log,
+    deferredEvents,
+    authdbClient,
+    aliasesClient,
+    fullnamesClient,
+    checkBan,
+    facebookClient,
+    facebookFriends,
+    friendsClient,
+    authenticator,
+    stats
+  };
+
+  const prepareDirectoryBackend = function() {
+    directoryClient = directoryClient || createDirectoryClient();
+    if (!directoryClient) {
+      throw new Error("directory service not configured properly");
+    }
+    backendOpts.directoryClient = directoryClient;
+    backendOpts.passwordResetTemplate = require('./mail-template')
+      .createTemplate({
+        subject: process.env.MAILER_SEND_SUBJECT,
+        text: process.env.MAILER_SEND_TEXT,
+        html: process.env.MAILER_SEND_HTML });
+    return backendOpts.mailerTransport = mailer.createTransport();
+  };
+
+  let {
+    createBackend
+  } = options;
+  if (!createBackend) {
+    log.info("Using directory backend only");
+    prepareDirectoryBackend();
+    ({ createBackend } = require('./backend/directory'));
+  }
+
+  const be = createBackend(backendOpts);
+  return be.initialize(function(err, be) {
+    if (err) {
+      log.error(err, "failed to create backend");
+      return cb(err);
+    } else {
+      backend = be;
+      return cb();
+    }
+  });
+};
+
+const validateSecret = function(req, res, next) {
+  const present = apiSecret && req.body && req.body.apiSecret;
+  const ok = present ? apiSecret === req.body.apiSecret : false;
+
+  if (ok) {
+    return next();
+  } else {
+    return next(new restify.ForbiddenError());
+  }
+};
+
+const banAdd = function(req, res, next) {
+  const params = {
+    username: req.body.username,
+    apiSecret: req.body.apiSecret
+  };
+  return bans.ban(params, function(err) {
+    if (err) {
+      log.error('banAdd() failed', {err, username: params.username});
+      return next(err);
+    }
+
+    res.send(200);
+    return next();
+  });
+};
+
+const banRemove = function(req, res, next) {
+  const params = {
+    username: req.params.username,
+    apiSecret: req.body.apiSecret
+  };
+  return bans.unban(params, function(err) {
+    if (err) {
+      log.error('banRemove() failed', {err, username: params.username});
+      return next(err);
+    }
+
+    res.send(200);
+    return next();
+  });
+};
+
+const banStatus = function(req, res, next) {
+  const {username} = req.params;
+  return bans.get({username,apiSecret}, function(err, ban) {
+    if (err) {
+      log.error('banStatus() failed', {err, username});
+      return next(err);
+    }
+
+    res.json(ban);
+    return next();
+  });
+};
+
+// Register routes in the server
+const addRoutes = function(prefix, server) {
+
+  const parseTag = parseTagMod.createParamsMiddleware({directoryClient, log});
+  Object.defineProperty(parseTag, "name", {value: "parseTag"});
+  const bodyTag = parseTagMod.createBodyMiddleware({
+    directoryClient, log, field: "username"});
+  Object.defineProperty(bodyTag, "name", {value: "bodyTag"});
+
+  server.post(`/${prefix}/accounts`, createAccount);
+
+  server.post(`/${prefix}/login`, bodyTag, login);
+
+  server.get(
+    `/${prefix}/auth/:authToken/me`,
+    getAccountFromAuthDb,
+    checkBanMiddleware,
+    getAccountMetadata,
+    getAccountSend
+  );
+
+  server.post(`${prefix}/banned-users`,
+    jsonBody, validateSecret, bodyTag, banAdd);
+  server.del(`${prefix}/banned-users/:tag`,
+    validateSecret, parseTag, banRemove);
+  server.get(`${prefix}/banned-users/:tag`,
+    parseTag, banStatus);
+
+  let endPoint = `/${prefix}/auth/:authToken/passwordResetEmail`;
+  server.post(endPoint, jsonBody, passwordResetEmail);
+
+  endPoint = `/${prefix}/passwordResetEmail`;
+  server.post(endPoint, jsonBody, passwordResetEmail);
+
+  // access to public metadata
+  server.get(`/${prefix}/:tag/metadata/:key`,
+    parseTag, getMetadata);
+
+  // access to protected metadata
+  server.get(`/${prefix}/auth/:authToken/metadata/:key`,
+    authMiddleware, getMetadata);
+  server.post(`/${prefix}/auth/:authToken/metadata/:key`,
+    jsonBody, authMiddleware, postMetadata);
+
+  friendsApi.addRoutes(prefix, server);
+
+  return server.on("after", deferredEvents.finalize(eventSender.createSender()));
+};
+
+export default {
+  initialize,
+  addRoutes
+};
+
+// vim: ts=2:sw=2:et:
