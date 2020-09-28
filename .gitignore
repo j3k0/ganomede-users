@@ -2,6 +2,7 @@ node_modules/
 coverage/
 .curloutput.txt
 .testoutput.txt
+build/
 
 # We keep test docker-compose, but this one is sever-specific.
 docker-compose.yml
