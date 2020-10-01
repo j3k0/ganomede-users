@@ -6,6 +6,8 @@
 // vim: ts=2:sw=2:et:
 
 class Res {
+  status: number;
+  body: any;
   constructor() {
     this.status = 200;
   }
@@ -15,6 +17,9 @@ class Res {
 }
 
 class Server {
+  routes: any;
+  res?: Res;
+  
   constructor() {
     this.routes = {
       get: {},
@@ -40,12 +45,12 @@ class Server {
     return this.routes.del[url] = callback;
   }
 
-  request(type, url, req, callback) {
+  request(type, url, req?:any, callback?:(res?: Res) => void) {
     return this.routes[type][url](req, (this.res = new Res),
       data => {
         if (data) {
-          this.res.status = data.status || 500;
-          this.res.send(data);
+          this.res!.status = data.status || 500;
+          this.res!.send(data);
         }
         return (typeof callback === 'function' ? callback(this.res) : undefined);
     });

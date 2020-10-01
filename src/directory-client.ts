@@ -21,7 +21,7 @@
 // {"id":"aaa","aliases":{"email":"user@email.com","name":"aaa","tag":"aaa"}}
 //
 
-import restify from 'restify';
+import restifyErrors from 'restify-errors';
 
 import logMod from './log';
 import { CREATE, CHANGE, LOGIN } from './event-sender';
@@ -33,7 +33,7 @@ const reduceAliases = aliases => aliases.reduce(
   {}
 );
 
-const eventData = function(req_id, userId, aliases) {
+const eventData = function(req_id, userId, aliases?: any[]) {
   if (aliases == null) { aliases = []; }
   return {
     req_id,
@@ -42,7 +42,33 @@ const eventData = function(req_id, userId, aliases) {
   };
 };
 
-const createClient = function(...args) {
+export interface DirectoryIdRequest {
+  id: string;
+  req_id?: string;
+}
+
+export interface DirectoryAliasRequest {
+  type: string;
+  value: string;
+  req_id?: string;
+}
+
+export interface DirectoryTokenRequest {
+  token: string;
+  req_id?: string;
+}
+
+export interface DirectoryClient {
+  endpoint: (subpath: string) => string;
+  authenticate: (credentials, callback) => void;
+  addAccount: (account, callback) => void;
+  byId: (options: DirectoryIdRequest, callback) => void;
+  byAlias: (options: DirectoryAliasRequest, callback) => void;
+  byToken: (options: DirectoryTokenRequest, callback) => void;
+  editAccount: (account, callback) => void;
+}
+
+const createClient = function(...args): DirectoryClient {
 
   let obj = args[0],
       {
@@ -89,7 +115,7 @@ const createClient = function(...args) {
   const endpoint = subpath => pathname + subpath;
 
   const jsonOptions = function({ path, req_id }) {
-    const options =
+    const options: any =
       {path: endpoint(path)};
     if (req_id) {
       options.headers =
@@ -117,28 +143,27 @@ const createClient = function(...args) {
           id: credentials.id,
           code: 'UserNotFoundError'
         }, "failed to authenticate");
-        return callback(err);
+        callback(err);
 
       } else if ((res != null ? res.statusCode : undefined) === 401) {
-        return callback(new restify.InvalidCredentialsError());
-
+        callback(new restifyErrors.InvalidCredentialsError());
       } else if (err) {
         log.error({
           req_id,
           err
         }, "authentication error");
-        return callback(err);
+        callback(err);
 
       } else if ((res != null ? res.statusCode : undefined) !== 200) {
         log.error({
           req_id,
           code: res.statusCode
         }, "failed to authenticate");
-        return callback(new Error(`HTTP${res.statusCode}`));
+        callback(new Error(`HTTP${res.statusCode}`));
 
       } else {
         sendEvent(LOGIN, eventData(req_id, credentials.id));
-        return callback(null, body);
+        callback(null, body);
       }
     });
   };
@@ -147,7 +172,7 @@ const createClient = function(...args) {
 
     if (account == null) { account = {}; }
     if (!account.id || !account.password) {
-      return callback(new restify.InvalidContentError(
+      return callback(new restifyErrors.InvalidContentError(
         'Missing credentials')
       );
     }
@@ -178,7 +203,7 @@ const createClient = function(...args) {
 
     if (account == null) { account = {}; }
     if (!account.id) {
-      return callback(new restify.InvalidContentError(
+      return callback(new restifyErrors.InvalidContentError(
         'Missing account id')
       );
     }
@@ -188,7 +213,7 @@ const createClient = function(...args) {
       req_id: account.req_id
     });
 
-    const body = {secret: apiSecret};
+    const body: any = {secret: apiSecret};
     let triggerChangeEvent = false;
 
     if (account.password) {
@@ -197,7 +222,7 @@ const createClient = function(...args) {
       body.aliases = account.aliases;
       triggerChangeEvent = true;
     } else {
-      return callback(new restify.InvalidContentError(
+      return callback(new restifyErrors.InvalidContentError(
         'Nothing to change')
       );
     }
@@ -222,7 +247,7 @@ const createClient = function(...args) {
       log.error({code: res.statusCode}, `failed to ${description} account`);
       return callback(new Error(`HTTP${res.statusCode}`));
     } else if (!body) {
-      return callback(new restify.InvalidContentError(
+      return callback(new restifyErrors.InvalidContentError(
         'Server replied with no data')
       );
     } else {
@@ -236,7 +261,7 @@ const createClient = function(...args) {
     } else if (res.statusCode !== 200) {
       return callback(new Error(`HTTP${res.statusCode}`));
     } else if (!body) {
-      return callback(new restify.InvalidContentError(
+      return callback(new restifyErrors.InvalidContentError(
         'Server replied with no data')
       );
     } else {
@@ -244,7 +269,7 @@ const createClient = function(...args) {
     }
   });
 
-  const byAlias = function({ type, value, req_id }, callback) {
+  const byAlias = function({ type, value, req_id }: DirectoryAliasRequest, callback) {
 
     const options = jsonOptions({
       path: ("/users/alias/" +
@@ -256,7 +281,7 @@ const createClient = function(...args) {
   };
 
   // callback(err, DirectoryAccount)
-  const byToken = function({ token, req_id }, callback) {
+  const byToken = function({ token, req_id }: DirectoryTokenRequest, callback) {
 
     const options = jsonOptions({
       path: "/users/auth/" + encodeURIComponent(token),
@@ -266,7 +291,7 @@ const createClient = function(...args) {
   };
 
   // callback(err, DirectoryAccount)
-  const byId = function({ id, req_id }, callback) {
+  const byId = function({ id, req_id }: DirectoryIdRequest, callback) {
 
     const options = jsonOptions({
       path: "/users/id/" + encodeURIComponent(id),

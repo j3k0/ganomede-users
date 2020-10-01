@@ -3,11 +3,11 @@ services:
 
   sut:
     build: .
-    command: sh -c "./tests/wait-for-it -t 0 users:8000 && ./run_tests.sh && ./tests/rest_api.sh"
+    command: sh -c "./tests/wait-for-it -t 0 users:8000 && npm i && npm test && ./tests/rest_api.sh"
     volumes:
      - ./src:/home/app/code/src
      - ./tests:/home/app/code/tests
-     - ./run_tests.sh:/home/app/code/run_tests.sh
+     - ./build:/home/app/code/build
     depends_on:
      - users
     environment:
@@ -22,7 +22,8 @@ services:
     volumes:
      - ./src:/home/app/code/src
      - ./tests:/home/app/code/tests
-    command: sh -c "./tests/wait-for-it -t 0 centralusermeta:8000 && ./tests/wait-for-it -t 0 directory:8000 && ./tests/wait-for-it -t 0 localusermeta:8000 && ./tests/wait-for-it -t 0 events:8000 && node index.js"
+     - ./build:/home/app/code/build
+    command: sh -c "./tests/wait-for-it -t 0 centralusermeta:8000 && ./tests/wait-for-it -t 0 directory:8000 && ./tests/wait-for-it -t 0 localusermeta:8000 && ./tests/wait-for-it -t 0 events:8000 && npm start"
     depends_on:
      - authredis
      - centralusermeta
@@ -43,7 +44,7 @@ services:
      - "DIRECTORY_PORT_8000_TCP_ADDR=directory"
      - "EVENTS_PORT_8000_TCP_ADDR=events"
     ports:
-     - "8001:8000"
+     - "8000"
 
   centralusermeta:
     image: ganomede/usermeta:v1.2.3
@@ -139,7 +140,7 @@ services:
      - ./tests/wait-for-it:/wait-for-it
 
   directorycouch:
-    image: klaemo/couchdb:1.6.1
+    image: couchdb:1.6.1
   authredis:
     image: redis:alpine
   centralusermetaredis:

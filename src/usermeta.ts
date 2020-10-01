@@ -5,9 +5,12 @@
  * DS207: Consider shorter variations of null checks
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
-import restify from "restify";
+import restifyClients from "restify-clients";
+import restifyErrors from "restify-errors";
+import redis from "redis";
 import urllib from 'url';
-const log = require("./log").child({module:"usermeta"});
+import logMod from "./log";
+const log = logMod.child({module:"usermeta"});
 import tagizer from 'ganomede-tagizer';
 import validator from './validator';
 
@@ -47,7 +50,7 @@ var directory = {
   // was stored in the authdb. So we have some fallbacks.
   userNotFound: {
     password(authdbClient, params, cb) {
-      return cb(new restify.NotAuthorizedError("Forbidden"));
+      return cb(new restifyErrors.NotAuthorizedError("Forbidden"));
     },
     name(authdbClient, params, cb) {
       return cb(null, (params.name|| params.username));
@@ -64,7 +67,7 @@ var directory = {
         return authdbClient.getAccount(params.authToken,
           (err, account) => cb(err, account != null ? account.email : undefined));
       } else {
-        return cb(new restify.NotFoundError("no email"));
+        return cb(new restifyErrors.NotFoundError("no email"));
       }
     }
   },
@@ -116,10 +119,10 @@ var directory = {
     },
     // tag and username are read-only
     tag(directoryClient, params, key, value, cb) {
-      return cb(new restify.NotAuthorizedError("tag is read-only"));
+      return cb(new restifyErrors.NotAuthorizedError("tag is read-only"));
     },
     username(directoryClient, params, key, value, cb) {
-      return cb(new restify.NotAuthorizedError("username is read-only"));
+      return cb(new restifyErrors.NotAuthorizedError("username is read-only"));
     }
   },
 
@@ -147,14 +150,14 @@ var directory = {
   set(directoryClient, params, key, value, cb) {
     params = parseParams(params);
     if (!params.authToken) {
-      return cb(new restify.NotAuthorizedError("Protected meta"));
+      return cb(new restifyErrors.NotAuthorizedError("Protected meta"));
     }
 
     // special cases:
     //  * 'email', 'name', 'password' have to be valid
     //  * 'name' also changes 'tag'
     if (typeof directory.invalidValue[key] === 'function' ? directory.invalidValue[key](value) : undefined) {
-      return cb(new restify.InvalidContentError(`${key} is invalid`));
+      return cb(new restifyErrors.InvalidContentError(`${key} is invalid`));
     }
 
     const passTrough = (directoryClient, params, key, value, cb) => cb(null);
@@ -171,6 +174,13 @@ var directory = {
 // Stores "protected" metadata as directory account aliases
 class DirectoryAliasesProtected {
 
+  type: string;
+  directoryClient: any;
+  authdbClient: any;
+  validKeys: {
+    [key: string]: boolean;
+  };
+
   constructor(directoryClient, authdbClient) {
     this.directoryClient = directoryClient;
     this.authdbClient = authdbClient;
@@ -186,19 +196,19 @@ class DirectoryAliasesProtected {
 
   set(params, key, value, cb) {
     if (!this.isValid(key || this.isReadOnly(key))) {
-      return cb(new restify.BadRequestError("Forbidden meta key"));
+      return cb(new restifyErrors.BadRequestError("Forbidden meta key"));
     }
     return directory.set(this.directoryClient, params, key, value, cb);
   }
 
   get(params, key, cb) {
     if (!this.isValid(key) || this.isWriteOnly(key)) {
-      return cb(new restify.BadRequestError("Forbidden meta key"));
+      return cb(new restifyErrors.BadRequestError("Forbidden meta key"));
     }
     params = parseParams(params);
     // protected metadata require an authToken for reading
     if (!params.authToken) {
-      return cb(new restify.NotAuthorizedError("Protected meta"));
+      return cb(new restifyErrors.NotAuthorizedError("Protected meta"));
     }
     if (params[key]) {
       return cb(null, params[key]);
@@ -215,6 +225,13 @@ class DirectoryAliasesProtected {
 // Stores "public" metadata as directory account aliases
 class DirectoryAliasesPublic {
 
+  type: string;
+  directoryClient: any;
+  authdbClient: any;
+  validKeys: {
+    [key: string]: boolean;
+  };
+
   constructor(directoryClient, authdbClient) {
     this.directoryClient = directoryClient;
     this.authdbClient = authdbClient;
@@ -226,14 +243,14 @@ class DirectoryAliasesPublic {
 
   set(params, key, value, cb) {
     if (!this.isValid(key)) {
-      return cb(new restify.BadRequestError("Forbidden meta key"));
+      return cb(new restifyErrors.BadRequestError("Forbidden meta key"));
     }
     return directory.set(this.directoryClient, params, key, value, cb);
   }
 
   get(params, key, cb) {
     if (!this.isValid(key)) {
-      return cb(new restify.BadRequestError("Forbidden meta key"));
+      return cb(new restifyErrors.BadRequestError("Forbidden meta key"));
     }
     params = parseParams(params);
     if (params[key]) {
@@ -250,6 +267,13 @@ class DirectoryAliasesPublic {
 
 // Stores "public" metadata in redis
 class RedisUsermeta {
+
+  type: string;
+  validKeys: {
+    [key: string]: boolean;
+  } | null;
+  redisClient: any;
+
   constructor(redisClient) {
     this.redisClient = redisClient;
     this.type = "RedisUsermeta";
@@ -267,10 +291,10 @@ class RedisUsermeta {
     if (maxLength == null) { maxLength = DEFAULT_MAX_LENGTH; }
     const {username} = parseParams(params);
     if ((maxLength > 0) && ((value != null ? value.length : undefined) > maxLength)) {
-      return cb(new restify.BadRequestError("Value too large"));
+      return cb(new restifyErrors.BadRequestError("Value too large"));
     }
     if (!this.isValid(key)) {
-      return cb(new restify.BadRequestError("Forbidden meta key"));
+      return cb(new restifyErrors.BadRequestError("Forbidden meta key"));
     }
     return this.redisClient.set(`${username}:${key}`, value, (err, reply) => cb(err, reply));
   }
@@ -287,8 +311,12 @@ class RedisUsermeta {
 
 const endpoint = subpath => `/usermeta/v1${subpath}`;
 const jsonOptions = function({ path, req_id }) {
-  const options =
-    {path: endpoint(path)};
+  const options: {
+    path: string;
+    headers?: any;
+  } = {
+    path: endpoint(path)
+  };
   if (req_id) {
     options.headers =
       {"x-request-id": req_id};
@@ -309,6 +337,10 @@ const authPath = function(params) {
 // Stores metadata in ganomede-usermeta
 // ganomede-usermeta server will take care of key validation
 class GanomedeUsermeta {
+
+  jsonClient: any;
+  type: string;
+
   constructor(jsonClient) {
     this.jsonClient = jsonClient;
     this.type = "GanomedeUsermeta";
@@ -369,6 +401,14 @@ class GanomedeUsermeta {
 //  - 'yearofbirth' -> GanomedeUsermeta.Central
 //  - * -> GanomedeUsermeta.Local
 class UsermetaRouter {
+
+  type: string;
+  directoryPublic: any;
+  directoryProtected: any;
+  ganomedeCentral: any;
+  ganomedeLocal: any;
+  routes: any;
+
   constructor({
     directoryPublic,
     directoryProtected,
@@ -404,15 +444,29 @@ class UsermetaRouter {
   }
 }
 
+export interface UsermetaClientOptions {
+  req_id: string;
+  authToken: string;
+  username: string;
+  tag?: string;
+  name?: string;
+  email?: string;
+}
+
+export interface UsermetaClient {
+  set: (params: UsermetaClientOptions, key, value, callback: (err, reply) => void, maxLength?: number) => void;
+  get: (params: UsermetaClientOptions, key, callback: (err, reply) => void) => void;
+};
+
 export default {
-  create(config) {
+  create(config): UsermetaClient {
 
     // Linked with a ganomede-usermeta jsonClient
     if (config.ganomedeClient) {
       return new GanomedeUsermeta(config.ganomedeClient);
     }
     if (config.ganomedeConfig) {
-      return new GanomedeUsermeta(restify.createJsonClient({
+      return new GanomedeUsermeta(restifyClients.createJsonClient({
         url: urllib.format({
           protocol: config.ganomedeConfig.protocol || 'http',
           hostname: config.ganomedeConfig.host,

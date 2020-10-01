@@ -3,7 +3,9 @@
  * DS102: Remove unnecessary code created because of implicit returns
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
-const uniq = function(a) {
+import logMod from './log';
+
+ const uniq = function(a) {
   const has = {};
   return a.filter(function(item) {
     if (has.hasOwnProperty(item)) {
@@ -22,7 +24,7 @@ const createStore = function(options) {
       log
     } = options);
   } else {
-    log = require("./log").child({module:"friends-store"});
+    log = logMod.child({module:"friends-store"});
   }
 
   // Constants

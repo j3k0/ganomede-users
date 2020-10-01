@@ -8,7 +8,7 @@
     "node": ">=6"
   },
   "scripts": {
-    "start": "node build/src/index.js",
+    "start": "node -r source-map-support/register build/src/index.js",
     "test": "API_SECRET=42 mocha --color --require ts-node/register --extensions ts tests/**/test-*.ts | bunyan -l error -o short --color",
     "build": "tsc",
     "buildw": "tsc -w",
@@ -32,6 +32,7 @@
     "password-generator": "^2.1.0",
     "redis": "^3.0.2",
     "restify": "^8.5.1",
+    "restify-clients": "^4.0.0",
     "restify-errors": "^8.0.2",
     "source-map-support": "^0.5.19",
     "state-machine": "0.0.3",
@@ -45,12 +46,13 @@
     "@types/redis": "^2.8.21",
     "@types/restify": "^8.4.2",
     "@types/restify-errors": "^4.3.3",
+    "chai": "^4.2.0",
     "expect.js": "^0.3.1",
     "lodash": "^4.17.4",
     "mocha": "^7.2.0",
     "nodemon": "^2.0.4",
     "superagent": "^5.2.2",
-    "testdouble": "^3.2.6",
+    "testdouble": "^3.16.1",
     "typescript": "^3.9.3"
   }
 }

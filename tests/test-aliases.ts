@@ -7,7 +7,7 @@ import assert from "assert";
 import aliases from "../src/aliases";
 
 describe("aliases", function() {
-  let aliasesClient = null;
+  let aliasesClient: any = null;
   before(function() {
     const fakeUsermetaClient = {
       meta: {},
@@ -20,7 +20,7 @@ describe("aliases", function() {
         return cb(null);
       }
     };
-    return aliasesClient = aliases.createClient({
+    aliasesClient = aliases.createClient({
       usermetaClient: fakeUsermetaClient});
   });
 

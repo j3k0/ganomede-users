@@ -46,8 +46,8 @@ describe('BanInfo', function() {
 
 describe('Bans', function() {
 
-  let usermetaClient = null;
-  let bans = null;
+  let usermetaClient: any = null;
+  let bans: any = null;
 
   beforeEach(function() {
     usermetaClient = td.object(['get', 'set']);
@@ -85,7 +85,7 @@ describe('Bans', function() {
       return done();
     }));
 
-    return it.skip('results are correct', done => async.mapValues(
+    /* return it.skip('results are correct', done => async.mapValues(
       params,
       (username, key, cb) => bans.get(params.username, cb),
       function(err, infos) {
@@ -95,16 +95,16 @@ describe('Bans', function() {
         expect(infos.notBanned.username).to.equal(params.notBanned.username);
         expect(infos.notBanned.exists).to.be.false;
         return done();
-    }));
+    })); */
   });
 
-  return describe.skip('#unban()', () => it('removes existing bans', done => bans.unban(params.banned.username, function(err) {
-    expect(err).to.be.null;
+  // return describe.skip('#unban()', () => it('removes existing bans', done => bans.unban(params.banned.username, function(err) {
+  //   expect(err).to.be.null;
 
-    return client.exists(`bans:${params.banned.username}`, function(err, reply) {
-      expect(err).to.be.null;
-      expect(reply).to.be.equal(0);
-      return done();
-    });
-  })));
+  //   return client.exists(`bans:${params.banned.username}`, function(err, reply) {
+  //     expect(err).to.be.null;
+  //     expect(reply).to.be.equal(0);
+  //     return done();
+  //   });
+  // })));
 });

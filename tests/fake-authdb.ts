@@ -4,6 +4,7 @@
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
 class AuthdbClient {
+  store: any;
   constructor() {
     this.store = {};
   }

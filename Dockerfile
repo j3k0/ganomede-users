@@ -1,22 +1,24 @@
-FROM node:10
-
-EXPOSE 8000
+# Run
+FROM node:12
+WORKDIR /home/app/code
 MAINTAINER Jean-Christophe Hoelt <hoelt@fovea.cc>
+EXPOSE 8000
 
 # Create 'app' user
 RUN useradd app -d /home/app
 
 # Install NPM packages
-COPY package.json /home/app/code/package.json
-COPY package-lock.json /home/app/code/package-lock.json
-RUN cd /home/app/code && npm ci
+COPY package.json .
+COPY package-lock.json .
+RUN npm install
+
+ENV NODE_ENV=production
+COPY tsconfig.json .
+COPY src src
+RUN npm run build
 
 # Copy app source files
-COPY index.js config.js Makefile coffeelint.json .eslintignore .eslintrc /home/app/code/
-COPY tests /home/app/code/tests
-COPY src /home/app/code/src
 RUN chown -R app /home/app
 
 USER app
-WORKDIR /home/app/code
-CMD node index.js
+CMD npm start

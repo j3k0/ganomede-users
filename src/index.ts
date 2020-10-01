@@ -1,13 +1,15 @@
 'use strict';
 
-require('coffee-script/register');
+import cluster from 'cluster';
+import restify from 'restify';
+import restifyErrors from 'restify-errors';
+import main from './main';
+import log from './log';
+import sendAuditStats from './send-audit-stats';
+const pkg = require('../package.json');
 
-const cluster = require('cluster');
-const log = require('./src/log');
-const pkg = require('./package.json');
-
-const port = +process.env.PORT || 8000;
-const routePrefix = process.env.ROUTE_PREFIX || pkg.api;
+const port: number = +(process.env.PORT || '8000');
+const routePrefix: string = process.env.ROUTE_PREFIX || pkg.api;
 
 if (cluster.isMaster) {
 
@@ -22,9 +24,6 @@ if (cluster.isMaster) {
 else {
 
   // worker
-  const restify = require('restify');
-  const main = require('./src/main');
-
   const server = restify.createServer({
     handleUncaughtExceptions: true,
     log: log
@@ -52,15 +51,14 @@ else {
   server.use(requestLogger);
 
     // Enable restify plugins
-  server.use(restify.bodyParser());
+  server.use(restify.plugins.bodyParser());
     // server.use(restify.gzipResponse());
 
     // Audit requests at completion
   server.on('after', filteredLogger(process.env.NODE_ENV === 'production',
-        restify.auditLogger({log: log, body: true})));
+        restify.plugins.auditLogger({log: log, body: true, event: 'after'})));
 
   // Send audit statistics
-  const sendAuditStats = require('./src/send-audit-stats');
   server.on('after', sendAuditStats);
 
     // Automatically add a request-id to the response
@@ -95,8 +93,7 @@ else {
             // a new worker.
       cluster.worker.disconnect();
 
-      const InternalError = require('restify').InternalError;
-      res.send(new InternalError(err, err.message || 'unexpected error'));
+      res.send(new restifyErrors.InternalError(err, err.message || 'unexpected error'));
     }
     catch (err2) {
       log.error('Error sending 500!');

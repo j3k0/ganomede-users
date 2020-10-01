@@ -6,6 +6,7 @@
  */
 const DEFAULT_MAX_LENGTH = 200;
 class UsermetaClient {
+  store: any;
   constructor() {
     this.store = {};
   }
@@ -24,8 +25,10 @@ class UsermetaClient {
   }
 }
 
-export default {createClient(redis) { return new UsermetaClient(redis); }};
+export function createClient(_redis?) {
+  return new UsermetaClient();
+}
+
+export default {createClient};
 
 // vim: ts=2:sw=2:et:
-
-

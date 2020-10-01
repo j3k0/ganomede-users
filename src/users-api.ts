@@ -13,12 +13,15 @@ import _ from 'lodash';
 
 import async from "async";
 import authentication from "./authentication";
-import restify from "restify";
-import log from "./log";
+import restifyClients from "restify-clients";
+import restifyErrors from "restify-errors";
+import logMod from "./log";
+let log = logMod.child({module: "users-api"});
 import helpers from "ganomede-helpers";
 import ganomedeDirectory from "ganomede-directory";
 const serviceConfig = helpers.links.ServiceEnv.config;
-import usermeta from "./usermeta";
+import usermeta, { UsermetaClientOptions } from "./usermeta";
+import {UsermetaClient} from "./usermeta";
 import aliases from "./aliases";
 import fullnames from "./fullnames";
 import friendsStore from "./friends-store";
@@ -31,9 +34,19 @@ import parseTagMod from './middlewares/parse-tag';
 import eventSender from './event-sender';
 import deferredEvents from './deferred-events';
 import emails from './emails';
+import statsdWrapper from './statsd-wrapper';
+import facebookFriends from './facebook-friends';
+import friendsApiMod from './friends-api';
+import directoryClientMod from './directory-client';
+import mailTemplate from './mail-template';
+import backendDirectoryMod from './backend/directory';
+
 
 const sendError = function(req, err, next) {
-  if (err.rawError) {
+  if (err.code == 'InvalidCredentials' || err.code == 'StormpathResourceError2006') {
+   req.log.info(err);
+  }
+  else if (err.rawError) {
     req.log.error(err.rawError);
   } else {
     req.log.error(err);
@@ -41,37 +54,37 @@ const sendError = function(req, err, next) {
   return next(err);
 };
 
-const stats = require('./statsd-wrapper').createClient();
+const stats = statsdWrapper.createClient();
 
 // Retrieve Stormpath configuration from environment
 const apiSecret = process.env.API_SECRET || null;
 
 // Facebook
-const facebookClient = facebook.createClient();
+const facebookClient = facebook.createClient({});
 
 // Connection to AuthDB
-let authdbClient = null;
+let authdbClient: any = null;
 
 // Extra user data
-let rootUsermetaClient = null;
-let localUsermetaClient = null;
-let centralUsermetaClient = null;
-const bansClient = null;
-let aliasesClient = null;
-let fullnamesClient = null;
-let friendsClient = null;
-let friendsApi = null;
-let bans = null;
-let authenticator = null;
-let directoryClient = null;
+let rootUsermetaClient: UsermetaClient|null = null;
+let localUsermetaClient: UsermetaClient|null = null;
+let centralUsermetaClient:UsermetaClient|null = null;
+let aliasesClient: any = null;
+let fullnamesClient: any = null;
+let friendsClient: any = null;
+let friendsApi: any = null;
+let bans: any = null;
+let authenticator: any = null;
+let directoryClient: any = null;
+let storeFacebookFriends: (options: any) => void | null;
 
 // backend, once initialized
-let backend = null;
+let backend: any = null;
 
 // Create a user account
 const createAccount = function(req, res, next) {
 
-  let usernameError;
+  let usernameError: any;
   if (usernameError = usernameValidator(req.body.username)) {
     return sendError(req, usernameError, next);
   }
@@ -97,7 +110,7 @@ const createAccount = function(req, res, next) {
       let {
         metadata
       } = req.body;
-      const add = (value, key, callback) => rootUsermetaClient.set(params, key, value, function(err, reply) {
+      const add = (value, key, callback) => rootUsermetaClient!.set(params, key, value, function(err, reply) {
         if (err) {
           req.log.warn({key, value, err}, "failed to set metadata");
         }
@@ -218,7 +231,7 @@ var checkBanMiddleware = function(req, res, next) {
              null;
 
   if (!username) {
-    return sendError(req, new restify.BadRequestError, next);
+    return sendError(req, new restifyErrors.BadRequestError, next);
   }
 
   return checkBan(username, function(err, exists) {
@@ -232,7 +245,7 @@ var checkBanMiddleware = function(req, res, next) {
         authdbClient.addAccount(req.params.authToken, null, function() {});
       }
 
-      return next(new restify.ForbiddenError('user is banned'));
+      return next(new restifyErrors.ForbiddenError('user is banned'));
 
     } else {
       return next();
@@ -247,7 +260,7 @@ const getAccountFromAuthDb = function(req, res, next) {
   // We're loading the account from a token (required)
   const token = req.params.authToken;
   if (!token) {
-    const err = new restify.InvalidContentError("invalid content");
+    const err = new restifyErrors.InvalidContentError("invalid content");
     return sendError(req, err, next);
   }
 
@@ -259,7 +272,7 @@ const getAccountFromAuthDb = function(req, res, next) {
   return authdbClient.getAccount(token, function(err, account) {
     if (err) {
       req.log.warn({err}, "NotAuthorizedError");
-      err = new restify.NotAuthorizedError("not authorized");
+      err = new restifyErrors.NotAuthorizedError("not authorized");
       return sendError(req, err, next);
     }
 
@@ -274,7 +287,7 @@ const getAccountFromAuthDb = function(req, res, next) {
 const getAccountMetadata = function(req, res, next) {
   // console.log 'getAccountMetadata'
   const { account } = req._store;
-  const params = {
+  const params: UsermetaClientOptions = {
     req_id: req.id(),
     authToken: req.params.authToken,
     username: account.username
@@ -286,7 +299,7 @@ const getAccountMetadata = function(req, res, next) {
     params.name     = account.name;
     params.email    = account.email;
   }
-  return rootUsermetaClient.get(params, "country", (err, country) => rootUsermetaClient.get(params, "yearofbirth", function(err, yearofbirth) {
+  return rootUsermetaClient!.get(params, "country", (err, country) => rootUsermetaClient!.get(params, "yearofbirth", function(err, yearofbirth) {
     req._store.account.metadata = {country, yearofbirth};
     return next();
   }));
@@ -330,7 +343,7 @@ const passwordResetEmail = function(req, res, next) {
   req.log.info("reset password", {token, email});
 
   if (!token && !email) {
-    const err = new restify.InvalidContentError("invalid content");
+    const err = new restifyErrors.InvalidContentError("invalid content");
     return sendError(req, err, next);
   }
 
@@ -347,7 +360,7 @@ const passwordResetEmail = function(req, res, next) {
 
 const jsonBody = function(req, res, next) {
   if (typeof req.params !== 'object') {
-    return sendError(req, new restify.BadRequestError(
+    return sendError(req, new restifyErrors.BadRequestError(
       'Body is not json'), next);
   }
   return next();
@@ -358,7 +371,7 @@ const authMiddleware = function(req, res, next) {
   let username;
   const authToken = req.params.authToken || req.context.authToken;
   if (!authToken) {
-    return sendError(req, new restify.InvalidContentError(
+    return sendError(req, new restifyErrors.InvalidContentError(
       'invalid content'), next);
   }
 
@@ -379,7 +392,7 @@ const authMiddleware = function(req, res, next) {
 
   return authdbClient.getAccount(authToken, function(err, account) {
     if (err || !account) {
-      return sendError(req, new restify.UnauthorizedError(`\
+      return sendError(req, new restifyErrors.UnauthorizedError(`\
 not authorized`), next);
     }
 
@@ -408,7 +421,7 @@ const postMetadata = function(req, res, next) {
   const {
     value
   } = req.body;
-  return rootUsermetaClient.set(params, key, value, function(err, reply) {
+  return rootUsermetaClient!.set(params, key, value, function(err, reply) {
     if (err) {
       log.error({
         err,
@@ -422,10 +435,10 @@ const postMetadata = function(req, res, next) {
 
 // Get metadata
 const getMetadata = function(req, res, next) {
-  const params = {
+  const params: UsermetaClientOptions = {
     req_id: req.id(),
-    authToken: req.params.authToken || req.context.authToken,
-    username: req.params.username
+    authToken: req.params?.authToken || req.context?.authToken,
+    username: req.params?.username
   };
   // fill in already loaded info when we have them
   if (req.params.user) {
@@ -434,10 +447,8 @@ const getMetadata = function(req, res, next) {
     params.name     = req.params.user.name;
     params.email    = req.params.user.email;
   }
-  const {
-    key
-  } = req.params;
-  return rootUsermetaClient.get(params, key, function(err, reply) {
+  const key = req.params.key;
+  return rootUsermetaClient!.get(params, key, function(err, reply) {
     res.send({
       key,
       value: reply
@@ -447,13 +458,10 @@ const getMetadata = function(req, res, next) {
 };
 
 // Initialize the module
-const initialize = function(cb, options) {
+const initialize = function(cb, options: any = {}) {
 
-  if (options == null) { options = {}; }
   if (options.log) {
-    ({
-      log
-    } = options);
+    log = options.log;
   }
 
   // Initialize the directory client (if possible)
@@ -467,7 +475,7 @@ const initialize = function(cb, options) {
       throw new Error('Directory is not properly configured');
     }
     log.info({directoryService}, "Link to ganomede-directory");
-    directoryJsonClient = restify.createJsonClient({
+    directoryJsonClient = restifyClients.createJsonClient({
       url: urllib.format({
         protocol: directoryService.protocol || 'http',
         hostname: directoryService.host,
@@ -475,7 +483,7 @@ const initialize = function(cb, options) {
         pathname: 'directory/v1'
       })
     });
-    return require('./directory-client').createClient({
+    return directoryClientMod.createClient({
       log,
       jsonClient: directoryJsonClient,
       sendEvent: deferredEvents.sendEvent
@@ -544,8 +552,7 @@ const initialize = function(cb, options) {
     authdbClient, localUsermetaClient, centralUsermetaClient });
 
   // Facebook friends
-  const facebookFriends = require("./facebook-friends");
-  const storeFacebookFriends = options => facebookFriends.storeFriends({
+  storeFacebookFriends = options => facebookFriends.storeFriends({
     username: options.username,
     accessToken: options.accessToken,
     callback: options.callback || function() {},
@@ -554,10 +561,10 @@ const initialize = function(cb, options) {
     facebookClient: options.facebookClient || facebookClient
   });
 
-  friendsApi = options.friendsApi || require("./friends-api").createApi({
+  friendsApi = options.friendsApi || friendsApiMod.createApi({
     friendsClient, authMiddleware });
 
-  const backendOpts = {
+  const backendOpts: any = {
     apiId: options.stormpathApiId,
     apiSecret: options.stormpathApiSecret,
     appName: options.stormpathAppName,
@@ -581,7 +588,7 @@ const initialize = function(cb, options) {
       throw new Error("directory service not configured properly");
     }
     backendOpts.directoryClient = directoryClient;
-    backendOpts.passwordResetTemplate = require('./mail-template')
+    backendOpts.passwordResetTemplate = mailTemplate
       .createTemplate({
         subject: process.env.MAILER_SEND_SUBJECT,
         text: process.env.MAILER_SEND_TEXT,
@@ -595,7 +602,7 @@ const initialize = function(cb, options) {
   if (!createBackend) {
     log.info("Using directory backend only");
     prepareDirectoryBackend();
-    ({ createBackend } = require('./backend/directory'));
+    createBackend = backendDirectoryMod.createBackend;
   }
 
   const be = createBackend(backendOpts);
@@ -617,7 +624,7 @@ const validateSecret = function(req, res, next) {
   if (ok) {
     return next();
   } else {
-    return next(new restify.ForbiddenError());
+    return next(new restifyErrors.ForbiddenError());
   }
 };
 
@@ -687,11 +694,11 @@ const addRoutes = function(prefix, server) {
     getAccountSend
   );
 
-  server.post(`${prefix}/banned-users`,
+  server.post(`/${prefix}/banned-users`,
     jsonBody, validateSecret, bodyTag, banAdd);
-  server.del(`${prefix}/banned-users/:tag`,
+  server.del(`/${prefix}/banned-users/:tag`,
     validateSecret, parseTag, banRemove);
-  server.get(`${prefix}/banned-users/:tag`,
+  server.get(`/${prefix}/banned-users/:tag`,
     parseTag, banStatus);
 
   let endPoint = `/${prefix}/auth/:authToken/passwordResetEmail`;

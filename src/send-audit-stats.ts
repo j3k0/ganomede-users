@@ -1,14 +1,14 @@
 // A restify server.on('after', ...) handler
 //
 // Will send requests statistics to a statsd server
-
 'use strict';
 
-const stats = require('./statsd-wrapper').createClient();
+import statsdWrapper from './statsd-wrapper';
+const stats = statsdWrapper.createClient();
 
 const cleanupStatsKey = (key) => key.replace(/[-.]/g, '_').toLowerCase();
 
-const sendAuditStats = (req, res, next) => {
+export function sendAuditStats(req, res, next) {
 
   // send number of calls to this route (with response status code) with 10% sampling
   const routeName = req.route ? 'route.' + req.route.name : 'invalid_route';
@@ -29,6 +29,6 @@ const sendAuditStats = (req, res, next) => {
   if (typeof next == 'function') {
     next();
   }
-};
+}
 
-module.exports = sendAuditStats;
+export default sendAuditStats;

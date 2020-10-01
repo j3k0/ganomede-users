@@ -16,7 +16,7 @@ describe("about-api", function() {
 
   return it("should reply to a about with config info", function() {
     server.request("get", "/users/about");
-    return assert.equal(server.res.body.type, "ganomede-users");
+    return assert.equal(server.res?.body.type, "ganomede-users");
   });
 });
 

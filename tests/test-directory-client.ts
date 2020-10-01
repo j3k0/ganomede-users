@@ -3,7 +3,7 @@
  * DS102: Remove unnecessary code created because of implicit returns
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
-import restify from 'restify';
+import restifyErrors from 'restify-errors';
 import { expect } from 'chai';
 import td from 'testdouble';
 import directoryClientMod from '../src/directory-client';
@@ -17,7 +17,8 @@ import {
   directoryAccount,
   findAlias,
   directoryAliasesObj,
-} from './directory-data.coffee';
+} from './directory-data';
+
 
 const CREDS = directoryAccount(EXISTING_USER);
 const WRONG_CREDS = directoryAccount(NEW_USER);
@@ -37,33 +38,39 @@ const jsonClientTD = function() {
 
   td.when(jsonClient.post(
     td.matchers.contains({path: '/users/auth'}), td.matchers.anything()))
-      .thenCallback(null, null, status(401));
+  // @ts-ignore
+  .thenCallback(null, null, status(401));
 
   // attempt to authenticate with valid credentials
   td.when(jsonClient.post(
     td.matchers.contains({path: '/users/auth'}),
     td.matchers.contains(directoryAccount(EXISTING_USER))))
-    .thenCallback(null, null, status(200), authResult(EXISTING_USER));
+  // @ts-ignore
+  .thenCallback(null, null, status(200), authResult(EXISTING_USER));
 
   // attempt to create a user with random data
   td.when(jsonClient.post(
     td.matchers.contains({path:'/users'}), td.matchers.anything()))
-      .thenCallback(null, null, status(400));
+  // @ts-ignore
+  .thenCallback(null, null, status(400));
 
   // attempt to create a user with valid account data from NEW_USER
   td.when(jsonClient.post(
     td.matchers.contains({path: '/users'}), td.matchers.contains(ADD_ACCOUNT)))
-      .thenCallback(null, null, status(200), {id:NEW_USER.id});
+  // @ts-ignore
+  .thenCallback(null, null, status(200), {id:NEW_USER.id});
 
   // fails when loading unknown aliases
   td.when(jsonClient.get(
     td.matchers.anything()))
-      .thenCallback(null, null, status(404));
+  // @ts-ignore
+  .thenCallback(null, null, status(404));
 
   // loads existing user by alias
   const uri = `/users/alias/email/${encodeURIComponent(EXISTING_USER.email)}`;
   td.when(jsonClient.get(td.matchers.contains({path: uri})))
-    .thenCallback(null, null, status(200), {
+  // @ts-ignore
+  .thenCallback(null, null, status(200), {
       id: EXISTING_USER.id,
       aliases: directoryAliasesObj(EXISTING_USER)
     }
@@ -180,22 +187,22 @@ describe('directory-client', function() {
     it('requires credentials as argument', function() {
       const { callback } = addAccount(null);
       return td.verify(callback(
-        td.matchers.isA(restify.InvalidContentError))
+        td.matchers.isA(restifyErrors.InvalidContentError))
       );
     });
 
     it('requires an argument with id and password fields', function() {
       let { callback } = addAccount({});
       td.verify(callback(
-        td.matchers.isA(restify.InvalidContentError))
+        td.matchers.isA(restifyErrors.InvalidContentError))
       );
       ({ callback } = addAccount({id:CREDS.id}));
       td.verify(callback(
-        td.matchers.isA(restify.InvalidContentError))
+        td.matchers.isA(restifyErrors.InvalidContentError))
       );
       ({ callback } = addAccount({password:CREDS.password}));
       return td.verify(callback(
-        td.matchers.isA(restify.InvalidContentError))
+        td.matchers.isA(restifyErrors.InvalidContentError))
       );
     });
 
@@ -249,7 +256,7 @@ describe('directory-client', function() {
     it('reports failure when response status is not 200');
     it('reports failure when directory server is not reachable');
 
-    return it.skip('calls sendEvent(CHANGE, userId) on alias change', function() {
+    /* return it.skip('calls sendEvent(CHANGE, userId) on alias change', function() {
       const { sendEvent } = editAccount({id: EXISTING_USER.id, alias: {
         type: 'email',
         value: 'new@email',
@@ -261,7 +268,7 @@ describe('directory-client', function() {
         aliases: {email: 'new@email'}
       })
       );
-    });
+    }); */
   });
 });
 

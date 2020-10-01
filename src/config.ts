@@ -1,7 +1,7 @@
 'use strict';
 
-const helpers = require('ganomede-helpers');
-const pkg = require('./package.json');
+import * as helpers from 'ganomede-helpers';
+const pkg = require('../package.json');
 const serviceConfig = helpers.links.ServiceEnv.config;
 
 const parseApiSecret = () => {
@@ -22,13 +22,15 @@ const parseAppName = () => {
   return appName;
 }
 
-module.exports = {
-  name: pkg.name,
-  api: pkg.api,
-  secret: parseApiSecret(),
-  appName: parseAppName(),
-  events: serviceConfig('EVENTS', 8000)
-};
+export const name = pkg.name;
+export const api = pkg.api;
+export const secret = parseApiSecret();
+export const appName = parseAppName();
+export const events = serviceConfig('EVENTS', 8000);
+
+export default {
+  name, api, secret, appName, events
+}
 
 if (!module.parent)
   console.log('%s', require('util').inspect(module.exports, {depth: null})); // eslint-disable-line no-console

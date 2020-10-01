@@ -14,43 +14,48 @@
 //   callback has the following signature:
 //     callback(err, backend)
 
-import restify from "restify";
-
+import restifyClients from "restify-clients";
+import restifyErrors from "restify-errors";
 import vasync from "vasync";
+import * as tagizerMod from 'ganomede-tagizer';
 
-const createBackend = function(...args) {
+import logMod from '../log';
+import emailsMod from '../emails';
+import passwordGeneratorMod from 'password-generator';
+import { DirectoryClient } from "../directory-client";
+
+const createBackend = function(options) {
 
   let legacyError;
-  let obj = args[0],
-      val = obj.facebookAppId,
+  let val = options.facebookAppId,
       facebookAppId = val != null ? val : process.env.FACEBOOK_APP_ID,
+      directoryClient: DirectoryClient = options.directoryClient,
       {
-        directoryClient,
         authenticator,
         aliasesClient,
         usermetaClient,
         friendsClient,
         facebookClient,
-        checkBan,
+        // checkBan,
         facebookFriends,
         mailerTransport,
         deferredEvents
-      } = obj,
-      val1 = obj.tagizer,
-      tagizer = val1 != null ? val1 : require('ganomede-tagizer'),
-      val2 = obj.log,
-      log = val2 != null ? val2 : require('../log'),
+      } = options,
+      val1 = options.tagizer,
+      tagizer = val1 != null ? val1 : tagizerMod,
+      val2 = options.log,
+      log = val2 != null ? val2 : logMod,
       {
         fbgraphClient
-      } = obj,
-      val3 = obj.emails,
-      emails = val3 != null ? val3 : require('../emails'),
-      val4 = obj.generatePassword,
-      generatePassword = val4 != null ? val4 : require("password-generator").bind(null,8),
+      } = options,
+      val3 = options.emails,
+      emails = val3 != null ? val3 : emailsMod,
+      val4 = options.generatePassword,
+      generatePassword = val4 != null ? val4 : passwordGeneratorMod.bind(null,8),
       {
         passwordResetTemplate
-      } = obj,
-      val5 = obj.allowCreate,
+      } = options,
+      val5 = options.allowCreate,
       allowCreate = val5 != null ? val5 : true;
   if (!directoryClient) {
     throw new Error("directoryClient missing");
@@ -78,7 +83,7 @@ const createBackend = function(...args) {
   }
 
   if (!fbgraphClient) {
-    fbgraphClient = restify.createJsonClient({
+    fbgraphClient = restifyClients.createJsonClient({
       url: "https://graph.facebook.com",
       version: '*'
     });
@@ -122,13 +127,13 @@ const createBackend = function(...args) {
   }, callback) {
 
     if (!accessToken) {
-      return setImmediate(() => callback(new restify.BadRequestError("Missing accessToken")));
+      return setImmediate(() => callback(new restifyErrors.BadRequestError("Missing accessToken")));
     }
     if (!username) {
-      return setImmediate(() => callback(new restify.BadRequestError("Missing username")));
+      return setImmediate(() => callback(new restifyErrors.BadRequestError("Missing username")));
     }
     if (!password) {
-      return setImmediate(() => callback(new restify.BadRequestError("Missing password")));
+      return setImmediate(() => callback(new restifyErrors.BadRequestError("Missing password")));
     }
 
     // Load facebook data from fbgraph API
@@ -144,7 +149,7 @@ const createBackend = function(...args) {
           return cb(err);
         } else if (!account) {
           log.warn({req_id, uri}, 'fbgraph.get returned no account');
-          return cb(new restify.NotFoundError("Account not found"));
+          return cb(new restifyErrors.NotFoundError("Account not found"));
         } else {
           const defaultEmail = () => `${account.id}@${emails.noEmailDomain}`;
           facebookId = account.id;
@@ -267,7 +272,7 @@ const createBackend = function(...args) {
         );
       } else {
         if (!allowCreate) {
-          return cb(new restify.ForbiddenError(
+          return cb(new restifyErrors.ForbiddenError(
             'Cannot register new facebook users')
           );
         }
@@ -512,7 +517,7 @@ const createBackend = function(...args) {
         } else if (token) {
           return directoryClient.byToken({token, req_id}, cb);
         } else {
-          return cb(new restify.BadRequestError(
+          return cb(new restifyErrors.BadRequestError(
             'sendPasswordResetEmail requires email or auth token')
           );
         }

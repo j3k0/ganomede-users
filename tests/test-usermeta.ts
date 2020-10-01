@@ -9,7 +9,7 @@ import usermeta from "../src/usermeta";
 import fakeRedis from 'fakeredis';
 import td from 'testdouble';
 import { expect } from 'chai';
-import restify from "restify";
+import restifyErrors from "restify-errors";
 
 describe("usermeta", function() {
 
@@ -32,8 +32,8 @@ describe("usermeta", function() {
       }
     };
 
-    let usermetaClient = null;
-    let directoryClient = null;
+    let usermetaClient: any = null;
+    let directoryClient: any = null;
     beforeEach(function() {
       directoryClient = td.object(['editAccount', 'byId', 'byToken']);
       td.when(directoryClient.editAccount(td.matchers.anything()))
@@ -53,13 +53,13 @@ describe("usermeta", function() {
 
     describe('.get', function() {
       it("calls back with (BadRequestError, null) for invalid data", done => usermetaClient.get("username", "location", function(err, data) {
-        expect(err).to.be.instanceof(restify.BadRequestError);
+        expect(err).to.be.instanceof(restifyErrors.BadRequestError);
         assert.equal(null, data);
         return done();
       }));
 
       it("requires an authToken in protected mode", done => usermetaClient.get("username", "name", function(err, data) {
-        expect(err).to.be.instanceof(restify.NotAuthorizedError);
+        expect(err).to.be.instanceof(restifyErrors.NotAuthorizedError);
         return done();
       }));
 
@@ -73,14 +73,14 @@ describe("usermeta", function() {
       });
 
       return it("does not allow 'password' to be read", done => usermetaClient.get("username", "password", function(err, data) {
-        expect(err).to.be.instanceof(restify.BadRequestError);
+        expect(err).to.be.instanceof(restifyErrors.BadRequestError);
         return done();
       }));
     });
 
     return describe('.set', function() {
       it("requires an authToken", done => usermetaClient.set("username", "name", "newname", function(err, data) {
-        expect(err).to.be.instanceof(restify.NotAuthorizedError);
+        expect(err).to.be.instanceof(restifyErrors.NotAuthorizedError);
         return done();
       }));
 
@@ -92,7 +92,7 @@ describe("usermeta", function() {
 
       it("refuses invalid emails", done => usermetaClient.set({authToken:"abc"}, "email", "useremail.com",
         function(err, data) {
-          expect(err).to.be.instanceof(restify.InvalidContentError);
+          expect(err).to.be.instanceof(restifyErrors.InvalidContentError);
           return done();
       }));
 
@@ -104,7 +104,7 @@ describe("usermeta", function() {
 
       it("refuses invalid names", done => usermetaClient.set({authToken:"abc"}, "name", "ab",
         function(err, data) {
-          expect(err).to.be.instanceof(restify.InvalidContentError);
+          expect(err).to.be.instanceof(restifyErrors.InvalidContentError);
           return done();
       }));
 
@@ -117,7 +117,7 @@ describe("usermeta", function() {
 
       it("refuses short passwords", done => usermetaClient.set({authToken:"abc"}, "password", "12345",
         function(err, data) {
-          expect(err).to.be.instanceof(restify.InvalidContentError);
+          expect(err).to.be.instanceof(restifyErrors.InvalidContentError);
           return done();
       }));
 
@@ -136,8 +136,8 @@ describe("usermeta", function() {
 
   describe("RedisUsermeta", function() {
 
-    let usermetaClient = null;
-    let redisClient = null;
+    let usermetaClient: any = null;
+    let redisClient: any = null;
     beforeEach(function() {
       process.env.USERMETA_VALID_KEYS = "k1,ke2,key3,age,age1";
       redisClient = fakeRedis.createClient(__filename);
@@ -171,14 +171,14 @@ describe("usermeta", function() {
       let i;
       usermetaClient = usermeta.create({redisClient});
       const s200 = ((() => {
-        const result = [];
+        const result: string[] = [];
         for (i = 0; i < 200; i++) {
           result.push("X");
         }
         return result;
       })()).join('');
       const s201 = ((() => {
-        const result1 = [];
+        const result1: string[] = [];
         for (i = 0; i < 201; i++) {
           result1.push("X");
         }
@@ -198,8 +198,8 @@ describe("usermeta", function() {
 
   describe("GanomedeUsermeta", function() {
 
-    let jsonClient = null;
-    let usermetaClient = null;
+    let jsonClient: any = null;
+    let usermetaClient: any = null;
     beforeEach(function() {
       jsonClient = td.object(['get', 'post']);
       return usermetaClient = usermeta.create({ganomedeClient: jsonClient});
@@ -245,11 +245,11 @@ describe("usermeta", function() {
 
   return describe("UsermetaRouter", function() {
 
-    let ganomedeLocal = null;
-    let ganomedeCentral = null;
-    let directoryPublic = null;
-    let directoryProtected = null;
-    let usermetaClient = null;
+    let ganomedeLocal: any = null;
+    let ganomedeCentral: any = null;
+    let directoryPublic: any = null;
+    let directoryProtected: any = null;
+    let usermetaClient: any = null;
     const username = "username";
 
     const usermetaTD = function() {

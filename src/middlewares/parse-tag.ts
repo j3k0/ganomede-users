@@ -10,7 +10,7 @@
 // - store it into req.params.username
 //
 // in case of error, sets req.params.username = req.params.tag
-import tagizer from 'ganomede-tagizer';
+import * as tagizer from 'ganomede-tagizer';
 
 // Link tag -> user id
 const idFromTag = {};
@@ -115,7 +115,7 @@ const createParamsMiddleware = function(...args) { const obj = args[0],
       log.warn({err, tag, req_id}, "directoryClient.byAlias failed");
       req.params.username = tag;
     } else if (!account) {
-      log.warn({tag, value, req_id},
+      log.warn({tag, value: tagtag, req_id},
         "directoryClient.byAlias returned no account");
       req.params.username = tag;
     } else {

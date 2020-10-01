@@ -5,7 +5,6 @@
  */
 import assert from "assert";
 import superagent from 'superagent';
-import fakeRedis from "fakeredis";
 import fakeAuthdb from "./fake-authdb";
 import fakeUsermeta from "./fake-usermeta";
 import restify from 'restify';
@@ -30,7 +29,9 @@ const data = {
     invalid: { username: 'café'
   },
     valid: {
-      username: 'jeko'
+      username: 'jeko',
+      password: undefined,
+      email: undefined
     }
   },
   passwordReset: {
@@ -65,6 +66,7 @@ const baseTest = function() {
   const authenticator = td.object([ 'add' ]);
 
   td.when(backend.loginAccount(td.matchers.anything()))
+  // @ts-ignore
     .thenCallback(new restify.InvalidCredentialsError());
   td.when(backend.loginAccount(data.validLogin))
     .thenCallback(null, {token:VALID_AUTH_TOKEN});
@@ -86,7 +88,7 @@ const baseTest = function() {
 
 let i = 0;
 const restTest = function(done) {
-  const ret = baseTest();
+  const ret: any = baseTest();
   td.when(ret.backend.initialize()).thenCallback(null, ret.backend);
 
   ret.endpoint = function(token, path) {
@@ -131,7 +133,7 @@ const restTest = function(done) {
       if (err) {
         throw err;
       }
-      server.use(restify.bodyParser());
+      server.use(restify.plugins.bodyParser());
       api.addRoutes(PREFIX, server);
       return server.listen(1337, cb);
     }
@@ -147,7 +149,7 @@ describe('users-api', function() {
 
     it('callbacks when done', function() {
       const { callback, options, backend } = baseTest();
-      td.when(backend.initialize()).thenCallback(null);
+      td.when(backend.initialize()).thenCallback(null, null);
       api.initialize(callback, options);
       return td.verify(callback());
     });
@@ -155,7 +157,7 @@ describe('users-api', function() {
     return it('fails when backend initialization fails', function() {
       const err = new Error("failed");
       const { callback, options, backend } = baseTest();
-      td.when(backend.initialize()).thenCallback(err);
+      td.when(backend.initialize()).thenCallback(err, null);
       api.initialize(callback, options);
       return td.verify(callback(err));
     });
@@ -163,14 +165,12 @@ describe('users-api', function() {
 
   return describe('REST API', function() {
 
-    let test = null;
-    let endpoint = null;
+    let test: any = null;
+    let endpoint: any = null;
     beforeEach(function(done) {
-      test = restTest();
-      ({
-        endpoint
-      } = test);
-      return test.start(done);
+      test = restTest(() => {});
+      endpoint = test.endpoint;
+      test.start(done);
     });
     afterEach(done => test.close(done));
 
@@ -182,7 +182,7 @@ describe('users-api', function() {
           console.dir(err);
         }
       }
-      return assert.ok(!err);
+      assert.ok(!err);
     };
 
     describe.skip('/login [POST] - Logs in a user', () => it("should accept valid credentials", function(done) {
@@ -194,7 +194,7 @@ describe('users-api', function() {
           noError(err);
           assert.equal(200, res.status);
           expect(res.body).to.eql({token:VALID_AUTH_TOKEN});
-          return done();
+          done();
       });
     }));
 
@@ -223,7 +223,7 @@ describe('users-api', function() {
       const { backend } = test;
       td.when(backend.sendPasswordResetEmail(
         contains({email:data.passwordReset.email})))
-          .thenCallback(null);
+          .thenCallback(null, null);
       superagent
         .post(endpoint("/passwordResetEmail"))
         .send(data.passwordReset)
@@ -314,7 +314,7 @@ describe('users-api', function() {
           td.when(test.bans.ban({
             username,
             apiSecret
-          })).thenCallback(null);
+          })).thenCallback(null, null);
           superagent
             .post(endpoint('/banned-users'))
             .send({username, apiSecret})
@@ -397,7 +397,7 @@ tries to access any :authToken endpoint`, function(done) {
       return describe('DELETE', function() {
         it('removes bans', function(done) {
           td.when(test.bans.unban(td.matchers.isA(Object)))
-            .thenCallback(null);
+            .thenCallback(null, null);
           superagent
             .del(endpoint(`/banned-users/${username}`))
             .send({apiSecret})

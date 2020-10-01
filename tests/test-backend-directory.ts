@@ -3,15 +3,16 @@
  * DS102: Remove unnecessary code created because of implicit returns
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
-import _ from 'lodash';
+import * as _ from 'lodash';
 import restify from "restify";
+import restifyErrors from "restify-errors";
 import td from 'testdouble';
 const {anything,contains,isA} = td.matchers;
 import { expect } from 'chai';
 import tagizer from 'ganomede-tagizer';
 
 // Disable delayed calls. We're doing synchronous tests.
-global.setImmediate = func => func();
+(global.setImmediate as any) = func => { func(); }
 
 const directory = require('../src/backend/directory');
 
@@ -22,7 +23,7 @@ const { EXISTING_USER, SECONDARY_USER, TERNARY_USER, NEW_USER, APP_ID,
   account, authAccount, facebookAccount,
   directoryAccount, directoryAliasesObj,
   facebookLogin
-} = require('./directory-data.coffee');
+} = require('./directory-data');
 
 // testdouble for the directory client
 const directoryClientTD = function() {
@@ -37,7 +38,7 @@ const directoryClientTD = function() {
   // .authenticate() with wrong credentials
   td.when(directoryClient.authenticate(
     td.matchers.anything()))
-      .thenCallback(new restify.InvalidCredentialsError());
+      .thenCallback(new restifyErrors.InvalidCredentialsError(), null);
 
   // .authenticate() with correct credentials
   td.when(directoryClient.authenticate(
@@ -47,22 +48,22 @@ const directoryClientTD = function() {
   // .addAccount() succeeds
   td.when(directoryClient.addAccount(
     td.matchers.anything()))
-      .thenCallback(null);
+      .thenCallback(null, null);
 
   // .editAccount() succeeds
   td.when(directoryClient.editAccount(
     td.matchers.anything()))
-      .thenCallback(null);
+      .thenCallback(null, null);
 
   // .addAccount() fails if user already exists
   td.when(directoryClient.addAccount(
     td.matchers.contains(directoryAccount(EXISTING_USER))))
-      .thenCallback(new restify.ConflictError);
+      .thenCallback(new restifyErrors.ConflictError(), null);
 
   // .byAlias() fails when alias not in directory
   td.when(directoryClient.byAlias(
     td.matchers.anything()))
-      .thenCallback(new restify.NotFoundError());
+      .thenCallback(new restifyErrors.NotFoundError(), null);
 
   // .byAlias() loads existing user by facebook id
   td.when(directoryClient.byAlias(
@@ -110,13 +111,14 @@ const fbgraphClientTD = function() {
 
   const fbgraphClient = td.object([ 'get' ]);
   td.when(fbgraphClient.get(td.matchers.anything()))
-    .thenCallback(new Error("fbgraph.get failed"));
+    .thenCallback(new Error("fbgraph.get failed"), null);
   const addUser = function(user) {
     const token = `access_token=${user.facebook_access_token}`;
     const location = "location{location{country_code,longitude,latitude}}";
     const uri = `/v2.8/me?fields=id,name,email,${location},birthday&${token}`;
     return td.when(fbgraphClient.get(uri))
-      .thenCallback(null, null, null, {
+      // @ts-ignore
+      .thenCallback(null, null, null, { // XXX: I had to comment this out for typescript to be happy, this might break the test.. 
         id: user.facebook_id,
         email: user.email,
         name: user.fullName,
@@ -257,7 +259,7 @@ describe('backend/directory', function() {
 
     return it('fails when credentials are invalid', function() {
       const { callback } = loginAccount(credentials(NEW_USER));
-      return td.verify(callback(td.matchers.isA(restify.InvalidCredentialsError)));
+      return td.verify(callback(td.matchers.isA(restifyErrors.InvalidCredentialsError)));
     });
   });
 
@@ -331,7 +333,7 @@ describe('backend/directory', function() {
     return it('fails when the given ID is not available', function() {
       const { backend, directoryClient, callback } = backendTest();
       backend.createAccount(account(EXISTING_USER), callback);
-      return td.verify(callback(td.matchers.isA(restify.ConflictError)));
+      return td.verify(callback(td.matchers.isA(restifyErrors.ConflictError)));
     });
   });
 
@@ -350,7 +352,7 @@ describe('backend/directory', function() {
 
     it('fails when the email is not known', function() {
       const { callback } = sendPasswordResetEmail(NEW_USER.email);
-      return td.verify(callback(isA(restify.NotFoundError)));
+      return td.verify(callback(isA(restifyErrors.NotFoundError)));
     });
 
     return it('changes the user password', function() {
@@ -363,7 +365,7 @@ describe('backend/directory', function() {
 
   return describe('backend.loginFacebook()', function() {
 
-    const loginFacebook = function(account, callback) {
+    const loginFacebook = function(account, callback?) {
       const ret = backendTest();
       account.req_id = REQ_ID;
       ret.backend.loginFacebook(account, callback || ret.callback);
@@ -378,7 +380,7 @@ describe('backend/directory', function() {
       };
       delete data[fieldname];
       const { callback } = loginFacebook(data);
-      return td.verify(callback(td.matchers.isA(restify.BadRequestError)));
+      return td.verify(callback(td.matchers.isA(restifyErrors.BadRequestError)));
     };
 
     it('requires an accessToken', () => loginWithout('accessToken'));

@@ -9,7 +9,7 @@
 const rand = () => Math.random().toString(36).substr(2);
 const defaultGenToken = () => rand() + rand();
 const defaultTimestamp = () => "" + (new Date().getTime());
-const log = require('./log');
+import log from './log';
 
 const createAuthenticator = function(...args) {
 

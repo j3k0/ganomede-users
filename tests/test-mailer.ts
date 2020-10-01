@@ -8,7 +8,7 @@ import td from 'testdouble';
 const {verify,matchers} = td;
 const {isA,anything,contains} = matchers;
 import { expect } from 'chai';
-import _ from 'lodash';
+import * as _ from 'lodash';
 const calledOnce = {
   times: 1,
   ignoreExtraArgs: true
@@ -37,9 +37,9 @@ const options = {
 };
 
 const nodemailerTransportTD = function() {
-  const transport = td.object('sendMail');
+  const transport: any = td.object('sendMail');
   [badguy, goodguy].forEach(guy => td.when(transport.sendMail(contains({to: guy.email})))
-    .thenCallback(guy.err, guy.messageInfo));
+    .thenCallback(guy.err, 'messageInfo' in guy ? guy.messageInfo : undefined));
   return transport;
 };
 

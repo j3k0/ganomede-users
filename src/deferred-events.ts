@@ -1,8 +1,3 @@
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
 //
 // The directory client can trigger events, but we'd like to sometimes
 // extend them with our own data.
@@ -18,7 +13,7 @@
 // Usage:
 // ------
 //
-//    var deferredEvents = require('./deferredEvents')
+//    import deferredEvents from './deferredEvents'
 //
 // from your middlewares:
 //

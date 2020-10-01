@@ -7,13 +7,17 @@
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
 import log from "./log";
-import restify from "restify";
+import restifyClients from "restify-clients";
 
 class FacebookClient {
+
+  log: any;
+  fbgraphClient: any;
+
   constructor(options) {
     if (options == null) { options = {}; }
     this.log = options.log || log.child({module:"facebook"});
-    this.fbgraphClient = options.fbgraphClient || restify.createJsonClient({
+    this.fbgraphClient = options.fbgraphClient || restifyClients.createJsonClient({
       url: "https://graph.facebook.com",
       version: '*'
     });

@@ -9,21 +9,11 @@ import logDefault from "./log";
 const storeFriends = function(options) {
 
   const {
-    username
-  } = options;
-  const {
-    aliasesClient
-  } = options;
-  const {
-    friendsClient
-  } = options;
-  const {
-    facebookClient
-  } = options;
-  const {
-    accessToken
-  } = options;
-  const {
+    username,
+    aliasesClient,
+    friendsClient,
+    facebookClient,
+    accessToken,
     callback
   } = options;
   const rootLog = options.rootLog || logDefault;
@@ -32,9 +22,9 @@ const storeFriends = function(options) {
 
   // Retrive usernames using aliases
   const retrieveUsernames = function(fbFriends, cb) {
-    const usernames = [];
+    const usernames: string[] = [];
     return vasync.forEachParallel({
-      func(fbFriend, done) {
+      func(fbFriend, done: () => void) {
         return aliasesClient.get(`fb:${fbFriend.id}`, function(err, value) {
           if (value) {
             usernames.push(value);

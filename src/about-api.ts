@@ -1,13 +1,7 @@
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
 // About
 
-import os from "os";
-
-import pk from "../package.json";
+import * as os from "os";
+import pk = require("../package.json");
 
 const about = {
   hostname: os.hostname(),
@@ -23,8 +17,8 @@ const sendAbout = function(req, res, next) {
 };
 
 const addRoutes = function(prefix, server) {
-  server.get(`/${prefix}/about`, sendAbout);
-  return server.get("/about", sendAbout);
+  server.get("/about", sendAbout);
+  return server.get(`/${prefix}/about`, sendAbout);
 };
 
 export default {addRoutes};

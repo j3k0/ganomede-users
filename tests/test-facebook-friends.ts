@@ -9,9 +9,9 @@ import facebookFriends from "../src/facebook-friends";
 
 describe("facebook-friends", function() {
 
-  let aliasesClient = null;
-  let facebookClient = null;
-  let friendsClient = null;
+  let aliasesClient: any = null;
+  let facebookClient: any = null;
+  let friendsClient: any = null;
 
   beforeEach(function() {
     aliasesClient = {
@@ -57,31 +57,32 @@ describe("facebook-friends", function() {
     callback: options.callback
   });
 
-  return describe("storeFriends", done => it("store friends", function(done) {
+  describe("storeFriends", function() {
+    it("store friends", function(done) {
+      const myFriendsClient = {
+        add(username, friends, callback) {
+          expect(username).to.eql({
+            username: "jeko",
+            apiSecret: process.env.API_SECRET
+          });
+          assert.equal(3, friends.length);
+          return callback(null, {ok:true});
+        }
+      };
 
-    const myFriendsClient = {
-      add(username, friends, callback) {
-        expect(username).to.eql({
-          username: "jeko",
-          apiSecret: process.env.API_SECRET
-        });
-        assert.equal(3, friends.length);
-        return callback(null, {ok:true});
-      }
-    };
-
-    return storeFriends({
-      friendsClient: myFriendsClient,
-      callback(err, friends) {
-        assert.ok(!err);
-        assert.equal(3, friends.length);
-        assert.equal("sousou", friends[0]);
-        assert.equal("willy", friends[1]);
-        assert.equal("hussein", friends[2]);
-        return done();
-      }
-    });
-  }));
+      storeFriends({
+        friendsClient: myFriendsClient,
+        callback(err, friends) {
+          assert.ok(!err);
+          assert.equal(3, friends.length);
+          assert.equal("sousou", friends[0]);
+          assert.equal("willy", friends[1]);
+          assert.equal("hussein", friends[2]);
+          return done();
+        }
+      });
+    })
+  });
 });
 
 // vim: ts=2:sw=2:et:

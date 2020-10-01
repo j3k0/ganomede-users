@@ -7,8 +7,8 @@
 import assert from "assert";
 import friendsStore from "../src/friends-store";
 
-const manyFriend = (prefix, n) => (() => {
-  const result = [];
+const manyFriend = (prefix: string, n: number) => (() => {
+  const result: string[] = [];
   while (n-- > 0) {
     result.push(`${prefix}${n}`);
   }
@@ -16,7 +16,7 @@ const manyFriend = (prefix, n) => (() => {
 })();
 
 describe("friends", function() {
-  let friendsClient = null;
+  let friendsClient: any = null;
   before(function() {
     const fakeUsermetaClient = {
       meta: {},
@@ -30,7 +30,7 @@ describe("friends", function() {
         return cb(null);
       }
     };
-    return friendsClient = friendsStore.createClient({
+    friendsClient = friendsStore.createClient({
       usermetaClient: fakeUsermetaClient,
       maxFriends: 100
     });

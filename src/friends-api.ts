@@ -5,9 +5,14 @@
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
 import log from "./log";
-import restify from "restify";
+import restifyErrors from "restify-errors";
 
 class Api {
+
+  options: any;
+  authMiddleware: any;
+  friendsClient: any;
+  log: any;
 
   constructor(options) {
 
@@ -67,7 +72,7 @@ class Api {
 
     // Check parameters validity
     if (!this.isValidList(friends)) {
-      const err = new restify.InvalidContentError("invalid content");
+      const err = new restifyErrors.InvalidContentError("invalid content");
       return next(err);
     }
 

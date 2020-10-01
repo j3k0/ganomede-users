@@ -7,7 +7,8 @@
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
 import vasync from 'vasync';
-import restify from "restify";
+import restifyErrors from "restify-errors";
+import logMod from '../log';
 
 const createBackend = function(...args) {
 
@@ -21,7 +22,7 @@ const createBackend = function(...args) {
           checkBan
         } = obj,
         val = obj.log,
-        log = val != null ? val : require('../log'),
+        log = val != null ? val : logMod,
         {
           primary,
           secondary,
@@ -92,7 +93,7 @@ const createBackend = function(...args) {
     ) => // only attempts to create the account if it does not exists
     authenticator.getAuthMetadata({username}, function(err, reply) {
       if (reply) {
-        return cb(new restify.RestError({
+        return cb(new restifyErrors.RestError({
           statusCode: 409,
           restCode: 'StormpathResourceError2001',
           message: 'User already exists'

@@ -1,23 +1,15 @@
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
-import restify from 'restify';
-import util from 'util';
+import restifyErrors from 'restify-errors';
 
-var TooLongError = function(message) {
-  restify.RestError.call(this, {
-    restCode: 'TooLongError',
-    statusCode: 400,
-    message,
-    constructorOpt: TooLongError
+export class TooLongError extends restifyErrors.RestError {
+  constructor(message) {
+    super({
+      restCode: 'TooLongError',
+      statusCode: 400,
+      message,
+      constructorOpt: TooLongError
+    });
   }
-  );
-  return this.name = 'TooLongError';
 };
-
-util.inherits(TooLongError, restify.RestError);
 
 export default TooLongError;
 

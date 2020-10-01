@@ -5,12 +5,16 @@
  */
 const parseTimestampString = function(value) {
   const str = String(value);
-  const int = parseInt(str, 10);
-  const okay = isFinite(int) && /\d{13}/.test(str); // 13 digits should cover it :)
-  return {okay, value: okay ? int : 0};
+  const i = parseInt(str, 10);
+  const okay = isFinite(i) && /\d{13}/.test(str); // 13 digits should cover it :)
+  return {okay, value: okay ? i : 0};
 };
 
-class BanInfo {
+export class BanInfo {
+  username: string;
+  exists: boolean;
+  createdAt: number;
+
   constructor(username, creationTimestamp) {
     const {okay: exists, value: createdAt} = parseTimestampString(creationTimestamp);
     this.username = username;
@@ -22,11 +26,19 @@ class BanInfo {
 // callback(err, stuff...) => callback(err)
 const wrapCallback = cb => err => cb(err);
 
-class Bans {
-  constructor({usermetaClient, prefix}) {
-    this.usermetaClient = usermetaClient;
-    this.prefix = prefix;
-    this.prefix = this.prefix || '$banned';
+export interface BansOptions {
+  usermetaClient: any;
+  prefix?: string;
+}
+
+export class Bans {
+
+  usermetaClient: any;
+  prefix: string;
+
+  constructor(options: BansOptions) {
+    this.usermetaClient = options.usermetaClient;
+    this.prefix = options.prefix || '$banned';
   }
 
   // key: (parts...) ->

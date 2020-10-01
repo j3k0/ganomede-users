@@ -1,16 +1,17 @@
 'use strict';
 
-const {Client} = require('ganomede-events');
-const logger = require('./log');
-const config = require('../config');
+import * as GanomedeEvents from 'ganomede-events';
+const {Client} = GanomedeEvents;
+import logger from './log';
+import config from './config';
 
-const noop = () => {};
+const noop = (_err:any, _data?:any) => {};
 
 // TODO
 // probably worth adding retry logic
 // (or maybe add it to Client)
 
-const createSender = ({
+export const createSender = ({
   // sender info
   clientId = config.api,
   channel = config.api,
@@ -20,7 +21,7 @@ const createSender = ({
   protocol = config.events.protocol,
   hostname = config.events.host,
   port = config.events.port,
-  pathname, // default is inside constructor
+  pathname = undefined, // default is inside constructor
 } = {}) => {
   const client = new Client(clientId, {
     secret,
@@ -48,9 +49,13 @@ const createSender = ({
   return sender;
 };
 
-module.exports = {
+export const CREATE = 'CREATE';
+export const CHANGE = 'CHANGE';
+export const LOGIN = 'LOGIN';
+
+export default {
   createSender,
-  CREATE: 'CREATE',
-  CHANGE: 'CHANGE',
-  LOGIN: 'LOGIN'
+  CREATE,
+  CHANGE,
+  LOGIN,
 };

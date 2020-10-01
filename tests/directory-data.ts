@@ -1,31 +1,31 @@
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
-import _ from 'lodash';
-import tagizer from 'ganomede-tagizer';
+import * as _ from 'lodash';
+import * as tagizer from 'ganomede-tagizer';
 const picker = fields => obj => _.pick(obj, fields);
 
-const defaultExport = {};
+interface DirectoryAlias {
+  type: string;
+  value: string;
+  public: boolean;
+}
 
-var that = (defaultExport = {
+const directoryData = {};
 
-APP_ID: "cc.fovea.test",
+export const APP_ID = "cc.fovea.test";
 
-credentials:   picker([ 'username', 'password' ]),
-publicAccount: picker([ 'username', 'email' ]),
-authResult:    picker([ 'token' ]),
-account:       picker([ 'username', 'email', 'password' ]),
-authAccount:   picker([ 'username', 'email', 'token' ]),
-facebookAccount: picker([
-  'username', 'password', 'facebookId', 'accessToken' ]),
-directoryAccount: picker([ 'id', 'password' ]),
-directoryAliases(account) {
-  const ret = [];
+export const credentials = picker([ 'username', 'password' ]);
+export const publicAccount = picker([ 'username', 'email' ]);
+export const authResult = picker([ 'token' ]);
+export const account = picker([ 'username', 'email', 'password' ]);
+export const authAccount = picker([ 'username', 'email', 'token' ]);
+export const facebookAccount = picker([
+  'username', 'password', 'facebookId', 'accessToken' ]);
+export const directoryAccount = picker([ 'id', 'password' ]);
+
+export function directoryAliases(account) {
+  const ret: DirectoryAlias[] = [];
   if (account.facebook_id) {
     ret.push({
-      type: `facebook.id.${that.APP_ID}`,
+      type: `facebook.id.${APP_ID}`,
       value: account.facebook_id,
       public: false
     });
@@ -50,30 +50,33 @@ directoryAliases(account) {
     });
   }
   return ret;
-},
-findAlias(type, account) {
-  return that.directoryAliases(account).filter(a => a.type === type)[0];
-},
-directoryAliasesObj(account) {
-  return that.directoryAliases(account).reduce(function(acc, obj) {
+}
+
+export function findAlias(type, account) {
+  return directoryAliases(account).filter(a => a.type === type)[0];
+}
+
+export function directoryAliasesObj(account) {
+  return directoryAliases(account).reduce(function(acc, obj) {
     if (obj.public) {
       acc[obj.type] = obj.value;
     }
     return acc;
   }
   , {});
-},
-facebookLogin(account) {
+}
+
+export function facebookLogin(account) {
   return {
     accessToken: account.facebook_access_token,
     username: account.username,
     password: account.password
   };
-},
+}
 
-API_SECRET: 'my-very-secret',
+export const API_SECRET = 'my-very-secret';
 
-EXISTING_USER: {
+export const EXISTING_USER = {
   id: 'ex1sTING',
   username: 'ex1sTING',
   email: 'user@email.com',
@@ -83,9 +86,9 @@ EXISTING_USER: {
   facebook_access_token: 'access-token',
   fullName: "Existing User",
   birthday: '21/09/2010'
-},
+};
 
-SECONDARY_USER: {
+export const SECONDARY_USER = {
   id: 's3cdary',
   username: 's3cdary',
   email: 'other@email.com',
@@ -95,9 +98,9 @@ SECONDARY_USER: {
   facebook_access_token: 'secondary-access-token',
   fullName: "Secondary User",
   birthday: '01/01/1940'
-},
+};
 
-TERNARY_USER: {
+export const TERNARY_USER = {
   id: 't3rnary',
   username: 't3rnary',
   email: 'third@email.com',
@@ -107,9 +110,9 @@ TERNARY_USER: {
   facebook_access_token: 'ternary-access-token',
   fullName: "Ternary User",
   birthday: '01/05/1933'
-},
+};
 
-NEW_USER: {
+export const NEW_USER = {
   id: '1newUser',
   username: '1newUser',
   password: '12345678',
@@ -127,7 +130,7 @@ NEW_USER: {
       longitude: 55.1
     }
   }
-}
-});
+};
+
+export default directoryData;
 // vim: ts=2:sw=2:et:
-export default defaultExport;
