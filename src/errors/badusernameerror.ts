@@ -4,6 +4,7 @@ export class BadUsernameError extends restifyErrors.RestError {
   constructor(message) {
     super({
       restCode: 'BadUsernameError',
+      name: 'BadUsernameError',
       statusCode: 400,
       message,
       constructorOpt: BadUsernameError

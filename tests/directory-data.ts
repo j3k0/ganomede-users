@@ -1,5 +1,7 @@
 import * as _ from 'lodash';
 import * as tagizer from 'ganomede-tagizer';
+import { v4 as uuidv4 } from 'uuid';
+
 const picker = fields => obj => _.pick(obj, fields);
 
 interface DirectoryAlias {
@@ -131,6 +133,19 @@ export const NEW_USER = {
     }
   }
 };
+
+export const randomUser = () => {
+  const ret = {...NEW_USER};
+  const rand = uuidv4();
+  ret.id = rand;
+  ret.username = rand;
+  ret.email = `${ret.username}@email.com`
+  ret.token = `tok-${ret.id}`;
+  ret.facebook_id = `id-${rand.slice(0,12)}`;
+  ret.facebook_access_token = `fbtok-${rand.slice(0,12)}`;
+  ret.fullName = `Random User ${rand.slice(0,6)}`;
+  return ret;
+}
 
 export default directoryData;
 // vim: ts=2:sw=2:et:

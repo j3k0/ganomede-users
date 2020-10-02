@@ -8,6 +8,8 @@ import { expect } from 'chai';
 import td from 'testdouble';
 import directoryClientMod from '../src/directory-client';
 import tagizer from 'ganomede-tagizer';
+import bunyan from 'bunyan';
+import logMod from '../src/log';
 
 import {
   EXISTING_USER,
@@ -36,6 +38,19 @@ const jsonClientTD = function() {
     statusCode:code
   });
 
+  // attempt to create a user with random data
+  td.when(jsonClient.post(
+    td.matchers.contains({path: '/users'}), td.matchers.anything()))
+  // @ts-ignore
+  .thenCallback(null, null, status(400));
+
+  // attempt to create a user with valid account data from NEW_USER
+  td.when(jsonClient.post(
+    td.matchers.contains({path: '/users'}), td.matchers.contains(ADD_ACCOUNT)))
+  // @ts-ignore
+  .thenCallback(null, null, status(200), {id: NEW_USER.id});
+
+  // attempt to login with wrong credentials
   td.when(jsonClient.post(
     td.matchers.contains({path: '/users/auth'}), td.matchers.anything()))
   // @ts-ignore
@@ -47,18 +62,6 @@ const jsonClientTD = function() {
     td.matchers.contains(directoryAccount(EXISTING_USER))))
   // @ts-ignore
   .thenCallback(null, null, status(200), authResult(EXISTING_USER));
-
-  // attempt to create a user with random data
-  td.when(jsonClient.post(
-    td.matchers.contains({path:'/users'}), td.matchers.anything()))
-  // @ts-ignore
-  .thenCallback(null, null, status(400));
-
-  // attempt to create a user with valid account data from NEW_USER
-  td.when(jsonClient.post(
-    td.matchers.contains({path: '/users'}), td.matchers.contains(ADD_ACCOUNT)))
-  // @ts-ignore
-  .thenCallback(null, null, status(200), {id:NEW_USER.id});
 
   // fails when loading unknown aliases
   td.when(jsonClient.get(
@@ -84,11 +87,11 @@ const baseTest = function() {
   const sendEvent = td.function('sendEvent');
   const jsonClient = jsonClientTD();
   // log = td.object [ 'debug', 'info', 'warn', 'error' ]
-  // log = require '../src/log'
-  const log = require("bunyan").createLogger({
-    name: "users",
-    level: "debug"
-  });
+  const log = logMod;
+  // const log = bunyan.createLogger({
+  //   name: "users",
+  //   level: "debug"
+  // });
   const directoryClient = directoryClientMod.createClient({
     log, jsonClient, sendEvent, apiSecret:API_SECRET });
 

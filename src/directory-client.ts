@@ -68,35 +68,33 @@ export interface DirectoryClient {
   editAccount: (account, callback) => void;
 }
 
-const createClient = function(...args): DirectoryClient {
+const createClient = function(options): DirectoryClient {
 
-  let obj = args[0],
-      {
-        jsonClient,
-        log
-      } = obj,
-      val = obj.apiSecret,
-      apiSecret = val != null ? val : process.env.API_SECRET,
-      val1 = obj.sendEvent,
-      sendEvent = val1 != null ? val1 : noop;
+  const jsonClient = options.jsonClient;
+  const apiSecret = options.apiSecret ?? process.env.API_SECRET;
+  const sendEvent = options.sendEvent ?? noop;
   if (!jsonClient) {
     throw new Error('jsonClient required');
   }
+  const pathname = jsonClient.url?.pathname ?? '';
+  const log = options.log || logMod.child({directoryClient: pathname});
 
   if (sendEvent === noop) {
     log.warn('Directory client created with sendEvent set to noop');
   }
 
-  const jsonPost = (options, reqBody, cb) => jsonClient.post(options, reqBody, function(err, req, res, resBody) {
-    log.debug({
-      options,
-      reqBody,
-      req_id: (options.headers != null ? options.headers['x-request-id'] : undefined),
-      resErr: err,
-      resBody
-    }, "directoryClient.post");
-    return cb(err, req, res, resBody);
-  });
+  const jsonPost = (options, reqBody, cb) => {
+    jsonClient.post(options, reqBody, function(err, req, res, resBody) {
+      log.debug({
+        options,
+        reqBody,
+        req_id: (options.headers != null ? options.headers['x-request-id'] : undefined),
+        resErr: err,
+        resBody
+      }, "directoryClient.post");
+      return cb(err, req, res, resBody);
+    });
+  }
 
   const jsonGet = (options, cb) => jsonClient.get(options, function(err, req, res, body) {
     log.debug({
@@ -108,8 +106,6 @@ const createClient = function(...args): DirectoryClient {
     return cb(err, req, res, body);
   });
 
-  const pathname = (jsonClient.url != null ? jsonClient.url.pathname : undefined) || '';
-  log = log || logMod.child({directoryClient:pathname});
   log.info({ pathname }, "DirectoryClient created");
 
   const endpoint = subpath => pathname + subpath;

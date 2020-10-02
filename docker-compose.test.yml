@@ -3,7 +3,7 @@ services:
 
   sut:
     build: .
-    command: sh -c "./tests/wait-for-it -t 0 users:8000 && npm i && npm test && ./tests/rest_api.sh"
+    command: sh -c "./tests/wait-for-it -t 0 users:8000 && npm test && ./tests/rest_api.sh"
     volumes:
      - ./src:/home/app/code/src
      - ./tests:/home/app/code/tests
@@ -23,7 +23,7 @@ services:
      - ./src:/home/app/code/src
      - ./tests:/home/app/code/tests
      - ./build:/home/app/code/build
-    command: sh -c "./tests/wait-for-it -t 0 centralusermeta:8000 && ./tests/wait-for-it -t 0 directory:8000 && ./tests/wait-for-it -t 0 localusermeta:8000 && ./tests/wait-for-it -t 0 events:8000 && npm start"
+    command: sh -c "./tests/wait-for-it -t 0 centralusermeta:8000 && ./tests/wait-for-it -t 0 directory:8000 && ./tests/wait-for-it -t 0 localusermeta:8000 && ./tests/wait-for-it -t 0 events:8000 && npm run startw"
     depends_on:
      - authredis
      - centralusermeta

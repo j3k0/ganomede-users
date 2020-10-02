@@ -15,6 +15,7 @@ import async from "async";
 import authentication from "./authentication";
 import restifyClients from "restify-clients";
 import restifyErrors from "restify-errors";
+import restify from "restify";
 import logMod from "./log";
 let log = logMod.child({module: "users-api"});
 import helpers from "ganomede-helpers";
@@ -231,7 +232,9 @@ var checkBanMiddleware = function(req, res, next) {
              null;
 
   if (!username) {
-    return sendError(req, new restifyErrors.BadRequestError, next);
+    return sendError(req, new restifyErrors.BadRequestError({
+      code: 'BadRequestError'
+    }), next);
   }
 
   return checkBan(username, function(err, exists) {
@@ -245,8 +248,10 @@ var checkBanMiddleware = function(req, res, next) {
         authdbClient.addAccount(req.params.authToken, null, function() {});
       }
 
-      return next(new restifyErrors.ForbiddenError('user is banned'));
-
+      return next(new restifyErrors.ForbiddenError({
+        message: 'user is banned', 
+        code: 'ForbiddenError'
+      }));
     } else {
       return next();
     }
@@ -260,7 +265,10 @@ const getAccountFromAuthDb = function(req, res, next) {
   // We're loading the account from a token (required)
   const token = req.params.authToken;
   if (!token) {
-    const err = new restifyErrors.InvalidContentError("invalid content");
+    const err = new restifyErrors.InvalidContentError({
+      message: "invalid content",
+      code: 'InvalidContentError'
+    });
     return sendError(req, err, next);
   }
 
@@ -272,7 +280,10 @@ const getAccountFromAuthDb = function(req, res, next) {
   return authdbClient.getAccount(token, function(err, account) {
     if (err) {
       req.log.warn({err}, "NotAuthorizedError");
-      err = new restifyErrors.NotAuthorizedError("not authorized");
+      err = new restifyErrors.NotAuthorizedError({
+        message: "not authorized",
+        code: 'InvalidContentError'
+      });
       return sendError(req, err, next);
     }
 
@@ -343,7 +354,10 @@ const passwordResetEmail = function(req, res, next) {
   req.log.info("reset password", {token, email});
 
   if (!token && !email) {
-    const err = new restifyErrors.InvalidContentError("invalid content");
+    const err = new restifyErrors.InvalidContentError({
+      message: "invalid content",
+      code: 'InvalidContentError'
+    });
     return sendError(req, err, next);
   }
 
@@ -360,8 +374,10 @@ const passwordResetEmail = function(req, res, next) {
 
 const jsonBody = function(req, res, next) {
   if (typeof req.params !== 'object') {
-    return sendError(req, new restifyErrors.BadRequestError(
-      'Body is not json'), next);
+    return sendError(req, new restifyErrors.BadRequestError({
+      message: 'Body is not json',
+      code: 'BadRequestError'
+    }), next);
   }
   return next();
 };
@@ -371,8 +387,10 @@ const authMiddleware = function(req, res, next) {
   let username;
   const authToken = req.params.authToken || req.context.authToken;
   if (!authToken) {
-    return sendError(req, new restifyErrors.InvalidContentError(
-      'invalid content'), next);
+    return sendError(req, new restifyErrors.InvalidContentError({
+      message: 'invalid content',
+      code: 'InvalidContentError'
+    }), next);
   }
 
   if (apiSecret) {
@@ -392,8 +410,10 @@ const authMiddleware = function(req, res, next) {
 
   return authdbClient.getAccount(authToken, function(err, account) {
     if (err || !account) {
-      return sendError(req, new restifyErrors.UnauthorizedError(`\
-not authorized`), next);
+      return sendError(req, new restifyErrors.UnauthorizedError({
+        message: 'not authorized',
+        code: 'UnauthorizedError'
+      }), next);
     }
 
     req.params.user = req.params.user || {};
@@ -624,7 +644,9 @@ const validateSecret = function(req, res, next) {
   if (ok) {
     return next();
   } else {
-    return next(new restifyErrors.ForbiddenError());
+    return next(new restifyErrors.ForbiddenError({
+      code: 'ForbiddenError'
+    }));
   }
 };
 
@@ -674,7 +696,7 @@ const banStatus = function(req, res, next) {
 };
 
 // Register routes in the server
-const addRoutes = function(prefix, server) {
+const addRoutes = function(prefix, server: restify.Server) {
 
   const parseTag = parseTagMod.createParamsMiddleware({directoryClient, log});
   Object.defineProperty(parseTag, "name", {value: "parseTag"});

@@ -9,6 +9,7 @@ const {verify,matchers} = td;
 const {isA,anything,contains} = matchers;
 import { expect } from 'chai';
 import * as _ from 'lodash';
+import bunyan from 'bunyan';
 const calledOnce = {
   times: 1,
   ignoreExtraArgs: true
@@ -59,7 +60,7 @@ const baseTest = function() {
   const nodemailerTransport = nodemailerTransportTD();
   const nodemailer = nodemailerTD({nodemailerTransport});
   const log = td.object(['debug', 'info', 'error']);
-  const tb = require('bunyan').createLogger({name:'tbf'});
+  const tb = bunyan.createLogger({name:'tbf'});
   td.when(log.debug(), {ignoreExtraArgs:true})
     .thenDo(tb.info.bind(tb));
   return _.extend({},

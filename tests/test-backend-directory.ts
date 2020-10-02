@@ -4,26 +4,26 @@
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
 import * as _ from 'lodash';
-import restify from "restify";
 import restifyErrors from "restify-errors";
 import td from 'testdouble';
 const {anything,contains,isA} = td.matchers;
 import { expect } from 'chai';
 import tagizer from 'ganomede-tagizer';
+import logMod from '../src/log';
 
 // Disable delayed calls. We're doing synchronous tests.
 (global.setImmediate as any) = func => { func(); }
 
-const directory = require('../src/backend/directory');
+import directory from '../src/backend/directory';
 
 const REQ_ID = "my-request-id";
 
-const { EXISTING_USER, SECONDARY_USER, TERNARY_USER, NEW_USER, APP_ID,
+import { EXISTING_USER, SECONDARY_USER, TERNARY_USER, NEW_USER, APP_ID,
   credentials, publicAccount, authResult,
   account, authAccount, facebookAccount,
   directoryAccount, directoryAliasesObj,
-  facebookLogin
-} = require('./directory-data');
+  facebookLogin, randomUser
+} from './directory-data';
 
 // testdouble for the directory client
 const directoryClientTD = function() {
@@ -97,17 +97,17 @@ const directoryClientTD = function() {
   return directoryClient;
 };
 
-const authenticatorTD = function() {
+const authenticatorTD = function(user?) {
 
   const authenticator = td.object([ 'add' ]);
   const addUser = user => td.when(authenticator.add(
     td.matchers.contains(publicAccount(user))))
       .thenReturn(authAccount(user));
-  [ EXISTING_USER, SECONDARY_USER, TERNARY_USER, NEW_USER ].forEach(addUser);
+  (user ? [ user ] : [ EXISTING_USER, SECONDARY_USER, TERNARY_USER, NEW_USER ]).forEach(addUser);
   return authenticator;
 };
 
-const fbgraphClientTD = function() {
+const fbgraphClientTD = function(account?) {
 
   const fbgraphClient = td.object([ 'get' ]);
   td.when(fbgraphClient.get(td.matchers.anything()))
@@ -128,6 +128,9 @@ const fbgraphClientTD = function() {
     );
   };
   [ EXISTING_USER, SECONDARY_USER, TERNARY_USER, NEW_USER ].forEach(addUser);
+  if (account) {
+    addUser(account);
+  }
   return fbgraphClient;
 };
 
@@ -192,11 +195,12 @@ const generatePasswordTD = function() {
   return gp;
 };
 
-const baseTest = function() {
+const baseTest = function(user?: any) {
   const log = td.object([ 'debug', 'info', 'warn', 'error' ]);
-  const fbgraphClient = fbgraphClientTD();
+  // const log = logMod;
+  const fbgraphClient = fbgraphClientTD(user);
   const directoryClient = directoryClientTD();
-  const authenticator = authenticatorTD();
+  const authenticator = authenticatorTD(user);
   const aliasesClient = aliasesClientTD();
   const usermetaClient = usermetaClientTD();
   const friendsClient = friendsClientTD();
@@ -217,9 +221,11 @@ const baseTest = function() {
     facebookClient };
 };
 
-const backendTest = function() {
-  const ret = baseTest();
-  ret.backend.initialize((err, backend) => ret.backend = backend);
+const backendTest = function(user?: any) {
+  const ret: any = baseTest(user);
+  ret.backend.initialize((err, backend) => {
+    ret.backend = backend;
+  });
   return ret;
 };
 
@@ -246,7 +252,7 @@ describe('backend/directory', function() {
 
     it('attempts to authenticate with directory', function() {
       const { directoryClient } = loginAccount(credentials(EXISTING_USER));
-      return td.verify(directoryClient.authenticate(
+      td.verify(directoryClient.authenticate(
         td.matchers.contains(directoryAccount(EXISTING_USER)),
         td.callback)
       );
@@ -254,12 +260,12 @@ describe('backend/directory', function() {
 
     it('creates a auth token when login is successfull', function() {
       const { callback } = loginAccount(credentials(EXISTING_USER));
-      return td.verify(callback(null, contains(authResult(EXISTING_USER))));
+      td.verify(callback(null, contains(authResult(EXISTING_USER))));
     });
 
     return it('fails when credentials are invalid', function() {
       const { callback } = loginAccount(credentials(NEW_USER));
-      return td.verify(callback(td.matchers.isA(restifyErrors.InvalidCredentialsError)));
+      td.verify(callback(td.matchers.isA(restifyErrors.InvalidCredentialsError)));
     });
   });
 
@@ -347,17 +353,17 @@ describe('backend/directory', function() {
 
     it('calls the callback with success when email exists', function() {
       const { callback } = sendPasswordResetEmail(EXISTING_USER.email);
-      return td.verify(callback(null), {ignoreExtraArgs: true});
+      td.verify(callback(null), {ignoreExtraArgs: true});
     });
 
     it('fails when the email is not known', function() {
-      const { callback } = sendPasswordResetEmail(NEW_USER.email);
-      return td.verify(callback(isA(restifyErrors.NotFoundError)));
+      const { callback } = sendPasswordResetEmail("do-not-exist@example.com");
+      td.verify(callback(isA(restifyErrors.NotFoundError)), {ignoreExtraArgs: true});
     });
 
-    return it('changes the user password', function() {
+    it('changes the user password', function() {
       const { callback, directoryClient } = sendPasswordResetEmail(EXISTING_USER.email);
-      return td.verify(directoryClient.editAccount(
+      td.verify(directoryClient.editAccount(
         contains({id: EXISTING_USER.id, password: GENERATED_PASSWORD})),
         {ignoreExtraArgs: true});
   });
@@ -365,8 +371,8 @@ describe('backend/directory', function() {
 
   return describe('backend.loginFacebook()', function() {
 
-    const loginFacebook = function(account, callback?) {
-      const ret = backendTest();
+    const loginFacebook = function(user, account, callback?) {
+      const ret = backendTest(user);
       account.req_id = REQ_ID;
       ret.backend.loginFacebook(account, callback || ret.callback);
       return ret;
@@ -379,7 +385,7 @@ describe('backend/directory', function() {
         password: 'dummy'
       };
       delete data[fieldname];
-      const { callback } = loginFacebook(data);
+      const { callback } = loginFacebook(null, data);
       return td.verify(callback(td.matchers.isA(restifyErrors.BadRequestError)));
     };
 
@@ -388,27 +394,29 @@ describe('backend/directory', function() {
     it('requires an password', () => loginWithout('password'));
 
     it('checks facebook id with directory client', function() {
+      const user = randomUser();
       const { directoryClient } =
-        loginFacebook(facebookLogin(NEW_USER));
-      return td.verify(directoryClient.byAlias(
+        loginFacebook(user, facebookLogin(user));
+      td.verify(directoryClient.byAlias(
         td.matchers.contains({
           type: `facebook.id.${APP_ID}`,
-          value: NEW_USER.facebook_id}),
+          value: user.facebook_id}),
         td.callback)
       );
     });
 
     it('checks "fb:facebook_id" alias if not in directory', function() {
-      const { aliasesClient, callback } = loginFacebook(facebookLogin(NEW_USER));
-      return td.verify(aliasesClient.get(
-        `fb:${NEW_USER.facebook_id}`,
+      const user = randomUser();
+      const { aliasesClient } = loginFacebook(user, facebookLogin(user));
+      td.verify(aliasesClient.get(
+        `fb:${user.facebook_id}`,
         td.callback)
       );
     });
-
+    
     it('adds metadata to CREATE events', function() {
       const { deferredEvents } =
-        loginFacebook(facebookLogin(NEW_USER));
+        loginFacebook(null, facebookLogin(NEW_USER));
       return td.verify(deferredEvents.editEvent(
         REQ_ID, 'CREATE', "metadata", {
           country: NEW_USER.location.location.country_code,
@@ -420,7 +428,7 @@ describe('backend/directory', function() {
     });
 
     const itSavesBirthday = function(user) {
-      const { usermetaClient } = loginFacebook(facebookLogin(user));
+      const { usermetaClient } = loginFacebook(user, facebookLogin(user));
       return td.verify(usermetaClient.set(
         contains({
           username: user.username,
@@ -431,7 +439,7 @@ describe('backend/directory', function() {
       );
     };
 
-    it('saves the birthday of new users', () => itSavesBirthday(NEW_USER));
+    it('saves the birthday of new users', () => itSavesBirthday(randomUser()));
 
     //itSavesCountry = (user) ->
     //  { usermetaClient } = loginFacebook facebookLogin(user)
@@ -441,7 +449,7 @@ describe('backend/directory', function() {
     //  itSavesBirthday NEW_USER
 
     const itSavesFullName = function(user) {
-      const { usermetaClient } = loginFacebook(facebookLogin(user));
+      const { usermetaClient } = loginFacebook(user, facebookLogin(user));
       return td.verify(usermetaClient.set(
         contains({
           username: user.username,
@@ -450,14 +458,14 @@ describe('backend/directory', function() {
       );
     };
 
-    it('saves the full name of new users', () => itSavesFullName(NEW_USER));
+    it('saves the full name of new users', () => itSavesFullName(randomUser()));
 
     it('saves the full name of existing users', () => itSavesFullName(EXISTING_USER));
 
     const itSavesFriends = function(user) {
       const { facebookFriends, aliasesClient, friendsClient,
         facebookClient } =
-        loginFacebook(facebookLogin(user));
+        loginFacebook(user, facebookLogin(user));
       return td.verify(facebookFriends.storeFriends(td.matchers.contains({
         aliasesClient,
         friendsClient,
@@ -468,11 +476,11 @@ describe('backend/directory', function() {
       );
     };
 
-    it('saves the users friends for new users', () => itSavesFriends(NEW_USER));
+    it('saves the users friends for new users', () => itSavesFriends(randomUser()));
     it('saves the users friends for existing users', () => itSavesFriends(EXISTING_USER));
 
     it('logins directory-existing users', function() {
-      const { callback } = loginFacebook(facebookLogin(EXISTING_USER));
+      const { callback } = loginFacebook(null, facebookLogin(EXISTING_USER));
       return td.verify(callback(null, td.matchers.contains({
         token: EXISTING_USER.token})
       )
@@ -480,7 +488,7 @@ describe('backend/directory', function() {
     });
 
     it('logins legacy-existing users', function() {
-      const { callback } = loginFacebook(facebookLogin(SECONDARY_USER));
+      const { callback } = loginFacebook(null, facebookLogin(SECONDARY_USER));
       return td.verify(callback(null, td.matchers.contains({
         token: SECONDARY_USER.token})
       )
@@ -488,20 +496,20 @@ describe('backend/directory', function() {
     });
 
     it('registers non existing user', function() {
+      const user = randomUser();
       const { directoryClient, callback } =
-        loginFacebook(facebookLogin(NEW_USER));
+        loginFacebook(user, facebookLogin(user));
       td.verify(callback(null, td.matchers.contains({
-        token:NEW_USER.token})
-      )
-      );
-      return td.verify(directoryClient.addAccount(
-        td.matchers.contains({id:NEW_USER.id}),
-        td.callback)
-      );
+        token: user.token
+      })));
+      td.verify(directoryClient.addAccount(
+        td.matchers.contains({id: user.username}),
+        td.callback
+      ));
     });
 
     it('logins existing non-facebook directory users', function() {
-      const { callback } = loginFacebook(facebookLogin(TERNARY_USER));
+      const { callback } = loginFacebook(null, facebookLogin(TERNARY_USER));
       return td.verify(callback(null, td.matchers.contains({
         token: TERNARY_USER.token})
       )
@@ -509,7 +517,7 @@ describe('backend/directory', function() {
     });
 
     return it('associates non-facebook directory users with facebook id', function() {
-      const { directoryClient } = loginFacebook(facebookLogin(TERNARY_USER));
+      const { directoryClient } = loginFacebook(null, facebookLogin(TERNARY_USER));
       return td.verify(directoryClient.editAccount({
         id: TERNARY_USER.id,
         aliases: [{

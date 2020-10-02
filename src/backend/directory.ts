@@ -117,7 +117,6 @@ const createBackend = function(options) {
     legacyError = x => x;
   }
 
-
   const loginFacebook = function({
     facebookId,  // the facebook id of the user
     accessToken, // the facebook access token
@@ -127,12 +126,15 @@ const createBackend = function(options) {
   }, callback) {
 
     if (!accessToken) {
+      // log.warn('missing access token');
       return setImmediate(() => callback(new restifyErrors.BadRequestError("Missing accessToken")));
     }
     if (!username) {
+      // log.warn('missing username');
       return setImmediate(() => callback(new restifyErrors.BadRequestError("Missing username")));
     }
     if (!password) {
+      // log.warn('missing password');
       return setImmediate(() => callback(new restifyErrors.BadRequestError("Missing password")));
     }
 
@@ -159,8 +161,7 @@ const createBackend = function(options) {
             email:      account.email || defaultEmail(),
             birthday:   account.birthday || '',
             location:   account.location
-          }
-          );
+          });
         }
       });
     };
@@ -272,9 +273,10 @@ const createBackend = function(options) {
         );
       } else {
         if (!allowCreate) {
-          return cb(new restifyErrors.ForbiddenError(
-            'Cannot register new facebook users')
-          );
+          return cb(new restifyErrors.ForbiddenError({
+            message: 'Cannot register new facebook users',
+            restCode: 'ForbiddenError'
+          }));
         }
         id = username;
         ({
@@ -307,6 +309,7 @@ const createBackend = function(options) {
           public: false
         }];
         account = { id, password, aliases, req_id };
+        log.info(account, 'registerDirectoryAccount > add account');
         return directoryClient.addAccount(account, function(err) {
           if (err) {
             return cb(err);

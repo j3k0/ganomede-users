@@ -1,11 +1,7 @@
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
+import restifyErrors from 'restify-errors';
 import errors from "./errors";
 
-const validateUsername = function(username) {
+export function validateUsername(username:string):restifyErrors.RestError|null {
   if (!username) {
     return new errors.BadUsernameError("username empty");
   }

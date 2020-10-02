@@ -4,6 +4,7 @@ export class TooLongError extends restifyErrors.RestError {
   constructor(message) {
     super({
       restCode: 'TooLongError',
+      name: 'TooLongError',
       statusCode: 400,
       message,
       constructorOpt: TooLongError

@@ -8,9 +8,10 @@ import superagent from 'superagent';
 import fakeAuthdb from "./fake-authdb";
 import fakeUsermeta from "./fake-usermeta";
 import restify from 'restify';
+import restifyErrors from 'restify-errors';
 import api from '../src/users-api';
 import { expect } from 'chai';
-import { BanInfo } from '../src/bans';
+import { Bans, BanInfo } from '../src/bans';
 import td from 'testdouble';
 const {contains} = td.matchers;
 
@@ -67,7 +68,7 @@ const baseTest = function() {
 
   td.when(backend.loginAccount(td.matchers.anything()))
   // @ts-ignore
-    .thenCallback(new restify.InvalidCredentialsError());
+    .thenCallback(new restifyErrors.InvalidCredentialsError());
   td.when(backend.loginAccount(data.validLogin))
     .thenCallback(null, {token:VALID_AUTH_TOKEN});
 
@@ -108,7 +109,7 @@ const restTest = function(done) {
   var server = restify.createServer();
   const localUsermeta = fakeUsermeta.createClient();
   const centralUsermeta = fakeUsermeta.createClient();
-  ret.bans = td.object(require('../src/bans').Bans);
+  ret.bans = td.object(Bans.prototype);
 
   data.tokens.forEach(info => ret.authdbClient.addAccount(info.token, {
     username: data.createAccount[info.createAccountKey].username

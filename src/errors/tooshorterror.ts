@@ -4,6 +4,7 @@ export class TooShortError extends restifyErrors.RestError {
   constructor(message) {
     super({
       restCode: 'TooShortError',
+      name: 'TooShortError',
       statusCode: 400,
       message,
       constructorOpt: TooShortError
