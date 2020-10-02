@@ -50,7 +50,10 @@ var directory = {
   // was stored in the authdb. So we have some fallbacks.
   userNotFound: {
     password(authdbClient, params, cb) {
-      return cb(new restifyErrors.NotAuthorizedError("Forbidden"));
+      return cb(new restifyErrors.NotAuthorizedError({
+        code: 'NotAuthorizedError',
+        message: "Forbidden"
+      }));
     },
     name(authdbClient, params, cb) {
       return cb(null, (params.name|| params.username));
@@ -67,7 +70,10 @@ var directory = {
         return authdbClient.getAccount(params.authToken,
           (err, account) => cb(err, account != null ? account.email : undefined));
       } else {
-        return cb(new restifyErrors.NotFoundError("no email"));
+        return cb(new restifyErrors.NotFoundError({
+          message: "no email",
+          code: 'NotFoundError'
+        }));
       }
     }
   },
@@ -115,14 +121,20 @@ var directory = {
     // change the tag before changing the name
     name(directoryClient, params, key, value, cb) {
       const account = directory.account(params, "tag", tagizer.tag(value));
-      return directoryClient.editAccount(account, cb);
+      directoryClient.editAccount(account, cb);
     },
     // tag and username are read-only
     tag(directoryClient, params, key, value, cb) {
-      return cb(new restifyErrors.NotAuthorizedError("tag is read-only"));
+      cb(new restifyErrors.NotAuthorizedError({
+        message: "tag is read-only",
+        code: 'NotAuthorizedError'
+      }));
     },
     username(directoryClient, params, key, value, cb) {
-      return cb(new restifyErrors.NotAuthorizedError("username is read-only"));
+      cb(new restifyErrors.NotAuthorizedError({
+        message: "username is read-only",
+        code: 'NotAuthorizedError'
+      }));
     }
   },
 
@@ -150,14 +162,20 @@ var directory = {
   set(directoryClient, params, key, value, cb) {
     params = parseParams(params);
     if (!params.authToken) {
-      return cb(new restifyErrors.NotAuthorizedError("Protected meta"));
+      return cb(new restifyErrors.NotAuthorizedError({
+        message: "Protected meta",
+        code: 'NotAuthorizedError'
+      }));
     }
 
     // special cases:
     //  * 'email', 'name', 'password' have to be valid
     //  * 'name' also changes 'tag'
     if (typeof directory.invalidValue[key] === 'function' ? directory.invalidValue[key](value) : undefined) {
-      return cb(new restifyErrors.InvalidContentError(`${key} is invalid`));
+      return cb(new restifyErrors.InvalidContentError({
+        message: `${key} is invalid`,
+        code: 'InvalidContentError'
+      }));
     }
 
     const passTrough = (directoryClient, params, key, value, cb) => cb(null);
@@ -196,19 +214,28 @@ class DirectoryAliasesProtected {
 
   set(params, key, value, cb) {
     if (!this.isValid(key || this.isReadOnly(key))) {
-      return cb(new restifyErrors.BadRequestError("Forbidden meta key"));
+      return cb(new restifyErrors.BadRequestError({
+        message: "Forbidden meta key",
+        code: 'BadRequestError'
+      }));
     }
     return directory.set(this.directoryClient, params, key, value, cb);
   }
 
   get(params, key, cb) {
     if (!this.isValid(key) || this.isWriteOnly(key)) {
-      return cb(new restifyErrors.BadRequestError("Forbidden meta key"));
+      return cb(new restifyErrors.BadRequestError({
+        message: "Forbidden meta key",
+        code: 'BadRequestError'
+      }));
     }
     params = parseParams(params);
     // protected metadata require an authToken for reading
     if (!params.authToken) {
-      return cb(new restifyErrors.NotAuthorizedError("Protected meta"));
+      return cb(new restifyErrors.NotAuthorizedError({
+        message: "Protected meta",
+        code: 'NotAuthorizedError'
+      }));
     }
     if (params[key]) {
       return cb(null, params[key]);
@@ -243,14 +270,20 @@ class DirectoryAliasesPublic {
 
   set(params, key, value, cb) {
     if (!this.isValid(key)) {
-      return cb(new restifyErrors.BadRequestError("Forbidden meta key"));
+      return cb(new restifyErrors.BadRequestError({
+        message: "Forbidden meta key",
+        code: 'BadRequestError'
+      }));
     }
     return directory.set(this.directoryClient, params, key, value, cb);
   }
 
   get(params, key, cb) {
     if (!this.isValid(key)) {
-      return cb(new restifyErrors.BadRequestError("Forbidden meta key"));
+      return cb(new restifyErrors.BadRequestError({
+        message: "Forbidden meta key",
+        code: 'BadRequestError',
+      }));
     }
     params = parseParams(params);
     if (params[key]) {
@@ -291,10 +324,16 @@ class RedisUsermeta {
     if (maxLength == null) { maxLength = DEFAULT_MAX_LENGTH; }
     const {username} = parseParams(params);
     if ((maxLength > 0) && ((value != null ? value.length : undefined) > maxLength)) {
-      return cb(new restifyErrors.BadRequestError("Value too large"));
+      return cb(new restifyErrors.BadRequestError({
+        code: 'BadRequestError',
+        message: "Value too large"
+      }));
     }
     if (!this.isValid(key)) {
-      return cb(new restifyErrors.BadRequestError("Forbidden meta key"));
+      return cb(new restifyErrors.BadRequestError({
+        message: "Forbidden meta key",
+        code: 'BadRequestError'
+      }));
     }
     return this.redisClient.set(`${username}:${key}`, value, (err, reply) => cb(err, reply));
   }
