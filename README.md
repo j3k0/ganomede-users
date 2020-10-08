@@ -5,23 +5,32 @@ Users accounts API initially inspired by Stormpath.
 
 See http://docs.stormpath.com/rest/product-guide/#application-accounts when in doubt about a parameter.
 
+Historical notes
+----------------
+
+All users data used to be stored in Stormpath a while back. With Stormpath rolling out after being acquired, we migrated our user accounts to ganomede-directory (our own solution). During the migration period, there were users in both user directories, the server includes some logic to make this possible.
+
+With the stormpath API being discontinued, we removed the code that makes use of it. As a side effect, the server still allows multiple user accounts backends to be used, but effectively it only supports a single one: ganomede-directory.
+
 Configuration
 -------------
 
- * `STORMPATH_API_ID`
- * `STORMPATH_API_SECRET`
- * `STORMPATH_APP_NAME`
+Link with the ganomede-directory service:
  * `DIRECTORY_PORT_8000_TCP_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the directory service
+
+Link with a central and local usermeta services. Note that *central* metadata are shared across multiple apps, while *local* metadata are only used by this game server.
  * `CENTRAL_USERMETA_PORT_8000_TCP_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the central usermeta service
  * `LOCAL_USERMETA_PORT_8000_TCP_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the local usermeta service
+
+Link with the events service, used to send notification when a user logs in, registers a new account, changes their profile or block another user.
  * `EVENTS_PORT_8000_TCP_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the events service
- * `REDIS_AUTH_PORT_6379_TCP_[ADDR|PORT]` - IP|port of the AuthDB redis (deprecated)
+
+Link with the facebook API.
  * `FACEBOOK_APP_ID` - Id of the Facebook application
  * `FACEBOOK_APP_SECRET` - Secret of the Facebook application
- * `LEGACY_ERROR_CODES` - Use stormpath compatible error codes
- * `USE_STORMPATH_ONLY` - Only enable the Stormpath backend
- * `USE_DIRECTORY_ONLY` - Only enable the Directory backend
- * `CREATE_USERS_IN_STORMPATH` - New users will use Stormpath backend
+
+Config:
+ * `LEGACY_ERROR_CODES` - Use stormpath compatible error codes.
  * `LOG_LEVEL` - See [bunyan levels](https://github.com/trentm/node-bunyan#levels) (default: info)
 
 Mailer options (for password reset emails)
@@ -45,6 +54,13 @@ Mailer options (for password reset emails)
  * `MAILER_AUTH_METHOD` - defines preferred authentication method, eg. 'PLAIN'
  * `NO_EMAIL_DOMAIN` - fake domain to use for users without an email address (default "email-not-provided.local")
  * `GUEST_EMAIL_DOMAIN` - domain used for guest users email address (default none)
+
+Statsd options (used for monitoring).
+
+ * `STATSD_HOST` - host that runs the statsd server
+ * `STATSD_PORT` - port to connect to statsd server
+ * `STATSD_PREFIX` - prefix for data stored in stats (default to `ganomede.users.`)
+
 
 API
 ---
