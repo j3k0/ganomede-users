@@ -1,5 +1,6 @@
-import * as bunyan from "bunyan";
-export const log = bunyan.createLogger({
+import Logger, { createLogger } from "bunyan";
+
+export const log: Logger = createLogger({
   name: "users",
   level: (process.env.LOG_LEVEL || 'info') as any
 });

@@ -37,14 +37,14 @@ import deferredEvents from './deferred-events';
 import emails from './emails';
 import statsdWrapper from './statsd-wrapper';
 import facebookFriends from './facebook-friends';
-import friendsApiMod from './friends-api';
-import directoryClientMod from './directory-client';
+import friendsApiMod, { FriendsApi } from './friends-api';
+import bannedUsersMod, { BlockedUsersApi } from './blocked-users-api';
+import directoryClientMod, { DirectoryClient } from './directory-client';
 import mailTemplate from './mail-template';
 import backendDirectoryMod from './backend/directory';
 
-
 const sendError = function(req, err, next) {
-  if (err.code == 'InvalidCredentials' || err.code == 'StormpathResourceError2006') {
+  if (err.code == 'UnauthorizedError' || err.code == 'InvalidCredentials' || err.code == 'StormpathResourceError2006') {
    req.log.info(err);
   }
   else if (err.rawError) {
@@ -73,10 +73,11 @@ let centralUsermetaClient:UsermetaClient|null = null;
 let aliasesClient: any = null;
 let fullnamesClient: any = null;
 let friendsClient: any = null;
-let friendsApi: any = null;
+let friendsApi: FriendsApi|null = null;
+let bannedUsersApi: BlockedUsersApi|null = null;
 let bans: any = null;
 let authenticator: any = null;
-let directoryClient: any = null;
+let directoryClient: DirectoryClient|null = null;
 let storeFacebookFriends: (options: any) => void | null;
 
 // backend, once initialized
@@ -485,9 +486,7 @@ const initialize = function(cb, options: any = {}) {
   }
 
   // Initialize the directory client (if possible)
-  ({
-    directoryClient
-  } = options);
+  directoryClient = options.directoryClient;
   let directoryJsonClient = null;
   const createDirectoryClient = function() {
     const directoryService = serviceConfig('DIRECTORY', 8000);
@@ -582,7 +581,15 @@ const initialize = function(cb, options: any = {}) {
   });
 
   friendsApi = options.friendsApi || friendsApiMod.createApi({
-    friendsClient, authMiddleware });
+    friendsClient,
+    authMiddleware
+  });
+
+  bannedUsersApi = options.bannedUsersApi || bannedUsersMod.createApi({
+    usermetaClient: centralUsermetaClient!,
+    directoryClient,
+    authMiddleware
+  });
 
   const backendOpts: any = {
     apiId: options.stormpathApiId,
@@ -696,12 +703,13 @@ const banStatus = function(req, res, next) {
 };
 
 // Register routes in the server
-const addRoutes = function(prefix, server: restify.Server) {
+const addRoutes = function(prefix: string, server: restify.Server): void {
 
-  const parseTag = parseTagMod.createParamsMiddleware({directoryClient, log});
+  const parseTag = parseTagMod.createParamsMiddleware({
+    directoryClient: directoryClient!, log});
   Object.defineProperty(parseTag, "name", {value: "parseTag"});
   const bodyTag = parseTagMod.createBodyMiddleware({
-    directoryClient, log, field: "username"});
+    directoryClient: directoryClient!, log, tagField: "username"});
   Object.defineProperty(bodyTag, "name", {value: "bodyTag"});
 
   server.post(`/${prefix}/accounts`, createAccount);
@@ -739,9 +747,10 @@ const addRoutes = function(prefix, server: restify.Server) {
   server.post(`/${prefix}/auth/:authToken/metadata/:key`,
     jsonBody, authMiddleware, postMetadata);
 
-  friendsApi.addRoutes(prefix, server);
+  friendsApi?.addRoutes(prefix, server);
+  bannedUsersApi?.addRoutes(prefix, server);
 
-  return server.on("after", deferredEvents.finalize(eventSender.createSender()));
+  server.on("after", deferredEvents.finalize(eventSender.createSender()));
 };
 
 export default {

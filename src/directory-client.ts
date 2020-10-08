@@ -61,12 +61,14 @@ export interface DirectoryTokenRequest {
 export interface DirectoryClient {
   endpoint: (subpath: string) => string;
   authenticate: (credentials, callback) => void;
-  addAccount: (account, callback) => void;
-  byId: (options: DirectoryIdRequest, callback) => void;
-  byAlias: (options: DirectoryAliasRequest, callback) => void;
-  byToken: (options: DirectoryTokenRequest, callback) => void;
+  addAccount: (account, callback:DirectoryCallback) => void;
+  byId: (options: DirectoryIdRequest, callback:DirectoryCallback) => void;
+  byAlias: (options: DirectoryAliasRequest, callback:DirectoryCallback) => void;
+  byToken: (options: DirectoryTokenRequest, callback:DirectoryCallback) => void;
   editAccount: (account, callback) => void;
 }
+
+export type DirectoryCallback = (err:restifyErrors.HttpError|null, body) => void; 
 
 const createClient = function(options): DirectoryClient {
 
@@ -251,7 +253,7 @@ const createClient = function(options): DirectoryClient {
     }
   });
 
-  const processGetResponse = callback => (function(err, req, res, body) {
+  const processGetResponse = (callback) => (function(err, req, res, body) {
     if (err) {
       return callback(err);
     } else if (res.statusCode !== 200) {

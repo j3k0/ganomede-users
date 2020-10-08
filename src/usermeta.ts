@@ -7,17 +7,40 @@
  */
 import restifyClients from "restify-clients";
 import restifyErrors from "restify-errors";
-import redis from "redis";
+import redis, { RedisClient } from "redis";
 import urllib from 'url';
 import logMod from "./log";
 const log = logMod.child({module:"usermeta"});
 import tagizer from 'ganomede-tagizer';
 import validator from './validator';
 
-const DEFAULT_MAX_LENGTH = 1000;
+export interface UsermetaClientOptions {
+  username: string;
+  req_id?: string;
+  authToken?: string;
+  tag?: string;
+  name?: string;
+  email?: string;
+}
 
-const parseParams = function(obj) {
-  if (typeof obj === 'string') { return {username: obj}; } else { return obj; }
+export type UsermetaClientCallback = (err:Error|null, reply?:string|null) => void;
+
+export interface UsermetaClient {
+  set: (params:UsermetaClientOptions|string, key:string, value:string, callback:UsermetaClientCallback, maxLength?:number) => void;
+  get: (params:UsermetaClientOptions|string, key:string, callback:UsermetaClientCallback) => void;
+};
+
+const DEFAULT_MAX_LENGTH:number = 1000;
+
+const parseParams = function(obj:UsermetaClientOptions|string):UsermetaClientOptions {
+  if (typeof obj === 'string') {
+    return {
+      username: obj
+    };
+  }
+  else {
+    return obj;
+  }
 };
 
 // Design:
@@ -56,7 +79,7 @@ var directory = {
       }));
     },
     name(authdbClient, params, cb) {
-      return cb(null, (params.name|| params.username));
+      return cb(null, (params.name || params.username));
     },
     tag(authdbClient, params, cb) {
       return cb(null, tagizer.tag(params.tag || params.username));
@@ -79,7 +102,7 @@ var directory = {
   },
 
   // handles replies from directoryClient's read requests
-  handleResponse(authdbClient, params, key, cb) { return function(err, account) {
+  handleResponse(authdbClient, params, key:string, cb:UsermetaClientCallback) { return function(err, account) {
 
     if (err) {
 
@@ -119,18 +142,18 @@ var directory = {
 
   beforeEdit: {
     // change the tag before changing the name
-    name(directoryClient, params, key, value, cb) {
+    name(directoryClient, params, _key:string, value:string, cb:UsermetaClientCallback) {
       const account = directory.account(params, "tag", tagizer.tag(value));
       directoryClient.editAccount(account, cb);
     },
     // tag and username are read-only
-    tag(directoryClient, params, key, value, cb) {
+    tag(_directoryClient, _params, _key, _value, cb) {
       cb(new restifyErrors.NotAuthorizedError({
         message: "tag is read-only",
         code: 'NotAuthorizedError'
       }));
     },
-    username(directoryClient, params, key, value, cb) {
+    username(_directoryClient, _params, _key, _value, cb) {
       cb(new restifyErrors.NotAuthorizedError({
         message: "username is read-only",
         code: 'NotAuthorizedError'
@@ -139,7 +162,7 @@ var directory = {
   },
 
   // create a directory account object suitable for POSTing
-  account(params, key, value) {
+  account(params:UsermetaClientOptions, key:string, value:string) {
     if (key === 'password') {
       return {
         id: params.username,
@@ -159,8 +182,8 @@ var directory = {
     }
   },
 
-  set(directoryClient, params, key, value, cb) {
-    params = parseParams(params);
+  set(directoryClient, options:UsermetaClientOptions|string, key:string, value:string, cb) {
+    const params = parseParams(options);
     if (!params.authToken) {
       return cb(new restifyErrors.NotAuthorizedError({
         message: "Protected meta",
@@ -208,12 +231,12 @@ class DirectoryAliasesProtected {
     this.type = "DirectoryAliasesProtected";
   }
 
-  isValid(key) { return !!this.validKeys[key]; }
-  isReadOnly(key) { return key === "tag"; }
-  isWriteOnly(key) { return key === "password"; }
+  isValid(key:string):boolean { return !!this.validKeys[key]; }
+  isReadOnly(key:string):boolean { return key === "tag"; }
+  isWriteOnly(key:string):boolean { return key === "password"; }
 
-  set(params, key, value, cb) {
-    if (!this.isValid(key || this.isReadOnly(key))) {
+  set(params:UsermetaClientOptions|string, key:string, value:string, cb:UsermetaClientCallback) {
+    if (!this.isValid(key) || this.isReadOnly(key)) {
       return cb(new restifyErrors.BadRequestError({
         message: "Forbidden meta key",
         code: 'BadRequestError'
@@ -222,7 +245,7 @@ class DirectoryAliasesProtected {
     return directory.set(this.directoryClient, params, key, value, cb);
   }
 
-  get(params, key, cb) {
+  get(params:UsermetaClientOptions|string, key:string, cb:UsermetaClientCallback) {
     if (!this.isValid(key) || this.isWriteOnly(key)) {
       return cb(new restifyErrors.BadRequestError({
         message: "Forbidden meta key",
@@ -266,9 +289,9 @@ class DirectoryAliasesPublic {
     this.type = "DirectoryAliasesPublic";
   }
 
-  isValid(key) { return !!this.validKeys[key]; }
+  isValid(key:string):boolean { return !!this.validKeys[key]; }
 
-  set(params, key, value, cb) {
+  set(params:UsermetaClientOptions|string, key:string, value:string, cb:UsermetaClientCallback) {
     if (!this.isValid(key)) {
       return cb(new restifyErrors.BadRequestError({
         message: "Forbidden meta key",
@@ -278,7 +301,7 @@ class DirectoryAliasesPublic {
     return directory.set(this.directoryClient, params, key, value, cb);
   }
 
-  get(params, key, cb) {
+  get(params:UsermetaClientOptions|string, key:string, cb:UsermetaClientCallback) {
     if (!this.isValid(key)) {
       return cb(new restifyErrors.BadRequestError({
         message: "Forbidden meta key",
@@ -305,9 +328,9 @@ class RedisUsermeta {
   validKeys: {
     [key: string]: boolean;
   } | null;
-  redisClient: any;
+  redisClient: RedisClient;
 
-  constructor(redisClient) {
+  constructor(redisClient: RedisClient) {
     this.redisClient = redisClient;
     this.type = "RedisUsermeta";
     this.validKeys = null;
@@ -320,25 +343,27 @@ class RedisUsermeta {
     }
   }
 
-  set(params, key, value, cb, maxLength) {
+  set(params:UsermetaClientOptions|string, key:string, value:string, cb:UsermetaClientCallback, maxLength?:number) {
     if (maxLength == null) { maxLength = DEFAULT_MAX_LENGTH; }
     const {username} = parseParams(params);
-    if ((maxLength > 0) && ((value != null ? value.length : undefined) > maxLength)) {
-      return cb(new restifyErrors.BadRequestError({
+    if (maxLength > 0 && value?.length > maxLength) {
+      cb(new restifyErrors.BadRequestError({
         code: 'BadRequestError',
         message: "Value too large"
       }));
     }
-    if (!this.isValid(key)) {
-      return cb(new restifyErrors.BadRequestError({
+    else if (!this.isValid(key)) {
+      cb(new restifyErrors.BadRequestError({
         message: "Forbidden meta key",
         code: 'BadRequestError'
       }));
     }
-    return this.redisClient.set(`${username}:${key}`, value, (err, reply) => cb(err, reply));
+    else {
+      this.redisClient.set(`${username}:${key}`, value, (err, reply) => cb(err, reply));
+    }
   }
 
-  get(params, key, cb) {
+  get(params:UsermetaClientOptions|string, key:string, cb:UsermetaClientCallback) {
     const {username} = parseParams(params);
     return this.redisClient.get(`${username}:${key}`, (err, reply) => cb(err, reply));
   }
@@ -428,6 +453,13 @@ class GanomedeUsermeta {
   }
 }
 
+interface UsermetaRouterOptions {
+  directoryPublic: any,
+  directoryProtected: any,
+  ganomedeCentral: UsermetaClient,
+  ganomedeLocal: UsermetaClient
+};
+
 // Routes metadata to one of its children
 //
 // For now, no complex genericity,
@@ -444,8 +476,8 @@ class UsermetaRouter {
   type: string;
   directoryPublic: any;
   directoryProtected: any;
-  ganomedeCentral: any;
-  ganomedeLocal: any;
+  ganomedeCentral: UsermetaClient;
+  ganomedeLocal: UsermetaClient;
   routes: any;
 
   constructor({
@@ -453,7 +485,7 @@ class UsermetaRouter {
     directoryProtected,
     ganomedeCentral,
     ganomedeLocal
-  }) {
+  }: UsermetaRouterOptions) {
     this.directoryPublic = directoryPublic;
     this.directoryProtected = directoryProtected;
     this.ganomedeCentral = ganomedeCentral;
@@ -470,32 +502,18 @@ class UsermetaRouter {
     };
   }
 
-  set(params, key, value, cb) {
+  set(params:UsermetaClientOptions|string, key:string, value:string, cb:UsermetaClientCallback) {
     params = parseParams(params);
     const client = this.routes[key] || this.ganomedeLocal;
     return client.set(params, key, value, cb);
   }
 
-  get(params, key, cb) {
+  get(params:UsermetaClientOptions|string, key:string, cb:UsermetaClientCallback) {
     params = parseParams(params);
     const client = this.routes[key] || this.ganomedeLocal;
     return client.get(params, key, cb);
   }
 }
-
-export interface UsermetaClientOptions {
-  req_id: string;
-  authToken: string;
-  username: string;
-  tag?: string;
-  name?: string;
-  email?: string;
-}
-
-export interface UsermetaClient {
-  set: (params: UsermetaClientOptions, key, value, callback: (err, reply) => void, maxLength?: number) => void;
-  get: (params: UsermetaClientOptions, key, callback: (err, reply) => void) => void;
-};
 
 export default {
   create(config): UsermetaClient {

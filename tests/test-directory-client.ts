@@ -6,7 +6,7 @@
 import restifyErrors from 'restify-errors';
 import { expect } from 'chai';
 import td from 'testdouble';
-import directoryClientMod from '../src/directory-client';
+import directoryClientMod, { DirectoryCallback } from '../src/directory-client';
 import tagizer from 'ganomede-tagizer';
 import bunyan from 'bunyan';
 import logMod from '../src/log';
@@ -150,7 +150,7 @@ describe('directory-client', function() {
 
     const byAlias = function(alias) {
       const ret = baseTest();
-      ret.directoryClient.byAlias(alias, ret.callback);
+      ret.directoryClient.byAlias(alias, ret.callback as DirectoryCallback);
       return ret;
     };
 
@@ -183,7 +183,7 @@ describe('directory-client', function() {
 
     const addAccount = function(account) {
       const ret = baseTest();
-      ret.directoryClient.addAccount(account, ret.callback);
+      ret.directoryClient.addAccount(account, ret.callback as DirectoryCallback);
       return ret;
     };
 

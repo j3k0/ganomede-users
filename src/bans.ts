@@ -3,7 +3,11 @@
  * DS102: Remove unnecessary code created because of implicit returns
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
-const parseTimestampString = function(value) {
+export interface Timestamp {
+  okay: boolean;
+  value: number;
+}
+const parseTimestampString = function(value:string|number|null|undefined): Timestamp {
   const str = String(value);
   const i = parseInt(str, 10);
   const okay = isFinite(i) && /\d{13}/.test(str); // 13 digits should cover it :)

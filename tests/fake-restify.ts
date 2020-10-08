@@ -5,6 +5,13 @@
  */
 // vim: ts=2:sw=2:et:
 
+import td from 'testdouble';
+import { RequestHandler } from 'restify';
+import vasync from "vasync"
+import { v4 as uuidv4 } from 'uuid';
+import logMod from '../src/log';
+import { HttpError } from 'restify-errors';
+
 class Res {
   status: number;
   body: any;
@@ -16,9 +23,22 @@ class Res {
   }
 }
 
+interface Routes {
+  [url: string]: RequestHandler[];
+}
+
+interface RoutesByMethod {
+  get: Routes;
+  head: Routes;
+  put: Routes;
+  post: Routes;
+  del: Routes;
+}
+
 class Server {
-  routes: any;
+  routes: RoutesByMethod;
   res?: Res;
+  log: any;
   
   constructor() {
     this.routes = {
@@ -28,33 +48,53 @@ class Server {
       post: {},
       del: {}
     };
+    this.log = logMod; // td.object([ 'info', 'warn', 'error', 'debug' ]);
   }
-  get(url, callback) {
-    return this.routes.get[url] = callback;
+  get(url, ...callbacks:RequestHandler[]) {
+    return this.routes.get[url] = callbacks;
   }
-  head(url, callback) {
-    return this.routes.head[url] = callback;
+  head(url, ...callbacks:RequestHandler[]) {
+    return this.routes.head[url] = callbacks;
   }
-  put(url, callback) {
-    return this.routes.put[url] = callback;
+  put(url, ...callbacks:RequestHandler[]) {
+    return this.routes.put[url] = callbacks;
   }
-  post(url, callback) {
-    return this.routes.post[url] = callback;
+  post(url, ...callbacks:RequestHandler[]) {
+    return this.routes.post[url] = callbacks;
   }
-  del(url, callback) {
-    return this.routes.del[url] = callback;
+  del(url, ...callbacks:RequestHandler[]) {
+    return this.routes.del[url] = callbacks;
   }
 
-  request(type, url, req?:any, callback?:(res?: Res) => void) {
-    return this.routes[type][url](req, (this.res = new Res),
-      data => {
-        if (data) {
-          this.res!.status = data.status || 500;
-          this.res!.send(data);
-        }
-        return (typeof callback === 'function' ? callback(this.res) : undefined);
+  request(type, url, req:any = {}, callback?:(res?: Res) => void) {
+    if (!req.log)
+      req.log = logMod;
+    if (!req.req_id)
+      req.req_id = uuidv4();
+    if (!req.id)
+      req.id = () => req.req_id;
+    const res = this.res = new Res();
+    vasync.pipeline({
+      funcs: this.routes[type][url].map(
+        requestHandler => (_, callback) =>
+          requestHandler(req, res, callback))
+    }, (err?:HttpError) => {
+      if (err) {
+        this.res!.status = err.statusCode || 500;
+        this.res!.send(err);
+      }
+      if (typeof callback === 'function')
+        callback(this.res);
     });
+  }
+
+  on(_event: string, _callback: any): void {
+    // ignored
   }
 }
 
-export default {createServer() { return new Server; }};
+export default {
+  createServer() {
+    return new Server();
+  }
+};

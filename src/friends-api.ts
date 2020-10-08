@@ -7,7 +7,7 @@
 import log from "./log";
 import restifyErrors from "restify-errors";
 
-class Api {
+export class FriendsApi {
 
   options: any;
   authMiddleware: any;
@@ -101,6 +101,10 @@ class Api {
   }
 }
 
-export default {createApi(options) { return new Api(options); }};
+export default {
+  createApi(options) {
+    return new FriendsApi(options);
+  }
+};
 
 // vim: ts=2:sw=2:et:

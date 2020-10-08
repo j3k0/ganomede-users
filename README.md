@@ -246,6 +246,102 @@ Ban removed successfully or does not exist.
 Invalid or missing API secret.
 
 
+# Blocked users `/users/v1/auth/:token/blocked-users`
+
+A list of blocked users for user identified by the authentication token `:token`.
+
+The list will be stored in the central usermeta, with key `$blocked-users`. The value will be an array of strings containing the usernames of blocked users.
+
+For administration purposes, blocked user will also be stored in a `ganomede-events` channel (`/users/v1/blocked-users`). This way, it becomes possible to analyze recently blocked users and generate daily reports.
+
+## Get the list of blocked users `/users/v1/auth/:token/blocked-users [GET]`
+
+Returns `BlockedUsers` object containing the list of blocked users.
+
+### response [200] OK
+
+```js
+[ "bob", "marc" ]
+```
+
+## Block user `/users/v1/auth/:token/blocked-users [POST]`
+
+Adds a user to the "blocked-users" list.
+
+### body (application/json)
+
+``` json
+{ "username": "who-to-block" }
+```
+
+### response [200]
+
+Blocked user added successfully, returns the new list of blocked users.
+
+```js
+[ "who-to-block", "bob", "marc" ]
+```
+
+### response [409]
+
+User already blocked.
+
+### response [403]
+
+Invalid authentication token.
+
+## Unblock user `/users/v1/auth/:token/blocked-users/:tag [DELETE]`
+
+### body (application/json)
+
+Empty.
+
+### response [200]
+
+Blocked user removed successfully or does not exist.
+
+### response [403]
+
+Invalid authentication token.
 
 
+# Blocked Users Admin `/users/v1/admin/:api-secret/blocked-users`
+
+Endpoint used by administrators to find annoying users.
+
+## List of blocked users `/users/v1/admin/:api-secret/blocked-users` [GET]
+
+## query parameters
+
+You can add a number of filters:
+
+| parameter  | type      | description |
+|------------|-----------|-------------|
+| `username` | string[]  | comma separated list of users you're interested in      |
+| `since`    | timestamp | only return users blocked since the provided timestamp  |
+
+## response [200]
+
+```js
+{
+    "blocked": [{
+        "username": "alice",
+        "total": 2,
+        "by": [{
+            "username": "bob",
+            "createdAt": 1476531925454
+        }, {
+            "username": "marco",
+            "createdAt": 1576531925454
+        }],
+    }, {
+        "username": "bob",
+        "total": 1,
+        "by": [{
+            "username": "harry",
+            "createdAt": 1376531925454
+        }],
+    }]
+}
+```
 

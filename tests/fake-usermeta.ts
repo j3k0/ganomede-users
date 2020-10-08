@@ -1,32 +1,27 @@
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * DS207: Consider shorter variations of null checks
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
+import { UsermetaClientOptions, UsermetaClientCallback, UsermetaClient } from "../src/usermeta";
+
 const DEFAULT_MAX_LENGTH = 200;
-class UsermetaClient {
+class FakeUsermetaClient implements UsermetaClient {
   store: any;
   constructor() {
     this.store = {};
   }
-  set(username, key, value, cb, maxLength) {
+  set(params:UsermetaClientOptions|string, key:string, value:string, cb:UsermetaClientCallback, maxLength?:number): void {
     if (maxLength == null) { maxLength = DEFAULT_MAX_LENGTH; }
+    const username = typeof params === 'string' ? params : params.username; 
     const token = `${username}:${key}`;
     this.store[token] = value;
-    return cb(null);
+    cb(null);
   }
-  get(username, key, cb) {
+  get(params:UsermetaClientOptions|string, key:string, cb:UsermetaClientCallback): void {
+    const username = typeof params === 'string' ? params : params.username; 
     const token = `${username}:${key}`;
-    if (!this.store[token]) {
-      return cb(null, null);
-    }
-    return cb(null, this.store[token]);
+    cb(null, this.store[token] ?? null);
   }
 }
 
 export function createClient(_redis?) {
-  return new UsermetaClient();
+  return new FakeUsermetaClient();
 }
 
 export default {createClient};
