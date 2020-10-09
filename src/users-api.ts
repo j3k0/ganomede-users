@@ -32,16 +32,41 @@ import { Bans } from './bans';
 import urllib from 'url';
 import mailer from './mailer';
 import parseTagMod from './middlewares/parse-tag';
-import eventSender from './event-sender';
+import eventSender, { USERS_EVENTS_CHANNEL, EventSender } from './event-sender';
 import deferredEvents from './deferred-events';
 import emails from './emails';
 import statsdWrapper from './statsd-wrapper';
 import facebookFriends from './facebook-friends';
 import friendsApiMod, { FriendsApi } from './friends-api';
-import bannedUsersMod, { BlockedUsersApi } from './blocked-users-api';
+import bannedUsersMod, { BlockedUsersApi } from './blocked-users/api';
 import directoryClientMod, { DirectoryClient } from './directory-client';
 import mailTemplate from './mail-template';
-import backendDirectoryMod from './backend/directory';
+import backendDirectoryMod, { BackendInitializer, BackendOptions } from './backend/directory';
+import Logger from 'bunyan';
+import { AuthdbClient } from '../tests/fake-authdb';
+
+export interface UsersApiOptions {
+  log?: Logger;
+  directoryClient?: DirectoryClient;
+  sendEvent?: EventSender;
+  authdbClient?: AuthdbClient;
+
+// rootUsermetaClient: UsermetaClient|null;
+// localUsermetaClient: UsermetaClient|null;
+// centralUsermetaClient:UsermetaClient|null;
+// aliasesClient: any;
+// fullnamesClient: any;
+// friendsClient: any;
+  friendsApi?: FriendsApi|null;
+  bannedUsersApi?: BlockedUsersApi|null;
+  bans?: Bans;
+  //createBackend?: () => Backend;
+// authenticator: any;
+// directoryClient: DirectoryClient|null;
+// storeFacebookFriends: (options: any) => void | null;
+// sendEvent: EventSender|null;
+  createBackend?: (options: BackendOptions) => BackendInitializer;
+};
 
 const sendError = function(req, err, next) {
   if (err.code == 'UnauthorizedError' || err.code == 'InvalidCredentials' || err.code == 'StormpathResourceError2006') {
@@ -79,6 +104,7 @@ let bans: any = null;
 let authenticator: any = null;
 let directoryClient: DirectoryClient|null = null;
 let storeFacebookFriends: (options: any) => void | null;
+let sendEvent: EventSender|null = null;
 
 // backend, once initialized
 let backend: any = null;
@@ -132,8 +158,8 @@ const createAccount = function(req, res, next) {
         if (emails.isGuestEmail(account.email) || emails.isNoEmail(account.email)) {
           metadata.newsletter = false;
         }
-        deferredEvents.editEvent(
-          req.id(), eventSender.CREATE, "metadata", metadata);
+        deferredEvents.editEvent(req.id(),
+          USERS_EVENTS_CHANNEL, eventSender.CREATE, "metadata", metadata);
         res.send(data);
         return next();
       });
@@ -478,15 +504,15 @@ const getMetadata = function(req, res, next) {
   });
 };
 
-// Initialize the module
-const initialize = function(cb, options: any = {}) {
 
-  if (options.log) {
+// Initialize the module
+const initialize = function(cb, options: UsersApiOptions = {}) {
+
+  if (options.log)
     log = options.log;
-  }
 
   // Initialize the directory client (if possible)
-  directoryClient = options.directoryClient;
+  directoryClient = options.directoryClient || null;
   let directoryJsonClient = null;
   const createDirectoryClient = function() {
     const directoryService = serviceConfig('DIRECTORY', 8000);
@@ -509,6 +535,8 @@ const initialize = function(cb, options: any = {}) {
     });
   };
   directoryClient = directoryClient || createDirectoryClient();
+
+  sendEvent = options.sendEvent ?? eventSender.createSender();
 
   if (options.authdbClient) {
     ({
@@ -546,13 +574,7 @@ const initialize = function(cb, options: any = {}) {
   }
   });
 
-  if (options.bans) {
-    ({
-      bans
-    } = options);
-  } else {
-    bans = new Bans({usermetaClient: centralUsermetaClient});
-  }
+  bans = options.bans ?? new Bans({usermetaClient: centralUsermetaClient});
 
   // Aliases
   aliasesClient = aliases.createClient({
@@ -580,7 +602,7 @@ const initialize = function(cb, options: any = {}) {
     facebookClient: options.facebookClient || facebookClient
   });
 
-  friendsApi = options.friendsApi || friendsApiMod.createApi({
+  friendsApi = options.friendsApi ?? friendsApiMod.createApi({
     friendsClient,
     authMiddleware
   });
@@ -588,13 +610,14 @@ const initialize = function(cb, options: any = {}) {
   bannedUsersApi = options.bannedUsersApi || bannedUsersMod.createApi({
     usermetaClient: centralUsermetaClient!,
     directoryClient,
-    authMiddleware
+    authMiddleware,
+    sendEvent: deferredEvents.sendEvent
   });
 
-  const backendOpts: any = {
-    apiId: options.stormpathApiId,
-    apiSecret: options.stormpathApiSecret,
-    appName: options.stormpathAppName,
+  const backendOpts: BackendOptions = {
+    // apiId: options.stormpathApiId,
+    // apiSecret: options.stormpathApiSecret,
+    // appName: options.stormpathAppName,
     usermetaClient: rootUsermetaClient,
     log,
     deferredEvents,
@@ -623,9 +646,7 @@ const initialize = function(cb, options: any = {}) {
     return backendOpts.mailerTransport = mailer.createTransport();
   };
 
-  let {
-    createBackend
-  } = options;
+  let createBackend = options.createBackend;
   if (!createBackend) {
     log.info("Using directory backend only");
     prepareDirectoryBackend();
@@ -750,7 +771,7 @@ const addRoutes = function(prefix: string, server: restify.Server): void {
   friendsApi?.addRoutes(prefix, server);
   bannedUsersApi?.addRoutes(prefix, server);
 
-  server.on("after", deferredEvents.finalize(eventSender.createSender()));
+  server.on("after", deferredEvents.finalize(sendEvent!));
 };
 
 export default {

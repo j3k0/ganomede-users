@@ -268,7 +268,7 @@ A list of blocked users for user identified by the authentication token `:token`
 
 The list will be stored in the central usermeta, with key `$blocked-users`. The value will be an array of strings containing the usernames of blocked users.
 
-For administration purposes, blocked user will also be stored in a `ganomede-events` channel (`/users/v1/blocked-users`). This way, it becomes possible to analyze recently blocked users and generate daily reports.
+For administration purposes, blocked user will also be stored in a `ganomede-events` channel (`users/v1/blocked-users`). This way, it becomes possible to analyze recently blocked users and generate daily reports.
 
 ## Get the list of blocked users `/users/v1/auth/:token/blocked-users [GET]`
 

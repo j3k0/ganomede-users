@@ -9,40 +9,47 @@ import expect from "expect.js";
 import logMod from '../src/log';
 import fakeUsermeta from './fake-usermeta';
 import { UsermetaClient } from "../src/usermeta";
+import { EventSender } from "../src/event-sender";
+import Logger from "bunyan";
+import { DirectoryClient } from "../src/directory-client";
+import { BackendOptions, BackendInitializer } from "../src/backend/directory";
+import tagizer from 'ganomede-tagizer';
+
+const TAGS = {
+  "charies-tag": "charles",
+};
 
 const server = fakeRestify.createServer();
 
 class Test {
 
-  directoryClient: DoubledObjectWithKey<string>;
-  log: DoubledObjectWithKey<string>;
+  directoryClient: DirectoryClient;
+  log: Logger;
   localUsermetaClient: UsermetaClient;
   centralUsermetaClient: UsermetaClient;
   backend: DoubledObjectWithKey<string>;
-  createBackend: TestDouble<Function>;
+  createBackend: (options: BackendOptions) => BackendInitializer;
   authdbClient: AuthdbClient;
+  sendEvent: EventSender;
 
   constructor() {
     // Some mocks so we can initialize the `users` module.
-    this.directoryClient = td.object(['editAccount', 'byId', 'byToken', 'byAlias']);
+    this.directoryClient = td.object(['editAccount', 'byId', 'byToken', 'byAlias']) as DirectoryClient;
 
-    const tags = {
-      "charies-tag": "charles",
-    };
-  
     td.when(this.directoryClient.byAlias(
       td.matchers.contains({ type: "tag" }),
       td.matchers.isA(Function)))
       .thenDo((alias, cb) => {
-        cb(null, tags[alias.value] ? { id: tags[alias.value] } : null);
+        cb(null, TAGS[alias.value] ? { id: TAGS[alias.value] } : null);
       });
 
+    this.sendEvent = td.function('sendEvent') as EventSender;
     this.log = logMod;
-    this.log = td.object([ 'info', 'warn', 'error', 'debug' ]);
+    this.log = td.object([ 'info', 'warn', 'error', 'debug' ]) as Logger;
     this.localUsermetaClient = fakeUsermeta.createClient();
     this.centralUsermetaClient = fakeUsermeta.createClient();
     this.backend = td.object(['initialize']);
-    this.createBackend = td.function('createBackend');
+    this.createBackend = td.function('createBackend') as (options: BackendOptions) => BackendInitializer;
 
     td.when(
       this.createBackend(td.matchers.isA(Object)))
@@ -198,6 +205,17 @@ describe("blocked-users-api", function () {
           expect(res?.body).to.eql(final.split(','));
           test.centralUsermetaClient.get("alice", "$blocked", (_err, reply) => {
             expect(reply).to.eql(final);
+
+            // it should also emit an event with the removed block
+            if (initial !== final) {
+              td.verify(test.sendEvent("users/v1/blocked-users", "BLOCKED", {
+                req_id: td.matchers.isA(String),
+                type: "BLOCKED",
+                username: "alice",
+                target: TAGS[tagizer.tag(block)] || block,
+                blocked: final.split(',')
+              }));
+            }
             done();
           });
         }
@@ -285,6 +303,17 @@ describe("blocked-users-api", function () {
           expect(res?.body).to.eql(final ? final.split(',') : []);
           test.centralUsermetaClient.get("alice", "$blocked", (_err, reply) => {
             expect(reply).to.eql(final ?? null);
+
+            // it should also emit an event with the removed block
+            if ((initial ?? "") !== (final ?? "")) {
+              td.verify(test.sendEvent("users/v1/blocked-users", "UNBLOCKED", {
+                req_id: td.matchers.isA(String),
+                type: "UNBLOCKED",
+                username: "alice",
+                target: TAGS[tagizer.tag(unblock)] || unblock,
+                blocked: final ? final.split(',') : [],
+              }));
+            }
             done();
           });
         }

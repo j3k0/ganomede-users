@@ -1,14 +1,9 @@
 import * as _ from 'lodash';
 import * as tagizer from 'ganomede-tagizer';
 import { v4 as uuidv4 } from 'uuid';
+import { DirectoryAlias } from '../src/directory-client';
 
 const picker = fields => obj => _.pick(obj, fields);
-
-interface DirectoryAlias {
-  type: string;
-  value: string;
-  public: boolean;
-}
 
 const directoryData = {};
 

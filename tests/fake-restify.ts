@@ -6,7 +6,7 @@
 // vim: ts=2:sw=2:et:
 
 import td from 'testdouble';
-import { RequestHandler } from 'restify';
+import { RequestHandler, Response, Next } from 'restify';
 import vasync from "vasync"
 import { v4 as uuidv4 } from 'uuid';
 import logMod from '../src/log';
@@ -83,12 +83,18 @@ class Server {
         this.res!.status = err.statusCode || 500;
         this.res!.send(err);
       }
+      if (this.eventsHandlers.after) {
+        this.eventsHandlers.after(req, this.res as unknown as Response, null as unknown as Next)
+      }
       if (typeof callback === 'function')
         callback(this.res);
     });
   }
 
-  on(_event: string, _callback: any): void {
+  eventsHandlers: {[eventType:string]: RequestHandler} = {};
+
+  on(event: string, callback: RequestHandler): void {
+    this.eventsHandlers[event] = callback;
     // ignored
   }
 }

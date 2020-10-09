@@ -13,6 +13,10 @@ import api from '../src/users-api';
 import { expect } from 'chai';
 import { Bans, BanInfo } from '../src/bans';
 import td from 'testdouble';
+import { UsermetaClient } from "../src/usermeta";
+import { BackendOptions, BackendInitializer } from "../src/backend/directory";
+import Logger from "bunyan";
+import { DirectoryClient } from "../src/directory-client";
 const {contains} = td.matchers;
 
 const PREFIX = 'users/v1';
@@ -47,9 +51,9 @@ const apiSecret = process.env.API_SECRET;
 
 const baseTest = function() {
   //log = require '../src/log'
-  const log = td.object([ 'info', 'warn', 'error' ]);
-  const localUsermetaClient = td.object([ 'get', 'set' ]);
-  const centralUsermetaClient = td.object([ 'get', 'set' ]);
+  const log = td.object([ 'info', 'warn', 'error' ]) as Logger;
+  const localUsermetaClient = td.object([ 'get', 'set' ]) as UsermetaClient;
+  const centralUsermetaClient = td.object([ 'get', 'set' ]) as UsermetaClient;
 
   const backend = td.object([
     'initialize',
@@ -57,7 +61,7 @@ const baseTest = function() {
     'createAccount',
     'sendPasswordResetEmail'
   ]);
-  const createBackend = td.function('createBackend');
+  const createBackend = td.function('createBackend') as (options: BackendOptions) => BackendInitializer;
   td.when(createBackend(td.matchers.isA(Object)))
     .thenReturn(backend);
   const missAuthenticator = ({ authenticator }) => !authenticator;
@@ -72,7 +76,7 @@ const baseTest = function() {
   td.when(backend.loginAccount(data.validLogin))
     .thenCallback(null, {token:VALID_AUTH_TOKEN});
 
-  const directoryClient = td.object(['editAccount', 'byId', 'byToken', 'byAlias']);
+  const directoryClient = td.object(['editAccount', 'byId', 'byToken', 'byAlias']) as DirectoryClient;
   td.when(directoryClient.byAlias(
     td.matchers.contains({type: "tag"}),
     td.matchers.isA(Function)))

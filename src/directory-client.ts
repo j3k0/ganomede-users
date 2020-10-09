@@ -21,20 +21,28 @@
 // {"id":"aaa","aliases":{"email":"user@email.com","name":"aaa","tag":"aaa"}}
 //
 
+export interface DirectoryAlias {
+  type: string;
+  value: string;
+  public?: boolean;
+}
+
 import restifyErrors from 'restify-errors';
 
 import logMod from './log';
-import { CREATE, CHANGE, LOGIN } from './event-sender';
+import { USERS_EVENTS_CHANNEL, CREATE, CHANGE, LOGIN, EventSender, DirectoryEventData, AliasesDictionary } from './event-sender';
 
 const noop = function() {};
 
-const reduceAliases = aliases => aliases.reduce(
-  function(ref, {type, value}) { ref[type] = value; return ref; },
-  {}
-);
+function reduceAliases(aliases: DirectoryAlias[]): AliasesDictionary {
+  return aliases.reduce(function (ref: AliasesDictionary, alias: DirectoryAlias): AliasesDictionary {
+    ref[alias.type] = alias.value;
+    return ref;
+  }, {});
+}
 
-const eventData = function(req_id, userId, aliases?: any[]) {
-  if (aliases == null) { aliases = []; }
+function eventData(req_id: string, userId: string, aliases?: DirectoryAlias[]): DirectoryEventData {
+  if (!aliases) { aliases = []; }
   return {
     req_id,
     userId,
@@ -74,7 +82,7 @@ const createClient = function(options): DirectoryClient {
 
   const jsonClient = options.jsonClient;
   const apiSecret = options.apiSecret ?? process.env.API_SECRET;
-  const sendEvent = options.sendEvent ?? noop;
+  const sendEvent: EventSender = options.sendEvent ?? noop;
   if (!jsonClient) {
     throw new Error('jsonClient required');
   }
@@ -160,7 +168,7 @@ const createClient = function(options): DirectoryClient {
         callback(new Error(`HTTP${res.statusCode}`));
 
       } else {
-        sendEvent(LOGIN, eventData(req_id, credentials.id));
+        sendEvent(USERS_EVENTS_CHANNEL, LOGIN, eventData(req_id, credentials.id));
         callback(null, body);
       }
     });
@@ -192,7 +200,7 @@ const createClient = function(options): DirectoryClient {
         return callback(err);
       }
 
-      sendEvent(CREATE, eventData(account.req_id, account.id, account.aliases));
+      sendEvent(USERS_EVENTS_CHANNEL, CREATE, eventData(account.req_id, account.id, account.aliases));
       return callback(null, bodyResult);
     });
   };
@@ -231,7 +239,7 @@ const createClient = function(options): DirectoryClient {
       }
 
       if (triggerChangeEvent) {
-        sendEvent(CHANGE, eventData(account.req_id, account.id, body.aliases));
+        sendEvent(USERS_EVENTS_CHANNEL, CHANGE, eventData(account.req_id, account.id, body.aliases));
       }
 
       return callback(null, bodyResult);

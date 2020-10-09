@@ -15,21 +15,56 @@
 //     callback(err, backend)
 
 import restifyClients from "restify-clients";
-import restifyErrors from "restify-errors";
+import restifyErrors, { HttpError } from "restify-errors";
 import vasync from "vasync";
 import * as tagizerMod from 'ganomede-tagizer';
 
 import logMod from '../log';
 import emailsMod from '../emails';
 import passwordGeneratorMod from 'password-generator';
-import { DirectoryClient } from "../directory-client";
+import { DirectoryClient, DirectoryCallback } from "../directory-client";
+import { USERS_EVENTS_CHANNEL } from "../event-sender";
+import { UsermetaClient } from "../usermeta";
+import Logger from "bunyan";
+import { DeferredEvents } from "../deferred-events";
+import { AuthdbClient } from "../../tests/fake-authdb";
 
-const createBackend = function(options) {
+export type BackendInitializerCallback =(err?: HttpError|null, backend?: Backend) => void;
+
+export interface BackendInitializer {
+  initialize: (callback: BackendInitializerCallback) => void;
+};
+
+export interface BackendOptions {
+  usermetaClient: UsermetaClient;
+  log?: Logger;
+  deferredEvents: DeferredEvents;
+  authdbClient?: AuthdbClient;
+  aliasesClient?: any;
+  directoryClient?: DirectoryClient;
+  fullnamesClient?: any;
+  checkBan?: any;
+  facebookClient?: any;
+  facebookFriends?: any;
+  friendsClient?: any;
+  authenticator?: any;
+  stats?: any;
+  facebookAppId?: string;
+  generatePassword?: any;
+  mailerTransport?: any;
+  passwordResetTemplate?: any;
+  tagizer?: any;
+  allowCreate?: any;
+  fbgraphClient?: any;
+  emails?: any;
+};
+
+const createBackend = function(options: BackendOptions): BackendInitializer {
 
   let legacyError;
   let val = options.facebookAppId,
       facebookAppId = val != null ? val : process.env.FACEBOOK_APP_ID,
-      directoryClient: DirectoryClient = options.directoryClient,
+      directoryClient: DirectoryClient = options.directoryClient!,
       {
         authenticator,
         aliasesClient,
@@ -123,7 +158,7 @@ const createBackend = function(options) {
     username,    // the backend username
     password,    // the backend password
     req_id
-  }, callback) {
+  }: Req<UserFacebookToken>, callback) {
 
     if (!accessToken) {
       // log.warn('missing access token');
@@ -338,7 +373,7 @@ const createBackend = function(options) {
     // if login triggers a CREATE event,
     // it'll be extended with extra metadata
     const extendCreateEvent = function(user, cb) {
-      deferredEvents.editEvent(req_id, 'CREATE', 'metadata', {
+      deferredEvents.editEvent(req_id, USERS_EVENTS_CHANNEL, 'CREATE', 'metadata', {
         yearofbirth: yearofbirth(user.birthday),
         country: __guard__(__guard__(user.location != null ? user.location.location : undefined, x1 => x1.country_code), x => x.toLowerCase()),
         latitude: String(__guard__(user.location != null ? user.location.location : undefined, x2 => x2.latitude)),
@@ -459,7 +494,7 @@ const createBackend = function(options) {
   };
 
   // credentials: { username, password }
-  const loginAccount = function({req_id, username, password}, cb) {
+  const loginAccount = function({req_id, username, password}: Req<UserPassword>, cb: LoginCallback) {
     const id = username;
     const credentials = { id, password, req_id };
     return directoryClient.authenticate(credentials, function(err, authResult) {
@@ -477,7 +512,7 @@ const createBackend = function(options) {
     password,
     email,
     req_id
-  }, cb) {
+  }: Req<Account>, cb: LoginCallback) {
     id = username;
     const aliases = [{
       type: 'email',
@@ -503,7 +538,7 @@ const createBackend = function(options) {
     });
   };
 
-  const sendPasswordResetEmail = function({token, email, req_id}, callback) {
+  const sendPasswordResetEmail = function({token, email, req_id}:Req<PasswordResetToken>, callback: PasswordResetCallback) {
     let id = null;
     let name = null;
     let password = null;
@@ -551,7 +586,7 @@ const createBackend = function(options) {
   };
 
   return {
-    initialize(cb) {
+    initialize(cb: (err?:HttpError|null, backend?:Backend) => void) {
       return cb(null, {
         loginFacebook,
         loginAccount,
@@ -561,7 +596,61 @@ const createBackend = function(options) {
   };
 };
 
-export default { createBackend };
+export type Req<T> = T & {
+  req_id?: string;
+}
+
+export interface UserToken {
+  username: string;
+  token: string;
+}
+
+export interface UserPassword {
+  username: string;
+  password: string;
+}
+
+export interface UserFacebookToken extends UserPassword {
+  facebookId: string; // the facebook id of the user
+  accessToken: string; // the facebook access token
+}
+
+export interface FacebookUser {
+  facebookId: string;
+  fullName: string;
+  email: string;
+  birthday: string;
+  location: string;
+}
+
+export interface Account {
+  id: string;
+  username: string;
+  password: string;
+  email: string;
+}
+
+export interface PasswordResetToken {
+  token: string;
+  email: string;
+}
+
+export type LoginCallback = (err: HttpError | null | undefined, data?: UserToken) => void;
+
+export type FacebookLoginCallback = (err: HttpError | null | undefined, data?: FacebookUser) => void;
+
+export type PasswordResetCallback = DirectoryCallback;
+
+export interface Backend {
+  loginFacebook: (token: Req<UserFacebookToken>, callback: FacebookLoginCallback) => void;
+  loginAccount: (userpass: Req<UserPassword>, callback: LoginCallback) => void;
+  createAccount: (account: Req<Account>, callback: LoginCallback) => void;
+  sendPasswordResetEmail: (req: Req<PasswordResetToken>, callback: PasswordResetCallback) => void;
+};
+
+export default {
+  createBackend
+};
 
 // vim: ts=2:sw=2:et:
 

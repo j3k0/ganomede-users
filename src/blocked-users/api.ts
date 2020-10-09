@@ -1,18 +1,21 @@
-import log from "./log";
+import Logger from "bunyan";
 import restify from "restify";
 import restifyErrors from "restify-errors";
 import { RequestHandler, Request, Response, Next } from "restify";
-import Logger from "bunyan";
-import { UsermetaClient, UsermetaClientOptions } from "./usermeta";
-import directoryClient, { DirectoryClient, DirectoryAliasRequest } from "./directory-client";
-import parseTagMod from './middlewares/parse-tag';
-import * as tagizer from 'ganomede-tagizer';
+
+import log from "../log";
+import { UsermetaClient, UsermetaClientOptions } from "../usermeta";
+import { DirectoryClient } from "../directory-client";
+import parseTagMod from '../middlewares/parse-tag';
+import { EventSender } from "../event-sender";
+import { blockEvent, unblockEvent, BLOCKED, UNBLOCKED, CHANNEL } from "./events";
 
 export interface BlockedUsersApiOptions {
   log?: Logger;
   authMiddleware: RequestHandler;
   directoryClient: DirectoryClient;
   usermetaClient: UsermetaClient;
+  sendEvent: EventSender;
 }
 
 export const META_KEY:string = '$blocked';
@@ -24,6 +27,7 @@ export class BlockedUsersApi {
   usermetaClient: UsermetaClient;
   directoryClient: DirectoryClient;
   log: Logger;
+  sendEvent: EventSender;
 
   constructor(options: BlockedUsersApiOptions) {
 
@@ -33,6 +37,7 @@ export class BlockedUsersApi {
     this.log = options.log || log.child({ module: "blocked-users-api" });
     this.usermetaClient = options.usermetaClient;
     this.directoryClient = options.directoryClient;
+    this.sendEvent = options.sendEvent;
   }
 
   addRoutes(prefix: string, server: restify.Server) {
@@ -78,9 +83,13 @@ export class BlockedUsersApi {
 
   /** handler for GET requests */
   get(req: Request, res: Response, next: Next) {
+
+    // retrieve the username
     const username: string | undefined | null = req.params?.user?.username;
     if (!username)
       return next(new restifyErrors.InternalServerError("no username for provided auth token"));
+
+    // prepare the usermeta request to load the list of blocked users
     const params: UsermetaClientOptions = {
       req_id: req.id(),
       authToken: req.params.authToken || (req as any).context.authToken,
@@ -93,6 +102,8 @@ export class BlockedUsersApi {
           context: err,
         }, 'Request to usermeta client failed'));
       }
+
+      // send the array of usernames
       res.send(reply ? reply.split(',') : []);
       next();
     });
@@ -131,6 +142,8 @@ export class BlockedUsersApi {
       const value: string[] = reply ? reply.split(',') : [];
       if (value.indexOf(target) < 0) {
         value.push(target);
+        // emit an event
+        this.sendEvent(CHANNEL, BLOCKED, blockEvent(req.id(), username, target, value));
       }
       this.usermetaClient.set(params, META_KEY, value.join(','), (err, _reply) => {
         if (err) {
@@ -167,8 +180,12 @@ export class BlockedUsersApi {
           context: err,
         }, 'Request to usermeta client failed'));
       }
-      const value: string[] = (reply ? reply.split(',') : [])
+      const oldValue: string[] = (reply ? reply.split(',') : []);
+      const value: string[] = oldValue
         .filter(blockedUser => blockedUser !== target);
+      if (oldValue.length > value.length) {
+        this.sendEvent(CHANNEL, UNBLOCKED, unblockEvent(req.id(), username, target, value));
+      }
       this.usermetaClient.set(params, META_KEY, value.join(','), (err, reply) => {
         if (err) {
           return next(new restifyErrors.InternalServerError({

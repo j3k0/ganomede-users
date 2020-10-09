@@ -27,24 +27,38 @@
 // (where sender is the actual event sender function (see event-sender.coffee)
 //
 
-let allEvents = {};
+import { Request, Response, RequestHandler, Next } from "restify";
+import { EventSender, EventData, EventSenderCallback, Event } from "./event-sender";
+
+interface DeferredEvent {
+  channel: string;
+  type: string;
+  data: EventData;
+}
+
+let allEvents: { [req_id: string]: DeferredEvent[] } = {};
+
+export interface DeferredEvents {
+  sendEvent(channel: string, type: string, data: EventData, callback?: EventSenderCallback);
+  editEvent(req_id: string | null | undefined, channel: string, type: string, key: string, value: any);
+  finalize(sender: EventSender): RequestHandler;
+  reset();
+};
 
 export default {
 
-  sendEvent(type, data, callback) {
-    const {
-      req_id
-    } = data;
+  sendEvent(channel: string, type: string, data: EventData, callback?: EventSenderCallback) {
+    const req_id: string | null | undefined = data.req_id;
     if (req_id) {
       const events = (allEvents[req_id] = allEvents[req_id] || []);
-      events.push({type, data});
+      events.push({channel, type, data});
     }
     if (callback) {
       return callback(null, {});
     }
   },
 
-  editEvent(req_id, type, key, value) {
+  editEvent(req_id: string | null | undefined, channel: string, type: string, key: string, value: any) {
     if (req_id) {
       const events = allEvents[req_id] || [];
       return events.forEach(function(event) {
@@ -60,13 +74,15 @@ export default {
     }
   },
 
-  finalize(sender) { return function(req, res) {
-    if (allEvents[req.id()]) {
-      const events = allEvents[req.id()] || [];
-      events.forEach(({type, data}) => sender(type, data));
-      return delete allEvents[req.id()];
-    }
-  }; },
+  finalize(sender: EventSender): RequestHandler {
+    return function (req: Request, _res: Response, _next?: Next) {
+      if (allEvents[req.id()]) {
+        const events = allEvents[req.id()] || [];
+        events.forEach(({ channel, type, data }) => sender(channel, type, data));
+        return delete allEvents[req.id()];
+      }
+    };
+  },
 
   reset() { return allEvents = {}; }
 };

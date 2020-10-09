@@ -14,7 +14,7 @@ import logMod from '../src/log';
 // Disable delayed calls. We're doing synchronous tests.
 (global.setImmediate as any) = func => { func(); }
 
-import directory from '../src/backend/directory';
+import directory, { BackendOptions, BackendInitializerCallback } from '../src/backend/directory';
 
 const REQ_ID = "my-request-id";
 
@@ -214,7 +214,7 @@ const baseTest = function(user?: any) {
     log, authenticator, directoryClient, fbgraphClient, deferredEvents,
     facebookAppId: APP_ID, aliasesClient,
     usermetaClient, friendsClient, facebookFriends, facebookClient,
-    passwordResetTemplate, mailerTransport, generatePassword });
+    passwordResetTemplate, mailerTransport, generatePassword } as BackendOptions);
   const callback = td.function('callback');
   return { callback, directoryClient, backend, aliasesClient, deferredEvents,
     usermetaClient, friendsClient, facebookFriends,
@@ -238,7 +238,7 @@ describe('backend/directory', function() {
 
   describe('backend.initialize()', () => it('loads the backend object', function() {
     const { backend, callback } = baseTest();
-    backend.initialize(callback);
+    backend.initialize(callback as BackendInitializerCallback);
     return td.verify(callback(null, td.matchers.isA(Object)));
   }));
 
@@ -418,7 +418,7 @@ describe('backend/directory', function() {
       const { deferredEvents } =
         loginFacebook(null, facebookLogin(NEW_USER));
       return td.verify(deferredEvents.editEvent(
-        REQ_ID, 'CREATE', "metadata", {
+        REQ_ID, 'users/v1', 'CREATE', "metadata", {
           country: NEW_USER.location.location.country_code,
           latitude: String(NEW_USER.location.location.latitude),
           longitude: String(NEW_USER.location.location.longitude),

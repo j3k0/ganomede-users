@@ -130,17 +130,17 @@ describe('directory-client', function() {
 
     it('reports failure when response status is not 200', function() {
       const { callback } = authenticate(WRONG_CREDS);
-      return td.verify(callback(td.matchers.isA(Error)));
+      td.verify(callback(td.matchers.isA(Error)));
     });
 
     it('returns the generated token when response status is 200', function() {
       const { callback } = authenticate(CREDS);
-      return td.verify(callback(null, td.matchers.contains(authResult(EXISTING_USER))));
+      td.verify(callback(null, td.matchers.contains(authResult(EXISTING_USER))));
     });
 
-    return it('invokes sendEvent(LOGIN, userId) on succesful creation', function() {
+    it('invokes sendEvent(LOGIN, userId) on succesful creation', function() {
       const { sendEvent } = authenticate(CREDS);
-      return td.verify(sendEvent('LOGIN', {
+      td.verify(sendEvent('users/v1', 'LOGIN', {
         userId: EXISTING_USER.id, aliases: {}, req_id: REQ_ID})
       );
     });
@@ -227,29 +227,28 @@ describe('directory-client', function() {
       return td.verify(callback(td.matchers.isA(Error)));
     });
 
-    it('invokes sendEvent(CREATE, userId) on succesful creation', function() {
+    it('invokes sendEvent(CREATE, userId) on succesful creation', function () {
       const account = {
         secret: API_SECRET,
         req_id: REQ_ID,
         id: NEW_USER.id,
         password: '12345678',
         aliases: [
-          {type: 'email', value: 'me@me.me', public: false}
+          { type: 'email', value: 'me@me.me', public: false }
         ]
       };
 
       const { sendEvent } = addAccount(account);
-      return td.verify(sendEvent('CREATE', {
+      td.verify(sendEvent('users/v1', 'CREATE', {
         userId: NEW_USER.id,
         req_id: REQ_ID,
         aliases: {
           email: 'me@me.me'
         }
-      })
-      );
+      }));
     });
 
-    return it.skip('reports failure when directory server is not reachable', function() {
+    it.skip('reports failure when directory server is not reachable', function() {
       throw new Error("TODO");
     });
   });
