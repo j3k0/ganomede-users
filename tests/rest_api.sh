@@ -54,19 +54,34 @@ COUNTRY='"country":"fr"'
 BIRTH='"yearofbirth":"2015"'
 WRONG_PASSWORD='"password":"nononon"'
 
-it "registers the user"
+it "[POST /accounts] registers the user"
     CURL $PREFIX/accounts -d "{$USERNAME, $PASSWORD, $EMAIL, \"metadata\":{$COUNTRY, $BIRTH}}"
     CURL $PREFIX/accounts -d "{$USERNAME, $PASSWORD, $EMAIL, \"metadata\":{$COUNTRY, $BIRTH}}"
     outputIncludes StormpathResourceError2001
 
-it "saves metadata at registrations"
+it "[GET  /:username/metadata/country] saves metadata at registrations"
     CURL $PREFIX/test124/metadata/country
     outputIncludes fr
 
-it "logs the user in"
+it "[POST /login] logs the user in"
     CURL $PREFIX/login -d "{$USERNAME, $PASSWORD}"
     outputIncludes token
 
-it "rejects invalid password"
+it "[POST /login] rejects invalid password"
     CURL $PREFIX/login -d "{$USERNAME, $WRONG_PASSWORD}"
     outputIncludes StormpathResourceError2006
+
+CURL $PREFIX/login -d "{$USERNAME, $PASSWORD}"
+TOKEN="$(output | jq -r .token)"
+
+it "[GET  /auth/:token/blocked-users] returns blocked users"
+    CURL $PREFIX/auth/$TOKEN/blocked-users
+    outputIncludes '\[\]'
+
+it "[POST /auth/:token/blocked-users] blocks a user"
+    CURL $PREFIX/auth/$TOKEN/blocked-users -d '{"username": "bob"}'
+    outputIncludes '"bob"'
+
+it "[DEL  /auth/:token/blocked-users/:tag] unblocks a user"
+    CURL -X DELETE $PREFIX/auth/$TOKEN/blocked-users/bob
+    outputExcludes '"bob"'

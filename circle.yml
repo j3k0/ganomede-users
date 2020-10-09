@@ -1,8 +1,0 @@
-machine:
-  node:
-    version: 6.11.4
-
-test:
-  post:
-    - npm install https://github.com/nickmerwin/node-coveralls
-    - cat ./coverage/lcov.info | ./node_modules/.bin/coveralls

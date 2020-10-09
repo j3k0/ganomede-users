@@ -57,7 +57,7 @@ services:
     environment:
      - "API_SECRET=1234"
      - "USERMETA_PUBLIC_KEYS=country,yearofbirth"
-     - "USERMETA_PROTECTED_KEYS=$$friends"
+     - "USERMETA_PROTECTED_KEYS=$$friends,$$blocked"
      - "USERMETA_PRIVATE_KEYS=$$banned,$$alias"
      - "USERMETA_INTERNAL_KEYS="
      - "USERMETA_MAX_LENGTH=1000"
