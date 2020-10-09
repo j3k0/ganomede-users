@@ -13,10 +13,13 @@ import logMod from "./log";
 const log = logMod.child({module:"usermeta"});
 import tagizer from 'ganomede-tagizer';
 import validator from './validator';
+import { AuthdbClient } from "./authentication";
+import { DirectoryClient } from "./directory-client";
 
 export interface UsermetaClientOptions {
   username: string;
   req_id?: string;
+  apiSecret?: string;
   authToken?: string;
   tag?: string;
   name?: string;
@@ -72,19 +75,19 @@ var directory = {
   // In stormpath, 'name' and 'username' are the same. 'email'
   // was stored in the authdb. So we have some fallbacks.
   userNotFound: {
-    password(authdbClient, params, cb) {
+    password(_authdbClient:AuthdbClient, params:UsermetaClientOptions, cb:UsermetaClientCallback) {
       return cb(new restifyErrors.NotAuthorizedError({
         code: 'NotAuthorizedError',
         message: "Forbidden"
       }));
     },
-    name(authdbClient, params, cb) {
+    name(_authdbClient:AuthdbClient, params:UsermetaClientOptions, cb:UsermetaClientCallback) {
       return cb(null, (params.name || params.username));
     },
-    tag(authdbClient, params, cb) {
+    tag(_authdbClient:AuthdbClient, params:UsermetaClientOptions, cb:UsermetaClientCallback) {
       return cb(null, tagizer.tag(params.tag || params.username));
     },
-    email(authdbClient, params, cb) {
+    email(authdbClient:AuthdbClient, params:UsermetaClientOptions, cb:UsermetaClientCallback) {
       if (params.email) {
         return cb(null, params.email);
       }
@@ -102,7 +105,7 @@ var directory = {
   },
 
   // handles replies from directoryClient's read requests
-  handleResponse(authdbClient, params, key:string, cb:UsermetaClientCallback) { return function(err, account) {
+  handleResponse(authdbClient:AuthdbClient, params:UsermetaClientOptions, key:string, cb:UsermetaClientCallback) { return function(err, account) {
 
     if (err) {
 
@@ -142,18 +145,18 @@ var directory = {
 
   beforeEdit: {
     // change the tag before changing the name
-    name(directoryClient, params, _key:string, value:string, cb:UsermetaClientCallback) {
+    name(directoryClient:DirectoryClient, params:UsermetaClientOptions, _key:string, value:string, cb:UsermetaClientCallback) {
       const account = directory.account(params, "tag", tagizer.tag(value));
       directoryClient.editAccount(account, cb);
     },
     // tag and username are read-only
-    tag(_directoryClient, _params, _key, _value, cb) {
+    tag(_directoryClient:DirectoryClient, _params:UsermetaClientOptions, _key:string, _value:string, cb:UsermetaClientCallback) {
       cb(new restifyErrors.NotAuthorizedError({
         message: "tag is read-only",
         code: 'NotAuthorizedError'
       }));
     },
-    username(_directoryClient, _params, _key, _value, cb) {
+    username(_directoryClient:DirectoryClient, _params:UsermetaClientOptions, _key:string, _value:string, cb:UsermetaClientCallback) {
       cb(new restifyErrors.NotAuthorizedError({
         message: "username is read-only",
         code: 'NotAuthorizedError'
@@ -182,7 +185,7 @@ var directory = {
     }
   },
 
-  set(directoryClient, options:UsermetaClientOptions|string, key:string, value:string, cb) {
+  set(directoryClient:DirectoryClient, options:UsermetaClientOptions|string, key:string, value:string, cb:UsermetaClientCallback) {
     const params = parseParams(options);
     if (!params.authToken) {
       return cb(new restifyErrors.NotAuthorizedError({
@@ -201,7 +204,7 @@ var directory = {
       }));
     }
 
-    const passTrough = (directoryClient, params, key, value, cb) => cb(null);
+    const passTrough = (_directoryClient, _params, _key, _value, cb) => cb(null);
     const beforeEdit = directory.beforeEdit[key] || passTrough;
     return beforeEdit(directoryClient, params, key, value, function(err) {
       if (err) {
@@ -216,13 +219,13 @@ var directory = {
 class DirectoryAliasesProtected {
 
   type: string;
-  directoryClient: any;
-  authdbClient: any;
+  directoryClient: DirectoryClient;
+  authdbClient: AuthdbClient;
   validKeys: {
     [key: string]: boolean;
   };
 
-  constructor(directoryClient, authdbClient) {
+  constructor(directoryClient:DirectoryClient, authdbClient:AuthdbClient) {
     this.directoryClient = directoryClient;
     this.authdbClient = authdbClient;
     this.validKeys = {
@@ -276,13 +279,13 @@ class DirectoryAliasesProtected {
 class DirectoryAliasesPublic {
 
   type: string;
-  directoryClient: any;
-  authdbClient: any;
+  directoryClient: DirectoryClient;
+  authdbClient: AuthdbClient;
   validKeys: {
     [key: string]: boolean;
   };
 
-  constructor(directoryClient, authdbClient) {
+  constructor(directoryClient:DirectoryClient, authdbClient:AuthdbClient) {
     this.directoryClient = directoryClient;
     this.authdbClient = authdbClient;
     this.validKeys = {name: true, tag: true, username: true};
@@ -368,12 +371,12 @@ class RedisUsermeta {
     return this.redisClient.get(`${username}:${key}`, (err, reply) => cb(err, reply));
   }
 
-  isValid(key) {
+  isValid(key:string):boolean {
     if ((this.validKeys === null) || (this.validKeys[key])) { return true; } else { return false; }
   }
 }
 
-const endpoint = subpath => `/usermeta/v1${subpath}`;
+const endpoint = (subpath:string) => `/usermeta/v1${subpath}`;
 const jsonOptions = function({ path, req_id }) {
   const options: {
     path: string;
@@ -388,7 +391,7 @@ const jsonOptions = function({ path, req_id }) {
   return options;
 };
 
-const authPath = function(params) {
+const authPath = function(params:UsermetaClientOptions):string {
   if (params.apiSecret) {
     return `/auth/${encodeURIComponent(params.apiSecret)}.${encodeURIComponent(params.username)}`;
   } else if (params.authToken) {
@@ -400,7 +403,7 @@ const authPath = function(params) {
 
 // Stores metadata in ganomede-usermeta
 // ganomede-usermeta server will take care of key validation
-class GanomedeUsermeta {
+class GanomedeUsermeta implements UsermetaClient {
 
   jsonClient: any;
   type: string;
@@ -410,8 +413,8 @@ class GanomedeUsermeta {
     this.type = "GanomedeUsermeta";
   }
 
-  set(params, key, value, cb) {
-    params = parseParams(params);
+  set(pparams:string|UsermetaClientOptions, key:string, value:string, cb:UsermetaClientCallback) {
+    const params = parseParams(pparams);
     const options = jsonOptions({
       path: authPath(params) + `/${encodeURIComponent(key)}`,
       req_id: params.req_id
@@ -420,7 +423,7 @@ class GanomedeUsermeta {
     const {
       url
     } = this.jsonClient;
-    return this.jsonClient.post(options, body, function(err, req, res, body) {
+    return this.jsonClient.post(options, body, function(err, _req, _res, body) {
       if (err) {
         log.error({ req_id: params.req_id,
           err, url, options, body, value },
@@ -432,8 +435,8 @@ class GanomedeUsermeta {
     });
   }
 
-  get(params, key, cb) {
-    params = parseParams(params);
+  get(pparams:string|UsermetaClientOptions, key:string, cb:UsermetaClientCallback) {
+    const params = parseParams(pparams);
     const options = jsonOptions({
       path: authPath(params) + `/${encodeURIComponent(key)}`,
       req_id: params.req_id

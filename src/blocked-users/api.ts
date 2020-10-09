@@ -9,6 +9,7 @@ import { DirectoryClient } from "../directory-client";
 import parseTagMod from '../middlewares/parse-tag';
 import { EventSender } from "../event-sender";
 import { blockEvent, unblockEvent, BLOCKED, UNBLOCKED, CHANNEL } from "./events";
+import config from "../config";
 
 export interface BlockedUsersApiOptions {
   log?: Logger;
@@ -92,6 +93,7 @@ export class BlockedUsersApi {
     // prepare the usermeta request to load the list of blocked users
     const params: UsermetaClientOptions = {
       req_id: req.id(),
+      apiSecret: config.secret,
       authToken: req.params.authToken || (req as any).context.authToken,
       username
     };
@@ -129,6 +131,7 @@ export class BlockedUsersApi {
     // load the list of blocked users for the originating user
     const params: UsermetaClientOptions = {
       req_id: req.id(),
+      apiSecret: config.secret,
       authToken: req.params.authToken || (req as any).context.authToken,
       username
     };
@@ -171,6 +174,7 @@ export class BlockedUsersApi {
     }
     const params: UsermetaClientOptions = {
       req_id: req.id(),
+      apiSecret: config.secret,
       authToken: req.params.authToken || (req as any).context.authToken,
       username
     };
