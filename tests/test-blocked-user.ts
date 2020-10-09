@@ -1,10 +1,10 @@
 import assert from "assert";
-import restify, { bunyan } from "restify";
+import restify from "restify";
 import restifyErrors from "restify-errors";
-import td, { TestDouble, DoubledObject, DoubledObjectWithKey } from 'testdouble';
+import td, { DoubledObjectWithKey } from 'testdouble';
 import usersApi from "../src/users-api";
 import fakeRestify from "./fake-restify";
-import fakeAuthdb, { AuthdbClient } from "./fake-authdb";
+import fakeAuthdb from "./fake-authdb";
 import expect from "expect.js";
 import logMod from '../src/log';
 import fakeUsermeta from './fake-usermeta';
@@ -14,6 +14,7 @@ import Logger from "bunyan";
 import { DirectoryClient } from "../src/directory-client";
 import { BackendOptions, BackendInitializer } from "../src/backend/directory";
 import tagizer from 'ganomede-tagizer';
+import { AuthdbClient } from "../src/authentication";
 
 const TAGS = {
   "charies-tag": "charles",

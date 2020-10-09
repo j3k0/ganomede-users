@@ -12,7 +12,7 @@
 import _ from 'lodash';
 
 import async from "async";
-import authentication from "./authentication";
+import authentication, { AuthdbClient } from "./authentication";
 import restifyClients from "restify-clients";
 import restifyErrors from "restify-errors";
 import restify from "restify";
@@ -43,7 +43,6 @@ import directoryClientMod, { DirectoryClient } from './directory-client';
 import mailTemplate from './mail-template';
 import backendDirectoryMod, { BackendInitializer, BackendOptions } from './backend/directory';
 import Logger from 'bunyan';
-import { AuthdbClient } from '../tests/fake-authdb';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -69,13 +68,13 @@ export interface UsersApiOptions {
 };
 
 const sendError = function(req, err, next) {
-  if (err.code == 'UnauthorizedError' || err.code == 'InvalidCredentials' || err.code == 'StormpathResourceError2006') {
+  if (err.code === 'InvalidCredentialsError' || err.code == 'UnauthorizedError' || err.code == 'InvalidCredentials' || err.code == 'StormpathResourceError2006') {
    req.log.info(err);
   }
   else if (err.rawError) {
-    req.log.error(err.rawError);
+    req.log.warn(err.rawError);
   } else {
-    req.log.error(err);
+    req.log.warn(err);
   }
   return next(err);
 };
@@ -92,17 +91,17 @@ const facebookClient = facebook.createClient({});
 let authdbClient: any = null;
 
 // Extra user data
-let rootUsermetaClient: UsermetaClient|null = null;
-let localUsermetaClient: UsermetaClient|null = null;
-let centralUsermetaClient:UsermetaClient|null = null;
+let rootUsermetaClient: UsermetaClient|undefined = undefined;
+let localUsermetaClient: UsermetaClient|undefined = undefined;
+let centralUsermetaClient:UsermetaClient|undefined = undefined;
 let aliasesClient: any = null;
 let fullnamesClient: any = null;
 let friendsClient: any = null;
-let friendsApi: FriendsApi|null = null;
-let bannedUsersApi: BlockedUsersApi|null = null;
+let friendsApi: FriendsApi|undefined = undefined;
+let bannedUsersApi: BlockedUsersApi|undefined = undefined;
 let bans: any = null;
 let authenticator: any = null;
-let directoryClient: DirectoryClient|null = null;
+let directoryClient: DirectoryClient|undefined = undefined;
 let storeFacebookFriends: (options: any) => void | null;
 let sendEvent: EventSender|null = null;
 
@@ -512,7 +511,7 @@ const initialize = function(cb, options: UsersApiOptions = {}) {
     log = options.log;
 
   // Initialize the directory client (if possible)
-  directoryClient = options.directoryClient || null;
+  directoryClient = options.directoryClient || undefined;
   let directoryJsonClient = null;
   const createDirectoryClient = function() {
     const directoryService = serviceConfig('DIRECTORY', 8000);

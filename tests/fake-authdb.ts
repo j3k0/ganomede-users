@@ -1,9 +1,11 @@
+import { AuthdbClient } from "../src/authentication";
+
 /*
  * decaffeinate suggestions:
  * DS102: Remove unnecessary code created because of implicit returns
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
-export class AuthdbClient {
+export class FakeAuthdbClient implements AuthdbClient {
   store: any;
   constructor() {
     this.store = {};
@@ -19,6 +21,6 @@ export class AuthdbClient {
   }
 }
 
-export default {createClient() { return new AuthdbClient; }};
+export default {createClient() { return new FakeAuthdbClient; }};
 // vim: ts=2:sw=2:et:
 

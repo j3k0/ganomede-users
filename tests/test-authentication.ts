@@ -3,7 +3,7 @@
  * DS102: Remove unnecessary code created because of implicit returns
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
-import authentication from '../src/authentication';
+import authentication, { AuthdbClient } from '../src/authentication';
 import { expect } from 'chai';
 import td from 'testdouble';
 
@@ -14,16 +14,16 @@ const TIMESTAMP = '12345';
 
 const createTestable = function() {
 
-  const genToken = td.function('genToken');
+  const genToken = td.function('genToken') as () => string;
   td.when(genToken()).thenReturn(TOKEN);
 
-  const timestamp = td.function('timestamp');
+  const timestamp = td.function('timestamp') as () => string;
   td.when(timestamp()).thenReturn(TIMESTAMP);
 
-  const authdbClient = td.object([ 'addAccount' ]);
+  const authdbClient = td.object([ 'addAccount' ]) as AuthdbClient;
 
-  const localUsermetaClient = td.object([ 'set' ]);
-  const centralUsermetaClient = td.object([ 'set' ]);
+  const localUsermetaClient = td.object([ 'get', 'set' ]);
+  const centralUsermetaClient = td.object([ 'get', 'set' ]);
 
   const authenticator = authentication.createAuthenticator({
     authdbClient, localUsermetaClient, centralUsermetaClient,
@@ -33,8 +33,11 @@ const createTestable = function() {
 };
 
 describe('authentication', function() {
-
-  describe('.createAuthenticator()', () => it('returns a authenticator', () => expect(authentication.createAuthenticator({})).to.be.ok));
+  describe('.createAuthenticator()', function () {
+    it('returns a authenticator', function () {
+      expect(authentication.createAuthenticator(createTestable())).to.be.ok;
+    });
+  });
 
   describe('authenticator.add()', () => it('adds the user to authdb', function() {
     const { authdbClient, centralUsermetaClient, authenticator, localUsermetaClient,
@@ -51,8 +54,7 @@ describe('authentication', function() {
     td.verify(authdbClient.addAccount(TOKEN, {
       username: USERNAME,
       email: EMAIL
-    }
-    , td.callback())
+    }, td.callback() as unknown as (err) => void)
     );
     td.verify(localUsermetaClient.set(
       td.matchers.contains({

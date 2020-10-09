@@ -154,14 +154,13 @@ const createClient = function(options): DirectoryClient {
       } else if ((res != null ? res.statusCode : undefined) === 401) {
         callback(new restifyErrors.InvalidCredentialsError());
       } else if (err) {
-        log.error({
+        log.warn({
           req_id,
           err
         }, "authentication error");
         callback(err);
-
       } else if ((res != null ? res.statusCode : undefined) !== 200) {
-        log.error({
+        log.warn({
           req_id,
           code: res.statusCode
         }, "failed to authenticate");

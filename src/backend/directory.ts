@@ -27,7 +27,7 @@ import { USERS_EVENTS_CHANNEL } from "../event-sender";
 import { UsermetaClient } from "../usermeta";
 import Logger from "bunyan";
 import { DeferredEvents } from "../deferred-events";
-import { AuthdbClient } from "../../tests/fake-authdb";
+import { AuthdbClient } from "../authentication";
 
 export type BackendInitializerCallback =(err?: HttpError|null, backend?: Backend) => void;
 
