@@ -6,7 +6,7 @@
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
 import restifyClients from "restify-clients";
-import restifyErrors from "restify-errors";
+import restifyErrors, { HttpError } from "restify-errors";
 import redis, { RedisClient } from "redis";
 import urllib from 'url';
 import logMod from "./log";
@@ -15,6 +15,7 @@ import tagizer from 'ganomede-tagizer';
 import validator from './validator';
 import { AuthdbClient } from "./authentication";
 import { DirectoryClient } from "./directory-client";
+import { Request, Response } from "restify";
 
 export interface UsermetaClientOptions {
   username: string;
@@ -444,13 +445,14 @@ class GanomedeUsermeta implements UsermetaClient {
     const {
       url
     } = this.jsonClient;
-    return this.jsonClient.get(options, function(err, req, res, body) {
+    return this.jsonClient.get(options, function (err: HttpError | null, _req: Request, res: Response, body?: object | null) {
       if (err) {
         log.error({err, url, options, body, req_id: params.req_id},
           "GanomedeUsermeta.get failed");
         return cb(err, null);
       } else {
-        return cb(err, body[params.username][key] || null);
+        const metadata:object = body ? body[params.username] : {};
+        return cb(err, metadata[key] || null);
       }
     });
   }
