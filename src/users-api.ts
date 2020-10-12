@@ -155,7 +155,7 @@ const createAccount = function(req, res, next) {
       return async.eachOf(metadata, add, function() {
         req.log.info({metadata}, 'Adding metadata to CREATE event');
         if (emails.isGuestEmail(account.email) || emails.isNoEmail(account.email)) {
-          metadata.newsletter = false;
+          metadata.newsletter = "false";
         }
         deferredEvents.editEvent(req.id(),
           USERS_EVENTS_CHANNEL, eventSender.CREATE, "metadata", metadata);

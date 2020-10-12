@@ -452,7 +452,7 @@ class GanomedeUsermeta implements UsermetaClient {
         return cb(err, null);
       } else {
         const metadata:object = body ? body[params.username] : {};
-        return cb(err, metadata[key] || null);
+        return cb(err, metadata ? metadata[key] || null : null);
       }
     });
   }
