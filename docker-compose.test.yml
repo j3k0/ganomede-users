@@ -4,10 +4,6 @@ services:
   sut:
     build: .
     command: sh -c "./tests/wait-for-it -t 0 users:8000 && npm test && ./tests/rest_api.sh"
-    volumes:
-     - ./src:/home/app/code/src
-     - ./tests:/home/app/code/tests
-     - ./build:/home/app/code/build
     depends_on:
      - users
     environment:
@@ -16,13 +12,11 @@ services:
      - "APP_NAME=app"
      - "LOG_LEVEL=error"
      - "NODE_ENV="
+    volumes:
+     - ./tests:/home/app/code/tests:ro
 
   users:
     build: .
-    volumes:
-     - ./src:/home/app/code/src
-     - ./tests:/home/app/code/tests
-     - ./build:/home/app/code/build
     command: sh -c "./tests/wait-for-it -t 0 centralusermeta:8000 && ./tests/wait-for-it -t 0 directory:8000 && ./tests/wait-for-it -t 0 localusermeta:8000 && ./tests/wait-for-it -t 0 events:8000 && npm run startw"
     depends_on:
      - authredis
@@ -45,6 +39,8 @@ services:
      - "EVENTS_PORT_8000_TCP_ADDR=events"
     ports:
      - "8000"
+    volumes:
+     - ./tests:/home/app/code/tests:ro
 
   centralusermeta:
     image: ganomede/usermeta:v1.2.3
