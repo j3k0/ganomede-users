@@ -12,8 +12,6 @@ services:
      - "APP_NAME=app"
      - "LOG_LEVEL=error"
      - "NODE_ENV="
-    volumes:
-     - ./tests:/home/app/code/tests:ro
 
   users:
     build: .
@@ -37,16 +35,10 @@ services:
      - "LOCAL_USERMETA_PORT_8000_TCP_ADDR=localusermeta"
      - "DIRECTORY_PORT_8000_TCP_ADDR=directory"
      - "EVENTS_PORT_8000_TCP_ADDR=events"
-    ports:
-     - "8000"
-    volumes:
-     - ./tests:/home/app/code/tests:ro
 
   centralusermeta:
     image: ganomede/usermeta:v1.2.3
     command: sh -c "/wait-for-it -t 0 centralusermetaredis:6379 && node index.js"
-    ports:
-     - "8004:8000"
     depends_on:
      - centralusermetaredis
      - authredis
@@ -68,8 +60,6 @@ services:
   localusermeta:
     image: ganomede/usermeta:v1.2.3
     command: sh -c "/wait-for-it -t 0 localusermetaredis:6379 && node index.js"
-    ports:
-     - "8003:8000"
     depends_on:
      - localusermetaredis
      - authredis
@@ -93,8 +83,6 @@ services:
     command: sh -c "/wait-for-it -t 0 authredis:6379 && /wait-for-it -t 0 directorycouch:5984 && sleep 3 && node index.js"
     depends_on:
       - directorysync
-    ports:
-     - "8002:8000"
     environment:
      - "COUCH_DIRECTORY_PORT_5984_TCP_ADDR=directorycouch"
      - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
