@@ -40,6 +40,7 @@ clean:
 Dockerfile.dev: Dockerfile Makefile
 	sed "s/npm install --production/npm install/g" Dockerfile > Dockerfile.dev
 	echo COPY run_tests.sh /home/app/code/ >> Dockerfile.dev
+	echo COPY ./tests/rest_api.sh /home/app/code/tests/ >> Dockerfile.dev
 
 docker-prepare: Dockerfile.dev
 	@mkdir -p doc

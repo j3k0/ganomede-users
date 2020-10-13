@@ -1,0 +1,135 @@
+version: '2'
+services:
+
+  sut:
+    build: .
+    command: sh -c "./tests/wait-for-it -t 0 users:8000 && npm test && ./tests/rest_api.sh"
+    depends_on:
+     - users
+    environment:
+     - "BASE_URL=http://users:8000"
+     - "API_SECRET=1234"
+     - "APP_NAME=app"
+     - "LOG_LEVEL=error"
+     - "NODE_ENV="
+
+  users:
+    build: .
+    command: sh -c "./tests/wait-for-it -t 0 centralusermeta:8000 && ./tests/wait-for-it -t 0 directory:8000 && ./tests/wait-for-it -t 0 localusermeta:8000 && ./tests/wait-for-it -t 0 events:8000 && npm run startw"
+    depends_on:
+     - authredis
+     - centralusermeta
+     - localusermeta
+     - directory
+     - events
+    environment:
+     - "USE_DIRECTORY_ONLY=1"
+     - "LEGACY_ERROR_CODES=1"
+     - "API_SECRET=1234"
+     - "APP_NAME=app"
+     - "LOG_LEVEL=debug"
+     - "FACEBOOK_APP_ID=1234567890"
+     - "FACEBOOK_APP_SECRET="
+     - "NODE_ENV="
+     - "CENTRAL_USERMETA_PORT_8000_TCP_ADDR=centralusermeta"
+     - "LOCAL_USERMETA_PORT_8000_TCP_ADDR=localusermeta"
+     - "DIRECTORY_PORT_8000_TCP_ADDR=directory"
+     - "EVENTS_PORT_8000_TCP_ADDR=events"
+
+  centralusermeta:
+    image: ganomede/usermeta:v1.2.3
+    command: sh -c "/wait-for-it -t 0 centralusermetaredis:6379 && node index.js"
+    depends_on:
+     - centralusermetaredis
+     - authredis
+    environment:
+     - "API_SECRET=1234"
+     - "USERMETA_PUBLIC_KEYS=country,yearofbirth"
+     - "USERMETA_PROTECTED_KEYS=$$friends,$$blocked"
+     - "USERMETA_PRIVATE_KEYS=$$banned,$$alias"
+     - "USERMETA_INTERNAL_KEYS="
+     - "USERMETA_MAX_LENGTH=1000"
+     - "REDIS_USERMETA_PORT_6379_TCP_ADDR=centralusermetaredis"
+     - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
+     - "DIRECTORY_PORT_8000_TCP_ADDR=directory"
+     - "LOG_LEVEL=debug"
+     - "NODE_ENV="
+    volumes:
+     - ./tests/wait-for-it:/wait-for-it
+
+  localusermeta:
+    image: ganomede/usermeta:v1.2.3
+    command: sh -c "/wait-for-it -t 0 localusermetaredis:6379 && node index.js"
+    depends_on:
+     - localusermetaredis
+     - authredis
+    environment:
+     - "API_SECRET=1234"
+     - "USERMETA_PUBLIC_KEYS=puzzles"
+     - "USERMETA_PROTECTED_KEYS="
+     - "USERMETA_PRIVATE_KEYS="
+     - "USERMETA_INTERNAL_KEYS="
+     - "USERMETA_MAX_LENGTH=10000"
+     - "REDIS_USERMETA_PORT_6379_TCP_ADDR=localusermetaredis"
+     - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
+     - "DIRECTORY_PORT_8000_TCP_ADDR=directory"
+     - "LOG_LEVEL=debug"
+     - "NODE_ENV="
+    volumes:
+     - ./tests/wait-for-it:/wait-for-it
+
+  directory:
+    image: ganomede/directory:v0.3.1
+    command: sh -c "/wait-for-it -t 0 authredis:6379 && /wait-for-it -t 0 directorycouch:5984 && sleep 3 && node index.js"
+    depends_on:
+      - directorysync
+    environment:
+     - "COUCH_DIRECTORY_PORT_5984_TCP_ADDR=directorycouch"
+     - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
+     - "API_SECRET=1234"
+     - "COUCH_DIRECTORY_SYNC="
+     - "LOG_LEVEL=debug"
+     - "NODE_ENV="
+    volumes:
+     - ./tests/wait-for-it:/wait-for-it
+
+  # will just sync the database
+  directorysync:
+    image: ganomede/directory:v0.3.1
+    command: sh -c "/wait-for-it -t 0 authredis:6379 && /wait-for-it -t 0 directorycouch:5984 && node index.js"
+    depends_on:
+     - directorycouch
+     - authredis
+    environment:
+     - "COUCH_DIRECTORY_PORT_5984_TCP_ADDR=directorycouch"
+     - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
+     - "API_SECRET=1234"
+     - "COUCH_DIRECTORY_SYNC=1"
+     - "LOG_LEVEL=debug"
+     - "NODE_ENV="
+    volumes:
+     - ./tests/wait-for-it:/wait-for-it
+
+  events:
+    image: ganomede/events:v1.2.0
+    command: sh -c "/wait-for-it -t 0 eventsredis:6379 && node index.js"
+    depends_on:
+     - eventsredis
+    environment:
+     - "API_SECRET=1234"
+     - "REDIS_EVENTS_PORT_6379_TCP_ADDR=eventsredis"
+     - "LOG_LEVEL=debug"
+     - "NODE_ENV="
+    volumes:
+     - ./tests/wait-for-it:/wait-for-it
+
+  directorycouch:
+    image: couchdb:1.6.1
+  authredis:
+    image: redis:alpine
+  centralusermetaredis:
+    image: redis:alpine
+  localusermetaredis:
+    image: redis:alpine
+  eventsredis:
+    image: redis:alpine

@@ -5,25 +5,32 @@ Users accounts API initially inspired by Stormpath.
 
 See http://docs.stormpath.com/rest/product-guide/#application-accounts when in doubt about a parameter.
 
+Historical notes
+----------------
+
+All users data used to be stored in Stormpath a while back. With Stormpath rolling out after being acquired, we migrated our user accounts to ganomede-directory (our own solution). During the migration period, there were users in both user directories, the server includes some logic to make this possible.
+
+With the stormpath API being discontinued, we removed the code that makes use of it. As a side effect, the server still allows multiple user accounts backends to be used, but effectively it only supports a single one: ganomede-directory.
+
 Configuration
 -------------
 
- * `STORMPATH_API_ID`
- * `STORMPATH_API_SECRET`
- * `STORMPATH_APP_NAME`
- * `DIRECTORY_PORT_8080_TCP_ADDR` - IP of the rules service
- * `DIRECTORY_PORT_8080_TCP_PORT` - Port of the rules service
- * `DIRECTORY_PORT_8080_TCP_PROTOCOL` - Port of the rules service
- * `REDIS_AUTH_PORT_6379_TCP_ADDR` - IP of the AuthDB redis
- * `REDIS_AUTH_PORT_6379_TCP_PORT` - Port of the AuthDB redis
- * `REDIS_USERMETA_PORT_6379_TCP_ADDR` - IP of the usermeta redis
- * `REDIS_USERMETA_PORT_6379_TCP_PORT` - Port of the usermeta redis
+Link with the ganomede-directory service:
+ * `DIRECTORY_PORT_8000_TCP_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the directory service
+
+Link with a central and local usermeta services. Note that *central* metadata are shared across multiple apps, while *local* metadata are only used by this game server.
+ * `CENTRAL_USERMETA_PORT_8000_TCP_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the central usermeta service
+ * `LOCAL_USERMETA_PORT_8000_TCP_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the local usermeta service
+
+Link with the events service, used to send notification when a user logs in, registers a new account, changes their profile or block another user.
+ * `EVENTS_PORT_8000_TCP_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the events service
+
+Link with the facebook API.
  * `FACEBOOK_APP_ID` - Id of the Facebook application
  * `FACEBOOK_APP_SECRET` - Secret of the Facebook application
- * `LEGACY_ERROR_CODES` - Use stormpath compatible error codes
- * `USE_STORMPATH_ONLY` - Only enable the Stormpath backend
- * `USE_DIRECTORY_ONLY` - Only enable the Directory backend
- * `CREATE_USERS_IN_STORMPATH` - New users will use Stormpath backend
+
+Config:
+ * `LEGACY_ERROR_CODES` - Use stormpath compatible error codes.
  * `LOG_LEVEL` - See [bunyan levels](https://github.com/trentm/node-bunyan#levels) (default: info)
 
 Mailer options (for password reset emails)
@@ -45,6 +52,15 @@ Mailer options (for password reset emails)
  * `MAILER_SOCKET_TIMEOUT` - how many milliseconds of inactivity to allow
  * `MAILER_DEBUG` - set to true, then logs SMTP traffic, otherwise logs only transaction events
  * `MAILER_AUTH_METHOD` - defines preferred authentication method, eg. 'PLAIN'
+ * `NO_EMAIL_DOMAIN` - fake domain to use for users without an email address (default "email-not-provided.local")
+ * `GUEST_EMAIL_DOMAIN` - domain used for guest users email address (default none)
+
+Statsd options (used for monitoring).
+
+ * `STATSD_HOST` - host that runs the statsd server
+ * `STATSD_PORT` - port to connect to statsd server
+ * `STATSD_PREFIX` - prefix for data stored in stats (default to `ganomede.users.`)
+
 
 API
 ---
@@ -53,11 +69,19 @@ API
 
 ### body (application/json)
 
-    {
-        username: 'tk421',
-        email: 'tk421@stormpath.com',
-        password: 'Changeme1'
+```json
+{
+    "username": "tk421",
+    "email": "tk421@stormpath.com",
+    "password": "Changeme1",
+    "metadata": {
+        "newsletter": "false",
+        "location": "Dublin, Ireland",
+        "country": "fr",
+        "birth": "1991"
     }
+}
+```
 
 ### response [201]
 
@@ -83,11 +107,12 @@ API
 ### response [200] OK
 
     {
-        "username": "tk421",
-        "email": "tk421@stormpath.com"
+        "username": "tk421"
     }
 
 ## /users/v1/login [POST]
+
+Create an authentication token.
 
 ### body (application/json)
 
@@ -95,6 +120,8 @@ API
         "username": "tk421",
         "password": "0000"
     }
+
+Note, tag instead of username also work (this allows mispellings).
 
 ### body (application/json)
 
@@ -112,11 +139,33 @@ API
 
 ### response [202] Accepted
 
+# Metadata
+
+Custom data associated with users.
+
+Additionnally to the custom metadata you can define, ganomede-users also exposes some predefined virtual metadata:
+
+ * `username` - unique and constant identifier for the user
+ * `name` - unique display name, that might change
+ * `tag` - tagized(name), see the [ganomede tagizer](https://github.com/j3k0/ganomede-tagizer)
+ * `email` - (only through `/auth/*` requests)
+
+## /users/v1/auth/:token/metadata/:key [GET]
+
+Users' protected custom data.
+
+### body (application/json)
+
+### response [200] OK
+
+    {
+        "key": "some-key",
+        "value": "..."
+    }
+
 ## /users/v1/auth/:token/metadata/:key [POST]
 
-Users' custom data. Valid metadata keys can be restricted using the `USERMETA_VALID_KEYS` environment variable. A comma-separated list of keys.
-
-Setting `USERMETA_VALID_KEYS` is recommended to prevent people from using your server as free storage. An additional self imposed limitation is that values can't be above 200 bytes.
+Change users' custom data.
 
 ### body (application/json)
 
@@ -128,9 +177,11 @@ Setting `USERMETA_VALID_KEYS` is recommended to prevent people from using your s
 
 ### response [200] OK
 
-## /users/v1/:username/metadata/:key [GET]
+## /users/v1/:tag/metadata/:key [GET]
 
-Users' custom data.
+Users' custom data, retrieved using the users `tag`.
+
+Searching by tag will match any `username`, `name` (or similar looking name) the user ever had.
 
 ### body (application/json)
 
@@ -140,12 +191,6 @@ Users' custom data.
         "key": "some-key",
         "value": "..."
     }
-
-# Metadata
-
-## /users/v1/:username/metadata/:id [GET]
-
-## /users/v1/auth/:authToken/metadata/:id [POST]
 
 # Friends [/users/v1/auth/:authToken/friends]
 
@@ -168,9 +213,9 @@ List of friends
 
 # Bans `/users/v1/banned-users/`
 
-## Check ban status `/users/v1/banned-users/:username [GET]`
+## Check ban status `/users/v1/banned-users/:tag [GET]`
 
-Returns `BanInfo` object describing account standing of `:username`.
+Returns `BanInfo` object describing account standing of `:tag`.
 
 ### response [200] OK
 
@@ -186,7 +231,8 @@ Returns `BanInfo` object describing account standing of `:username`.
 ### body (application/json)
 
 ``` json
-{ "username": "who-to-ban",
+{
+  "username": "who-to-ban",
   "apiSecret": "process.env.API_SECRET"
 }
 ```
@@ -199,7 +245,7 @@ Ban created successfully.
 
 Invalid or missing API secret.
 
-## Unban user `/users/v1/banned-users/:username [DELETE]`
+## Unban user `/users/v1/banned-users/:tag [DELETE]`
 
 ### body (application/json)
 
@@ -216,6 +262,102 @@ Ban removed successfully or does not exist.
 Invalid or missing API secret.
 
 
+# Blocked users `/users/v1/auth/:token/blocked-users`
+
+A list of blocked users for user identified by the authentication token `:token`.
+
+The list will be stored in the central usermeta, with key `$blocked-users`. The value will be an array of strings containing the usernames of blocked users.
+
+For administration purposes, blocked user will also be stored in a `ganomede-events` channel (`users/v1/blocked-users`). This way, it becomes possible to analyze recently blocked users and generate daily reports.
+
+## Get the list of blocked users `/users/v1/auth/:token/blocked-users [GET]`
+
+Returns `BlockedUsers` object containing the list of blocked users.
+
+### response [200] OK
+
+```js
+[ "bob", "marc" ]
+```
+
+## Block user `/users/v1/auth/:token/blocked-users [POST]`
+
+Adds a user to the "blocked-users" list.
+
+### body (application/json)
+
+``` json
+{ "username": "who-to-block" }
+```
+
+### response [200]
+
+Blocked user added successfully, returns the new list of blocked users.
+
+```js
+[ "who-to-block", "bob", "marc" ]
+```
+
+### response [409]
+
+User already blocked.
+
+### response [403]
+
+Invalid authentication token.
+
+## Unblock user `/users/v1/auth/:token/blocked-users/:tag [DELETE]`
+
+### body (application/json)
+
+Empty.
+
+### response [200]
+
+Blocked user removed successfully or does not exist.
+
+### response [403]
+
+Invalid authentication token.
 
 
+# Blocked Users Admin `/users/v1/admin/:api-secret/blocked-users`
+
+Endpoint used by administrators to find annoying users.
+
+## List of blocked users `/users/v1/admin/:api-secret/blocked-users` [GET]
+
+## query parameters
+
+You can add a number of filters:
+
+| parameter  | type      | description |
+|------------|-----------|-------------|
+| `username` | string[]  | comma separated list of users you're interested in      |
+| `since`    | timestamp | only return users blocked since the provided timestamp  |
+
+## response [200]
+
+```js
+{
+    "blocked": [{
+        "username": "alice",
+        "total": 2,
+        "by": [{
+            "username": "bob",
+            "createdAt": 1476531925454
+        }, {
+            "username": "marco",
+            "createdAt": 1576531925454
+        }],
+    }, {
+        "username": "bob",
+        "total": 1,
+        "by": [{
+            "username": "harry",
+            "createdAt": 1376531925454
+        }],
+    }]
+}
+```
 
