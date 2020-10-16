@@ -141,6 +141,18 @@ describe("blocked-users-api", function () {
 
   describe('POST', function () {
 
+    it("should return 400 bad request when body is missing", function (done) {
+      server.request("post", "/users/v1/auth/:authToken/blocked-users", {
+        params: { authToken: "valid-token" }
+      },
+        function (res) {
+          assert.equal(res?.status, 400);
+          expect(res?.body).to.be.a(restifyErrors.BadRequestError);
+          done();
+        }
+      );
+    });
+
     it("rejects invalid authentication token", function (done) {
       server.request("post", "/users/v1/auth/:authToken/blocked-users", {
         params: { authToken: "invalid-token" }

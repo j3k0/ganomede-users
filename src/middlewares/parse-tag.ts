@@ -67,7 +67,8 @@ const createBodyMiddleware = function(obj: ParseTagOptions) {
   return function(req:Request, _res:Response, next:Next): void {
 
     req.log.info({tagField}, 'bodyTag middleware');
-    const tag = req.body[tagField];
+    if (!req.body) req.body = {};
+    const tag:string = req.body[tagField];
     if (!directoryClient || !tag) {
       return next();
     }
