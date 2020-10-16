@@ -91,7 +91,8 @@ const baseTest = function() {
     authdbClient, directoryClient };
 };
 
-let i = 0;
+// @ts-ignore
+let i:number = 0;
 const restTest = function(done) {
   const ret: any = baseTest();
   td.when(ret.backend.initialize()).thenCallback(null, ret.backend);

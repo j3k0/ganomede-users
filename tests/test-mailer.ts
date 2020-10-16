@@ -6,7 +6,7 @@
 import mailer from '../src/mailer';
 import td from 'testdouble';
 const {verify,matchers} = td;
-const {isA,anything,contains} = matchers;
+const {contains} = matchers;
 import { expect } from 'chai';
 import * as _ from 'lodash';
 import bunyan from 'bunyan';

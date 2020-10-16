@@ -28,7 +28,7 @@
 //
 
 import { Request, Response, RequestHandler, Next } from "restify";
-import { EventSender, EventData, EventSenderCallback, Event } from "./event-sender";
+import { EventSender, EventData, EventSenderCallback } from "./event-sender";
 
 interface DeferredEvent {
   channel: string;

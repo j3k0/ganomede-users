@@ -8,7 +8,7 @@ import { expect } from 'chai';
 import td from 'testdouble';
 import directoryClientMod, { DirectoryCallback } from '../src/directory-client';
 import tagizer from 'ganomede-tagizer';
-import bunyan from 'bunyan';
+// import bunyan from 'bunyan';
 import logMod from '../src/log';
 
 import {

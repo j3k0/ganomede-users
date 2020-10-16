@@ -9,7 +9,7 @@ import td from 'testdouble';
 const {anything,contains,isA} = td.matchers;
 import { expect } from 'chai';
 import tagizer from 'ganomede-tagizer';
-import logMod from '../src/log';
+// import logMod from '../src/log';
 
 // Disable delayed calls. We're doing synchronous tests.
 (global.setImmediate as any) = func => { func(); }
@@ -20,7 +20,7 @@ const REQ_ID = "my-request-id";
 
 import { EXISTING_USER, SECONDARY_USER, TERNARY_USER, NEW_USER, APP_ID,
   credentials, publicAccount, authResult,
-  account, authAccount, facebookAccount,
+  account, authAccount, /*facebookAccount,*/
   directoryAccount, directoryAliasesObj,
   facebookLogin, randomUser
 } from './directory-data';
@@ -337,7 +337,7 @@ describe('backend/directory', function() {
     });
 
     return it('fails when the given ID is not available', function() {
-      const { backend, directoryClient, callback } = backendTest();
+      const { backend, /*directoryClient, */callback } = backendTest();
       backend.createAccount(account(EXISTING_USER), callback);
       return td.verify(callback(td.matchers.isA(restifyErrors.ConflictError)));
     });
@@ -362,7 +362,7 @@ describe('backend/directory', function() {
     });
 
     it('changes the user password', function() {
-      const { callback, directoryClient } = sendPasswordResetEmail(EXISTING_USER.email);
+      const { /*callback, */directoryClient } = sendPasswordResetEmail(EXISTING_USER.email);
       td.verify(directoryClient.editAccount(
         contains({id: EXISTING_USER.id, password: GENERATED_PASSWORD})),
         {ignoreExtraArgs: true});

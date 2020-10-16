@@ -272,7 +272,7 @@ For administration purposes, blocked user will also be stored in a `ganomede-eve
 
 ## Get the list of blocked users `/users/v1/auth/:token/blocked-users [GET]`
 
-Returns `BlockedUsers` object containing the list of blocked users.
+Returns the list of blocked users.
 
 ### response [200] OK
 

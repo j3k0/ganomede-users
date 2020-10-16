@@ -442,9 +442,7 @@ class GanomedeUsermeta implements UsermetaClient {
       path: authPath(params) + `/${encodeURIComponent(key)}`,
       req_id: params.req_id
     });
-    const {
-      url
-    } = this.jsonClient;
+    const url = this.jsonClient.url;
     return this.jsonClient.get(options, function (err: HttpError | null, _req: Request, res: Response, body?: object | null) {
       if (err) {
         log.error({err, url, options, body, req_id: params.req_id},
