@@ -38,7 +38,7 @@ import emails from './emails';
 import statsdWrapper from './statsd-wrapper';
 import facebookFriends from './facebook-friends';
 import friendsApiMod, { FriendsApi } from './friends-api';
-import bannedUsersMod, { BlockedUsersApi } from './blocked-users/api';
+import blockedUsersMod, { BlockedUsersApi } from './blocked-users/api';
 import directoryClientMod, { DirectoryClient } from './directory-client';
 import mailTemplate from './mail-template';
 import backendDirectoryMod, { BackendInitializer, BackendOptions } from './backend/directory';
@@ -98,7 +98,7 @@ let aliasesClient: any = null;
 let fullnamesClient: any = null;
 let friendsClient: any = null;
 let friendsApi: FriendsApi|undefined = undefined;
-let bannedUsersApi: BlockedUsersApi|undefined = undefined;
+let blockedUsersApi: BlockedUsersApi|undefined = undefined;
 let bans: any = null;
 let authenticator: any = null;
 let directoryClient: DirectoryClient|undefined = undefined;
@@ -606,7 +606,7 @@ const initialize = function(cb, options: UsersApiOptions = {}) {
     authMiddleware
   });
 
-  bannedUsersApi = options.bannedUsersApi || bannedUsersMod.createApi({
+  blockedUsersApi = options.bannedUsersApi || blockedUsersMod.createApi({
     usermetaClient: centralUsermetaClient!,
     directoryClient,
     authMiddleware,
@@ -768,7 +768,7 @@ const addRoutes = function(prefix: string, server: restify.Server): void {
     jsonBody, authMiddleware, postMetadata);
 
   friendsApi?.addRoutes(prefix, server);
-  bannedUsersApi?.addRoutes(prefix, server);
+  blockedUsersApi?.addRoutes(prefix, server);
 
   server.on("after", deferredEvents.finalize(sendEvent!));
 };

@@ -223,10 +223,10 @@ describe("blocked-users-api", function () {
             if (initial !== final) {
               td.verify(test.sendEvent("users/v1/blocked-users", "BLOCKED", {
                 req_id: td.matchers.isA(String),
-                type: "BLOCKED",
+                // type: "BLOCKED",
                 username: "alice",
                 target: TAGS[tagizer.tag(block)] || block,
-                blocked: final.split(',')
+                // blocked: final.split(',')
               }));
             }
             done();
@@ -321,10 +321,10 @@ describe("blocked-users-api", function () {
             if ((initial ?? "") !== (final ?? "")) {
               td.verify(test.sendEvent("users/v1/blocked-users", "UNBLOCKED", {
                 req_id: td.matchers.isA(String),
-                type: "UNBLOCKED",
+                // type: "UNBLOCKED",
                 username: "alice",
                 target: TAGS[tagizer.tag(unblock)] || unblock,
-                blocked: final ? final.split(',') : [],
+                // blocked: final ? final.split(',') : [],
               }));
             }
             done();
