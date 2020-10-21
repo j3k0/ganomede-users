@@ -152,9 +152,11 @@ export class BlockedUsersApi {
         }
         // if the user isn't in the list, add it and save the new list.
         const value: string[] = reply ? reply.split(',') : [];
-        if (value.indexOf(target) < 0) {
+        const isBlocked: boolean = value.indexOf(target) >= 0;
+        if (!isBlocked) {
           value.push(target);
-          // emit an event
+        }
+        if (!isBlocked || eventType === REPORTED) {
           this.sendEvent(CHANNEL, eventType, eventData(req.id(), username, target));
         }
         this.usermetaClient.set(params, META_KEY, value.join(','), (err, _reply) => {
