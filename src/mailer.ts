@@ -1,19 +1,42 @@
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * DS201: Simplify complex destructure assignments
- * DS207: Consider shorter variations of null checks
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
 import * as _ from 'lodash';
-import * as nodemailerMod from 'nodemailer';
+import nodemailerMod, { Transporter, Transport, TransportOptions } from 'nodemailer';
 import logMod from './log';
+import Logger from 'bunyan';
+import SMTPTransport from 'nodemailer/lib/smtp-transport';
+import SMTPConnection from 'nodemailer/lib/smtp-connection';
+
 const env = (x: string): string|undefined => process.env[`MAILER_${x.toUpperCase()}`];
+const envNumber = (x: string) => +(env(x) || '');
+
+export interface MailerModule {
+  createTransport(transport: Transport | TransportOptions, defaults?: TransportOptions): Transporter;
+  createTransport(transport?: SMTPTransport | SMTPTransport.Options | string, defaults?: SMTPTransport.Options): Transporter;
+}
+
+export interface MailerOptions {
+  nodemailer?: MailerModule;
+  from?: string;
+  subject?: string;
+  text?: string;
+  html?: string;
+  port?: number;
+  host?: string;
+  secure?: boolean;
+  ignoreTLS?: boolean;
+  name?: string;
+  localAddress?: string;
+  connectionTimeout?: number;
+  greetingTimeout?: number;
+  socketTimeout?: number;
+  debug?: true;
+  authMethod?: string;
+  log?: Logger;
+  auth?: SMTPConnection.AuthenticationType;
+};
 
 // create reusable transporter object using the SMTP transport
-const createTransport = function(...args) {
+const createTransport = function(obj:MailerOptions = {}) {
 
-  const obj = args[0] ?? {};
   const nodemailer = obj.nodemailer || nodemailerMod;
   const from = obj.from ?? process.env.MAILER_SEND_FROM;
   const subject = obj.subject ?? process.env.MAILER_SEND_SUBJECT;
@@ -29,13 +52,13 @@ const createTransport = function(...args) {
   const ignoreTLS = obj.ignoreTLS ?? env('IGNORE_TLS') === 'true';
   const name = obj.name ?? env('NAME');
   const localAddress = obj.localAddress ?? env('LOCAL_ADDRESS');
-  const connectionTimeout = obj.connectionTimeout ?? env('CONNECTION_TIMEOUT');
-  const greetingTimeout = obj.greetingTimeout ?? env('GREETING_TIMEOUT');
-  const socketTimeout = obj.socketTimeout ?? env('SOCKET_TIMEOUT');
+  const connectionTimeout = obj.connectionTimeout ?? envNumber('CONNECTION_TIMEOUT');
+  const greetingTimeout = obj.greetingTimeout ?? envNumber('GREETING_TIMEOUT');
+  const socketTimeout = obj.socketTimeout ?? envNumber('SOCKET_TIMEOUT');
   const debug = obj.debug ?? env('DEBUG') === 'true';
   const authMethod = obj.authMethod ?? env('AUTH_METHOD');
   const log = obj.log ?? logMod.child({module:"mailer"});
-  const options = {
+  const options: SMTPTransport.Options = {}; /* = {
     auth: {
       user: undefined,
       pass: undefined,
@@ -52,11 +75,11 @@ const createTransport = function(...args) {
     debug: undefined,
     authMethod: undefined,
     logger: undefined,
-  };
+  }; */
   if (port) { options.port = port; }
   if (host) { options.host = host; }
   options.secure = secure;
-  if (auth && auth.user && auth.pass) {
+  if (auth && 'user' in auth && 'pass' in auth && auth.user && auth.pass) {
     options.auth = {
       user: auth.user,
       pass: auth.pass
