@@ -214,12 +214,13 @@ describe('users-api', function() {
         .get(endpoint(VALID_AUTH_TOKEN, "/me"))
         .end(function(err, res) {
           noError(err);
-          assert.equal(200, res.status);
+          assert.strictEqual(200, res.status);
           expect(res.body).to.eql({
             username,
             metadata: {
               country: null,
-              yearofbirth: null
+              yearofbirth: null,
+              disablechat: null,
             }});
           return done();
       });

@@ -20,6 +20,7 @@ import facebookFriends, { FacebookFriends } from '../facebook-friends';
 import { AliasesClient } from '../aliases';
 import { FriendsClient } from '../friends-store';
 import { FacebookClient } from '../facebook';
+import async from 'async';
 
 export interface ApiMeOptions {
     prefix: string;
@@ -110,12 +111,19 @@ export function addRoutes(options: ApiMeOptions) {
             params.name = account.name;
             params.email = account.email;
         }
-        return options.rootUsermetaClient!.get(params, "country", (err, country) =>
-            options.rootUsermetaClient!.get(params, "yearofbirth",
-                function (err, yearofbirth) {
-                    req.params._store.account.metadata = { country, yearofbirth };
-                    return next();
-                }));
+        async.mapValues<1, string | null>({
+            'country': 1,
+            'yearofbirth': 1,
+            'disablechat': 1,
+        }, function(_one, key, callback) {
+            options.rootUsermetaClient.get(params, key, callback);
+        }, function(err, results) {
+            if (err) {
+                req.log.warn({err}, 'Failed to fetch metadata');
+            }
+            req.params._store.account.metadata = results;
+            return next();
+        });
     }
 
     function getAccountSend(req: restify.Request, res: restify.Response, next: restify.Next) {

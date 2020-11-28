@@ -52,6 +52,7 @@ PASSWORD='"password":"azerty12345678"'
 EMAIL='"email":"test124@test.fovea.cc"'
 COUNTRY='"country":"fr"'
 BIRTH='"yearofbirth":"2015"'
+DISABLECHAT='"disablechat":"true"'
 WRONG_PASSWORD='"password":"nononon"'
 
 it "[POST /accounts] registers the user"
@@ -71,8 +72,20 @@ it "[POST /login] rejects invalid password"
     CURL $PREFIX/login -d "{$USERNAME, $WRONG_PASSWORD}"
     outputIncludes StormpathResourceError2006
 
+it "[POST /:username/metadata/disablechat] does not allow setting other users metadata"
+    CURL $PREFIX/test124/metadata/disablechat -d '{"value": "true"}'
+    outputIncludes MethodNotAllowed
+
 CURL $PREFIX/login -d "{$USERNAME, $PASSWORD}"
 TOKEN="$(output | jq -r .token)"
+
+it "[POST /auth/:token/metadata/disablechat] sets disablechat metadata into local usermeta"
+    CURL $PREFIX/auth/$TOKEN/metadata/disablechat -d '{"value": "true"}'
+    outputIncludes true
+
+it "[GET  /auth/:token/metadata/disablechat] loads disablechat metadata from local usermeta"
+    CURL $PREFIX/auth/$TOKEN/metadata/disablechat
+    outputIncludes true
 
 it "[GET  /auth/:token/blocked-users] returns blocked users"
     CURL $PREFIX/auth/$TOKEN/blocked-users
