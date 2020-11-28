@@ -114,7 +114,7 @@ export function addRoutes(options: ApiMeOptions) {
         async.mapValues<1, string | null>({
             'country': 1,
             'yearofbirth': 1,
-            'disablechat': 1,
+            '$chatdisabled': 1,
         }, function(_one, key, callback) {
             options.rootUsermetaClient.get(params, key, callback);
         }, function(err, results) {

@@ -220,7 +220,7 @@ describe('users-api', function() {
             metadata: {
               country: null,
               yearofbirth: null,
-              disablechat: null,
+              '$chatdisabled': null,
             }});
           return done();
       });
