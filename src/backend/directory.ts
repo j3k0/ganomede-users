@@ -43,7 +43,7 @@ export interface BackendOptions {
   aliasesClient?: any;
   directoryClient?: DirectoryClient;
   fullnamesClient?: any;
-  checkBan?: any;
+  // checkBan?: any;
   facebookClient?: any;
   facebookFriends?: any;
   friendsClient?: any;
@@ -501,7 +501,7 @@ const createBackend = function(options: BackendOptions): BackendInitializer {
       if (err) {
         return cb(legacyError(err, req_id));
       } else {
-        return cb(null, {username: id, token: authResult.token});
+        return cb(null, {username: id, token: authResult!.token});
       }
   });
   };

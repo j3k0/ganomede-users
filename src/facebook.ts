@@ -9,7 +9,7 @@
 import log from "./log";
 import restifyClients from "restify-clients";
 
-class FacebookClient {
+export class FacebookClient {
 
   log: any;
   fbgraphClient: any;
@@ -23,7 +23,7 @@ class FacebookClient {
     });
   }
 
-  _getFriendsPage(accessToken, uri, list, cb) {
+  private _getFriendsPage(accessToken, uri, list, cb) {
     uri = `${uri}&access_token=${accessToken}`;
     return this.fbgraphClient.get(uri, (err, req, res, result) => {
 

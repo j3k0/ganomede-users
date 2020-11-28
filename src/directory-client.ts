@@ -31,6 +31,7 @@ import restifyErrors from 'restify-errors';
 
 import logMod from './log';
 import { USERS_EVENTS_CHANNEL, CREATE, CHANGE, LOGIN, EventSender, DirectoryEventData, AliasesDictionary } from './event-sender';
+import { Request, Response } from 'restify';
 
 const noop = function() {};
 
@@ -41,7 +42,7 @@ function reduceAliases(aliases: DirectoryAlias[]): AliasesDictionary {
   }, {});
 }
 
-function eventData(req_id: string, userId: string, aliases?: DirectoryAlias[]): DirectoryEventData {
+function eventData(req_id: string | undefined, userId: string, aliases?: DirectoryAlias[]): DirectoryEventData {
   if (!aliases) { aliases = []; }
   return {
     req_id,
@@ -66,9 +67,22 @@ export interface DirectoryTokenRequest {
   req_id?: string;
 }
 
+export interface DirectoryCredentials {
+  id: string;
+  password: string;
+  req_id?: string;
+}
+
+export interface DirectoryAuthResult {
+  id: string;
+  token: string;
+}
+
+export type DirectoryAuthCallback = (err: Error | null, authResult?: DirectoryAuthResult) => void;
+
 export interface DirectoryClient {
   endpoint: (subpath: string) => string;
-  authenticate: (credentials, callback) => void;
+  authenticate: (credentials: DirectoryCredentials, callback: DirectoryAuthCallback) => void;
   addAccount: (account, callback:DirectoryCallback) => void;
   byId: (options: DirectoryIdRequest, callback:DirectoryCallback) => void;
   byAlias: (options: DirectoryAliasRequest, callback:DirectoryCallback) => void;
@@ -130,7 +144,7 @@ const createClient = function(options): DirectoryClient {
     return options;
   };
 
-  const authenticate = function(credentials, callback) {
+  const authenticate = function(credentials: DirectoryCredentials, callback: DirectoryAuthCallback) {
 
     const {
       req_id
@@ -141,7 +155,7 @@ const createClient = function(options): DirectoryClient {
       password: credentials.password
     };
 
-    return jsonPost(options, body, function(err, req, res, body) {
+    return jsonPost(options, body, function(err: any, req: Request, res: Response, body) {
 
       if ((err != null ? err.restCode : undefined) === 'UserNotFoundError') {
         log.info({

@@ -6,7 +6,7 @@
 import restifyErrors from 'restify-errors';
 import { expect } from 'chai';
 import td from 'testdouble';
-import directoryClientMod, { DirectoryCallback } from '../src/directory-client';
+import directoryClientMod, { DirectoryCallback, DirectoryAuthCallback } from '../src/directory-client';
 import tagizer from 'ganomede-tagizer';
 // import bunyan from 'bunyan';
 import logMod from '../src/log';
@@ -116,7 +116,7 @@ describe('directory-client', function() {
 
     const authenticate = function(creds) {
       const ret = baseTest();
-      ret.directoryClient.authenticate(creds, ret.callback);
+      ret.directoryClient.authenticate(creds, ret.callback as DirectoryAuthCallback);
       return ret;
     };
 

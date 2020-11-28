@@ -3,10 +3,29 @@
  * DS102: Remove unnecessary code created because of implicit returns
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
+import Logger from 'bunyan';
 import vasync from 'vasync';
+import { AliasesClient } from './aliases';
+import { FacebookClient } from './facebook';
+import { FriendsClient } from './friends-store';
 import logDefault from "./log";
 
-const storeFriends = function(options) {
+export interface StoreFacebookFriendsOptions {
+  username: string;
+  aliasesClient: AliasesClient;
+  friendsClient: FriendsClient;
+  facebookClient: FacebookClient;
+  accessToken: string;
+  callback: (err?: Error, result?: string[] | null) => void;
+
+  apiSecret?: string;
+  rootLog?: Logger;
+  log?: Logger;
+}
+
+export type StoreFacebookFriends = (options: StoreFacebookFriendsOptions) => void;
+
+const storeFriends: StoreFacebookFriends = function(options: StoreFacebookFriendsOptions): void {
 
   const {
     username,
@@ -75,6 +94,10 @@ const storeFriends = function(options) {
   return store();
 };
 
-export default {storeFriends};
+export interface FacebookFriends {
+  storeFriends: StoreFacebookFriends;
+}
+
+export default { storeFriends } as FacebookFriends;
 
 // vim: ts=2:sw=2:et:

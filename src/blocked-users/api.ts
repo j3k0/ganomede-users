@@ -6,7 +6,7 @@ import { RequestHandler, Request, Response, Next } from "restify";
 import log from "../log";
 import { UsermetaClient, UsermetaClientOptions } from "../usermeta";
 import { DirectoryClient } from "../directory-client";
-import parseTagMod from '../middlewares/parse-tag';
+import parseTagMod from '../middlewares/mw-parse-tag';
 import { EventSender } from "../event-sender";
 import { BLOCKED, UNBLOCKED, CHANNEL, eventData, BlockedUserEventType, REPORTED } from "./events";
 import config from "../config";

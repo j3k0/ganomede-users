@@ -3,7 +3,9 @@
  * DS102: Remove unnecessary code created because of implicit returns
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
+import Logger from 'bunyan';
 import logMod from './log';
+import { UsermetaClient, UsermetaClientOptions } from './usermeta';
 
  const uniq = function(a) {
   const has = {};
@@ -16,7 +18,22 @@ import logMod from './log';
   });
 };
 
-const createStore = function(options) {
+export interface FriendsStoreOptions {
+  log?: Logger;
+  keyName?: string;
+  maxFriends?: number;
+  usermetaClient: UsermetaClient;
+}
+
+export interface FriendsClient {
+  add(account: string | UsermetaClientOptions, newFriends: string[], cb: FriendsClientCallback);
+  get(account: string | UsermetaClientOptions, cb: FriendsClientCallback);
+  set(account: string | UsermetaClientOptions, friends: string[], cb: FriendsClientCallback);
+}
+
+export type FriendsClientCallback = (err?: any, friends?: string[] | null) => void;
+
+const createStore = function(options: FriendsStoreOptions): FriendsClient {
 
   let log;
   if (options.log) {
@@ -39,7 +56,7 @@ const createStore = function(options) {
     throw new Error("usermetaClient not defined");
   }
 
-  if (usermetaClient.validKeys && !usermetaClient.isValid(KEY_NAME)) {
+  if ('validKeys' in usermetaClient && usermetaClient.validKeys && !usermetaClient.isValid(KEY_NAME)) {
     usermetaClient.validKeys[KEY_NAME] = true;
   }
 
@@ -70,7 +87,9 @@ const createStore = function(options) {
     // Save the account friends
     set(account, friends, cb) {
       friends = friends.splice(0, MAX_FRIENDS);
-      return usermetaClient.set(account, KEY_NAME, friends.join(SEPARATOR), cb, 0);
+      return usermetaClient.set(account, KEY_NAME, friends.join(SEPARATOR), (err, result) => {
+        cb(err, result?.split(SEPARATOR));
+      }, 0);
     },
 
     // Add a friend
@@ -84,7 +103,7 @@ const createStore = function(options) {
         if (err) {
           return cb(err);
         }
-        if (friends === EMPTY_SET) {
+        if (!friends || friends === EMPTY_SET) {
           friends = newFriends;
         } else {
           friends = friends.concat(newFriends);

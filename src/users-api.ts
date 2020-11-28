@@ -1,9 +1,3 @@
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * DS207: Consider shorter variations of null checks
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
 // Users API
 //
 // Implements the users API
@@ -12,7 +6,7 @@
 import _ from 'lodash';
 
 import async from "async";
-import authentication, { AuthdbClient } from "./authentication";
+import authentication, { AuthdbClient, Authenticator } from "./authentication";
 import restifyClients from "restify-clients";
 import restifyErrors from "restify-errors";
 import restify from "restify";
@@ -23,26 +17,29 @@ import ganomedeDirectory from "ganomede-directory";
 const serviceConfig = helpers.links.ServiceEnv.config;
 import usermeta, { UsermetaClientOptions } from "./usermeta";
 import {UsermetaClient} from "./usermeta";
-import aliases from "./aliases";
+import aliases, { AliasesClient } from "./aliases";
 import fullnames from "./fullnames";
-import friendsStore from "./friends-store";
-import facebook from "./facebook";
+import friendsStore, { FriendsClient } from "./friends-store";
+import facebook, { FacebookClient } from "./facebook";
 import usernameValidator from "./username-validator";
 import { Bans } from './bans';
 import urllib from 'url';
 import mailer from './mailer';
-import parseTagMod from './middlewares/parse-tag';
 import eventSender, { USERS_EVENTS_CHANNEL, EventSender } from './event-sender';
 import deferredEvents from './deferred-events';
 import emails from './emails';
 import statsdWrapper from './statsd-wrapper';
-import facebookFriends from './facebook-friends';
 import friendsApiMod, { FriendsApi } from './friends-api';
 import blockedUsersMod, { BlockedUsersApi } from './blocked-users/api';
 import directoryClientMod, { DirectoryClient } from './directory-client';
 import mailTemplate from './mail-template';
-import backendDirectoryMod, { BackendInitializer, BackendOptions } from './backend/directory';
+import backendDirectoryMod, { Backend, BackendInitializer, BackendOptions } from './backend/directory';
 import Logger from 'bunyan';
+import apiMe from './api/api-me';
+import apiLogin from './api/api-login';
+import { sendError } from './utils/send-error';
+import parseTagMiddleware from './middlewares/mw-parse-tag';
+import facebookFriends from './facebook-friends';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -67,25 +64,13 @@ export interface UsersApiOptions {
   createBackend?: (options: BackendOptions) => BackendInitializer;
 };
 
-const sendError = function(req, err, next) {
-  if (err.code === 'InvalidCredentialsError' || err.code == 'UnauthorizedError' || err.code == 'InvalidCredentials' || err.code == 'StormpathResourceError2006') {
-   req.log.info(err);
-  }
-  else if (err.rawError) {
-    req.log.warn(err.rawError);
-  } else {
-    req.log.warn(err);
-  }
-  return next(err);
-};
-
 const stats = statsdWrapper.createClient();
 
 // Retrieve Stormpath configuration from environment
-const apiSecret = process.env.API_SECRET || null;
+const apiSecret = process.env.API_SECRET || '';
 
 // Facebook
-const facebookClient = facebook.createClient({});
+const facebookClient: FacebookClient = facebook.createClient({});
 
 // Connection to AuthDB
 let authdbClient: any = null;
@@ -94,13 +79,13 @@ let authdbClient: any = null;
 let rootUsermetaClient: UsermetaClient|undefined = undefined;
 let localUsermetaClient: UsermetaClient|undefined = undefined;
 let centralUsermetaClient:UsermetaClient|undefined = undefined;
-let aliasesClient: any = null;
+let aliasesClient: AliasesClient | null = null;
 let fullnamesClient: any = null;
-let friendsClient: any = null;
+let friendsClient: FriendsClient | null = null;
 let friendsApi: FriendsApi|undefined = undefined;
 let blockedUsersApi: BlockedUsersApi|undefined = undefined;
 let bans: any = null;
-let authenticator: any = null;
+let authenticator: Authenticator | null = null;
 let directoryClient: DirectoryClient|undefined = undefined;
 let storeFacebookFriends: (options: any) => void | null;
 let sendEvent: EventSender|null = null;
@@ -164,210 +149,6 @@ const createAccount = function(req, res, next) {
       });
     }
   });
-};
-
-// Login a user account
-const login = function(req, res, next) {
-  if (req.body.facebookToken) {
-    req.log.debug({body:req.body}, 'facebook token found, using loginFacebook');
-    return loginFacebook(req, res, next);
-  }
-
-  return checkBanMiddleware(req, res, function(err) {
-    if (err) {
-      return next(err);
-    }
-
-    return loginDefault(req, res, next);
-  });
-};
-
-// Login (or register) a facebook user account
-var loginFacebook = function(req, res, next) {
-  const account = {
-    req_id: req.id(), // pass over request id for better tracking
-    accessToken: req.body.facebookToken,
-    username: req.body.username,
-    password: req.body.password,
-    facebookId: req.body.facebookId
-  };
-
-  req.log.debug({account}, 'backend.loginFacebook');
-  return backend.loginFacebook(account, function(err, result) {
-    if (err) {
-      req.log.warn({err}, 'backend.loginFacebook failed');
-      return next(err);
-    } else if (typeof result !== 'undefined') {
-      req.log.debug({result}, 'backend.loginFacebook succeeded');
-      res.send(result);
-    } else {
-      req.log.warn('backend.loginFacebook returns no result');
-    }
-    return next();
-  });
-};
-
-var loginDefault = function(req, res, next) {
-
-  const account = {
-    req_id:   req.id(), // pass over request id for better tracking
-    username: req.body.username,
-    password: req.body.password
-  };
-  return backend.loginAccount(account, function(err, data) {
-    if (err) {
-      return sendError(req, err, next);
-    }
-
-    // login successful.
-    // however, there may be an an alias for this account.
-    // in this case, we need to log the user as the alias!
-    return aliasesClient.get(account.username, function(err, alias) {
-
-      if (err) {
-        log.warn("Error retrieving alias", err);
-      }
-
-      // No alias found, return the source user.
-      if (err || !alias) {
-        res.send(data);
-      } else {
-        res.send(authenticator.add(alias));
-      }
-      return next();
-    });
-  });
-};
-
-// callback(error, isBannedBoolean)
-const checkBan = (username, callback) => bans.get({username,apiSecret}, function(err, ban) {
-  if (err) {
-    log.error('checkBan() failed', {err, username});
-    return callback(err);
-  }
-
-  return callback(null, ban.exists);
-});
-
-// next() - no error, no ban
-// next(err) - error
-// next(ForbiddenError) - ban
-var checkBanMiddleware = function(req, res, next) {
-  const username = (req.params && req.params.username) ||
-             (req.body && req.body.username) ||
-             null;
-
-  if (!username) {
-    return sendError(req, new restifyErrors.BadRequestError({
-      code: 'BadRequestError'
-    }), next);
-  }
-
-  return checkBan(username, function(err, exists) {
-    if (err) {
-      return next(err);
-    }
-
-    if (exists) {
-      // Remove authToken of banned accounts
-      if (req.params.authToken) {
-        authdbClient.addAccount(req.params.authToken, null, function() {});
-      }
-
-      return next(new restifyErrors.ForbiddenError({
-        message: 'user is banned', 
-        code: 'ForbiddenError'
-      }));
-    } else {
-      return next();
-    }
-  });
-};
-
-// Load account details. This call most generally made by a client connecting
-// to the server, using a restored session. It's a good place to check
-// and refresh a few things, namely facebook friends for now.
-const getAccountFromAuthDb = function(req, res, next) {
-  // We're loading the account from a token (required)
-  const token = req.params.authToken;
-  if (!token) {
-    const err = new restifyErrors.InvalidContentError({
-      message: "invalid content",
-      code: 'InvalidContentError'
-    });
-    return sendError(req, err, next);
-  }
-
-  // Use the authentication database to retrieve more about the user.
-  // see `addAuth` for details of what's in the account, for now:
-  //  - username
-  //  - email
-  //  - facebookToken (optionally)
-  return authdbClient.getAccount(token, function(err, account) {
-    if (err) {
-      req.log.warn({err}, "NotAuthorizedError");
-      err = new restifyErrors.NotAuthorizedError({
-        message: "not authorized",
-        code: 'InvalidContentError'
-      });
-      return sendError(req, err, next);
-    }
-
-    req._store = {account};
-    req.body = req.body || {};
-    req.body.username = req.body.username || account.username;
-    // console.log 'next', account
-    return next();
-  });
-};
-
-const getAccountMetadata = function(req, res, next) {
-  // console.log 'getAccountMetadata'
-  const { account } = req._store;
-  const params: UsermetaClientOptions = {
-    req_id: req.id(),
-    authToken: req.params.authToken,
-    username: account.username
-  };
-  // fill in already loaded info when we have them
-  if (req.params.user) {
-    params.username = account.username;
-    params.tag      = account.tag;
-    params.name     = account.name;
-    params.email    = account.email;
-  }
-  return rootUsermetaClient!.get(params, "country", (err, country) => rootUsermetaClient!.get(params, "yearofbirth", function(err, yearofbirth) {
-    req._store.account.metadata = {country, yearofbirth};
-    return next();
-  }));
-};
-
-const getAccountSend = function(req, res, next) {
-  // console.log 'getAccountSend'
-  // Respond to request.
-  const { account } = req._store;
-  res.send(account);
-
-  // Reload facebook friends in the background
-  // (next has been called)
-  if (account.facebookToken) {
-    storeFacebookFriends({
-      username: account.username,
-      accessToken: account.facebookToken,
-      callback(err) {
-        if (err) {
-          return log.error(`Failed to store friends for ${account.username}`, err);
-        }
-      }
-    });
-  }
-
-  // Update the "auth" metadata
-  if (account.username) {
-    authenticator.updateAuthMetadata(account);
-  }
-
-  return next();
 };
 
 // Send a password reset email
@@ -537,14 +318,9 @@ const initialize = function(cb, options: UsersApiOptions = {}) {
 
   sendEvent = options.sendEvent ?? eventSender.createSender();
 
-  if (options.authdbClient) {
-    ({
-      authdbClient
-    } = options);
-  } else {
-    authdbClient = ganomedeDirectory.createAuthdbClient({
-      jsonClient: directoryJsonClient, log, apiSecret});
-  }
+  authdbClient = options.authdbClient ?? ganomedeDirectory.createAuthdbClient({
+    jsonClient: directoryJsonClient, log, apiSecret
+  });
 
   const createGanomedeUsermetaClient = function(name, ganomedeEnv) {
     const ganomedeConfig = serviceConfig(ganomedeEnv, 8000);
@@ -577,29 +353,19 @@ const initialize = function(cb, options: UsersApiOptions = {}) {
 
   // Aliases
   aliasesClient = aliases.createClient({
-    usermetaClient: centralUsermetaClient});
+    usermetaClient: centralUsermetaClient!});
 
   // Full names
   fullnamesClient = fullnames.createClient({
-    usermetaClient: centralUsermetaClient});
+    usermetaClient: centralUsermetaClient!});
 
   // Friends
   friendsClient = friendsStore.createClient({
-    log, usermetaClient: centralUsermetaClient });
+    log, usermetaClient: centralUsermetaClient! });
 
   // Authenticator
   authenticator = authentication.createAuthenticator({
     authdbClient, localUsermetaClient, centralUsermetaClient });
-
-  // Facebook friends
-  storeFacebookFriends = options => facebookFriends.storeFriends({
-    username: options.username,
-    accessToken: options.accessToken,
-    callback: options.callback || function() {},
-    aliasesClient: options.aliasesClient || aliasesClient,
-    friendsClient: options.friendsClient || friendsClient,
-    facebookClient: options.facebookClient || facebookClient
-  });
 
   friendsApi = options.friendsApi ?? friendsApiMod.createApi({
     friendsClient,
@@ -623,7 +389,7 @@ const initialize = function(cb, options: UsersApiOptions = {}) {
     authdbClient,
     aliasesClient,
     fullnamesClient,
-    checkBan,
+    // checkBan,
     facebookClient,
     facebookFriends,
     friendsClient,
@@ -722,27 +488,39 @@ const banStatus = function(req, res, next) {
   });
 };
 
-// Register routes in the server
+/**
+ * Register routes in the server
+ * 
+ * Notes, this MUST be called after `initialize` callback has been called.
+ */
 const addRoutes = function(prefix: string, server: restify.Server): void {
 
-  const parseTag = parseTagMod.createParamsMiddleware({
+  const parseTag = parseTagMiddleware.createParamsMiddleware({
     directoryClient: directoryClient!, log});
   Object.defineProperty(parseTag, "name", {value: "parseTag"});
-  const bodyTag = parseTagMod.createBodyMiddleware({
+  const bodyTag = parseTagMiddleware.createBodyMiddleware({
     directoryClient: directoryClient!, log, tagField: "username"});
   Object.defineProperty(bodyTag, "name", {value: "bodyTag"});
 
   server.post(`/${prefix}/accounts`, createAccount);
 
-  server.post(`/${prefix}/login`, bodyTag, login);
+  const apiOptions = {
+    prefix,
+    server,
+    apiSecret,
+    bans: bans as Bans,
+    authdbClient: authdbClient as AuthdbClient,
+    aliasesClient: aliasesClient! as AliasesClient,
+    authenticator: authenticator! as Authenticator,
+    backend: backend! as Backend,
+    directoryClient: directoryClient!,
+    friendsClient: friendsClient!,
+    rootUsermetaClient: rootUsermetaClient!,
+    facebookClient,
+  };
 
-  server.get(
-    `/${prefix}/auth/:authToken/me`,
-    getAccountFromAuthDb,
-    checkBanMiddleware,
-    getAccountMetadata,
-    getAccountSend
-  );
+  apiLogin.addRoutes(apiOptions);
+  apiMe.addRoutes(apiOptions);
 
   server.post(`/${prefix}/banned-users`,
     jsonBody, validateSecret, bodyTag, banAdd);
