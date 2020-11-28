@@ -19,7 +19,7 @@
   "author": "Jean-Christophe Hoelt <hoelt@fovea.cc>",
   "license": "GPL",
   "dependencies": {
-    "async": "^2.0.1",
+    "async": "^3.2.0",
     "bunyan": "^1.8.12",
     "concat-stream": "^1.4.10",
     "fakeredis": "^1.0.3",
@@ -44,6 +44,7 @@
   },
   "devDependencies": {
     "@mayachit/mocha-pretty-bunyan": "^1.0.1",
+    "@types/async": "^3.2.4",
     "@types/bunyan": "^1.8.6",
     "@types/mocha": "^7.0.2",
     "@types/node": "^14.0.5",
