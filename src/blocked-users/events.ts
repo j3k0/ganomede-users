@@ -4,7 +4,7 @@ export const CHANNEL = config.api + '/blocked-users';
 
 export const BLOCKED = 'BLOCKED';
 export const UNBLOCKED = 'UNBLOCKED';
-export const REPORTED = 'UNBLOCKED';
+export const REPORTED = 'REPORTED';
 
 export type BlockedUserEventType = 'BLOCKED' | 'UNBLOCKED' | 'REPORTED';
 
