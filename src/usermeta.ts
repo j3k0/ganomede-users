@@ -29,10 +29,22 @@ export interface UsermetaClientOptions {
 
 export type UsermetaClientCallback = (err:Error|null, reply?:string|null) => void;
 
-export interface UsermetaClient {
+export interface SimpleUsermetaClient {
   set: (params:UsermetaClientOptions|string, key:string, value:string, callback:UsermetaClientCallback, maxLength?:number) => void;
   get: (params:UsermetaClientOptions|string, key:string, callback:UsermetaClientCallback) => void;
 };
+
+export interface RestrictedUsermetaClient extends SimpleUsermetaClient {
+  validKeys?: { [key: string]: boolean; };
+  isValid(key: string): boolean;
+}
+
+export interface ProtectedUsermetaClient extends RestrictedUsermetaClient {
+  isReadOnly(key: string): boolean;
+  isWriteOnly(key: string): boolean;
+};
+
+export type UsermetaClient = SimpleUsermetaClient | RestrictedUsermetaClient | ProtectedUsermetaClient;
 
 const DEFAULT_MAX_LENGTH:number = 1000;
 
@@ -217,7 +229,7 @@ var directory = {
 };
 
 // Stores "protected" metadata as directory account aliases
-class DirectoryAliasesProtected {
+class DirectoryAliasesProtected implements ProtectedUsermetaClient {
 
   type: string;
   directoryClient: DirectoryClient;
@@ -326,18 +338,18 @@ class DirectoryAliasesPublic {
 }
 
 // Stores "public" metadata in redis
-class RedisUsermeta {
+class RedisUsermeta implements RestrictedUsermetaClient {
 
   type: string;
-  validKeys: {
+  validKeys?: {
     [key: string]: boolean;
-  } | null;
+  };
   redisClient: RedisClient;
 
   constructor(redisClient: RedisClient) {
     this.redisClient = redisClient;
     this.type = "RedisUsermeta";
-    this.validKeys = null;
+    this.validKeys = undefined;
     if (process.env.USERMETA_VALID_KEYS) {
       const keys = process.env.USERMETA_VALID_KEYS.split(",");
       this.validKeys = {};
@@ -373,7 +385,7 @@ class RedisUsermeta {
   }
 
   isValid(key:string):boolean {
-    if ((this.validKeys === null) || (this.validKeys[key])) { return true; } else { return false; }
+    if ((this.validKeys === undefined) || (this.validKeys[key])) { return true; } else { return false; }
   }
 }
 
@@ -404,7 +416,7 @@ const authPath = function(params:UsermetaClientOptions):string {
 
 // Stores metadata in ganomede-usermeta
 // ganomede-usermeta server will take care of key validation
-class GanomedeUsermeta implements UsermetaClient {
+class GanomedeUsermeta implements SimpleUsermetaClient {
 
   jsonClient: any;
   type: string;
@@ -442,9 +454,7 @@ class GanomedeUsermeta implements UsermetaClient {
       path: authPath(params) + `/${encodeURIComponent(key)}`,
       req_id: params.req_id
     });
-    const {
-      url
-    } = this.jsonClient;
+    const url = this.jsonClient.url;
     return this.jsonClient.get(options, function (err: HttpError | null, _req: Request, res: Response, body?: object | null) {
       if (err) {
         log.error({err, url, options, body, req_id: params.req_id},

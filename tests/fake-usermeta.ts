@@ -1,7 +1,7 @@
-import { UsermetaClientOptions, UsermetaClientCallback, UsermetaClient } from "../src/usermeta";
+import { UsermetaClientOptions, UsermetaClientCallback, SimpleUsermetaClient } from "../src/usermeta";
 
 const DEFAULT_MAX_LENGTH = 200;
-class FakeUsermetaClient implements UsermetaClient {
+class FakeUsermetaClient implements SimpleUsermetaClient {
   store: any;
   constructor() {
     this.store = {};

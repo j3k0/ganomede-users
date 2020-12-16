@@ -5,22 +5,32 @@
  */
 //
 // Store an internal information in usermeta
-//
-const createClient = function(options) {
+
+import { UsermetaClient, UsermetaClientCallback } from "./usermeta";
+
+export interface InternalUsermetaOptions {
+  key: string;
+  usermetaClient: UsermetaClient;
+};
+
+export interface InternalUsermetaClient {
+  set: (username: string, value: string, callback: UsermetaClientCallback) => void;
+  get: (username: string, callback: UsermetaClientCallback) => void;
+}
+
+export function createClient(options: InternalUsermetaOptions): InternalUsermetaClient {
 
   const KEY_NAME = options.key;
   if (!KEY_NAME) {
     throw new Error("key not defined");
   }
 
-  const {
-    usermetaClient
-  } = options;
+  const usermetaClient = options.usermetaClient;
   if (!usermetaClient) {
     throw new Error("usermetaClient not defined");
   }
 
-  if (usermetaClient.validKeys && !usermetaClient.isValid(KEY_NAME)) {
+  if ('validKeys' in usermetaClient && usermetaClient.validKeys && !usermetaClient.isValid(KEY_NAME)) {
     usermetaClient.validKeys[KEY_NAME] = true;
   }
 
@@ -37,7 +47,11 @@ const createClient = function(options) {
   };
 };
 
-const clientFactory = key => ({ usermetaClient }) => createClient({ usermetaClient, key });
+export function clientFactory(key: string) {
+  return function ({ usermetaClient }: { usermetaClient: UsermetaClient }) {
+    return createClient({ usermetaClient, key });
+  };
+}
 
 export default {
   createClient,

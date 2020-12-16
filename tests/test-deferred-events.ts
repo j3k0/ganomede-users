@@ -7,7 +7,7 @@ import assert from "assert";
 import deferredEvents from '../src/deferred-events';
 import td from 'testdouble';
 import _ from 'lodash';
-import { EventSender, EventSenderCallback } from "../src/event-sender";
+import { EventSender } from "../src/event-sender";
 import { Request, Response, Next } from "restify";
 
 describe("deferred-events", function() {

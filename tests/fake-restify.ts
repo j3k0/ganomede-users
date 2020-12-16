@@ -5,7 +5,7 @@
  */
 // vim: ts=2:sw=2:et:
 
-import td from 'testdouble';
+// import td from 'testdouble';
 import { RequestHandler, Response, Next } from 'restify';
 import vasync from "vasync"
 import { v4 as uuidv4 } from 'uuid';

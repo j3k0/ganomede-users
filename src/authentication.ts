@@ -13,7 +13,7 @@ export interface AuthdbUser {
 }
 
 export interface AuthdbClient {
-  addAccount: (token: string, user: AuthdbUser, callback?: (err?: HttpError | null) => void) => void;
+  addAccount: (token: string, user: AuthdbUser | null, callback?: (err?: HttpError | null) => void) => void;
   getAccount: (token: string, callback: (err: HttpError | null, user?: AuthdbUser) => void) => void;
 }
 
@@ -33,7 +33,13 @@ export interface AuthenticatorOptions {
   apiSecret?: string;
 }
 
-const createAuthenticator = function(options: AuthenticatorOptions) {
+export interface Authenticator {
+  updateAuthMetadata(account: AuthenticatorAccount): void;
+  getAuthMetadata(account: AuthenticatorAccount, callback: UsermetaClientCallback): void;
+  add(account: AuthenticatorAccount): AuthenticatorAccount;
+}
+
+const createAuthenticator = function(options: AuthenticatorOptions): Authenticator {
 
   const authdbClient: AuthdbClient = options.authdbClient;
   const localUsermetaClient: UsermetaClient|undefined = options.localUsermetaClient;

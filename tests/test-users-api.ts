@@ -91,7 +91,8 @@ const baseTest = function() {
     authdbClient, directoryClient };
 };
 
-let i = 0;
+// @ts-ignore
+let i:number = 0;
 const restTest = function(done) {
   const ret: any = baseTest();
   td.when(ret.backend.initialize()).thenCallback(null, ret.backend);
@@ -213,12 +214,13 @@ describe('users-api', function() {
         .get(endpoint(VALID_AUTH_TOKEN, "/me"))
         .end(function(err, res) {
           noError(err);
-          assert.equal(200, res.status);
+          assert.strictEqual(200, res.status);
           expect(res.body).to.eql({
             username,
             metadata: {
               country: null,
-              yearofbirth: null
+              yearofbirth: null,
+              '$chatdisabled': null,
             }});
           return done();
       });

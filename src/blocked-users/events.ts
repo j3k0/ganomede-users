@@ -4,31 +4,34 @@ export const CHANNEL = config.api + '/blocked-users';
 
 export const BLOCKED = 'BLOCKED';
 export const UNBLOCKED = 'UNBLOCKED';
+export const REPORTED = 'REPORTED';
 
-export type BlockedUserEventType = 'BLOCKED' | 'UNBLOCKED';
+export type BlockedUserEventType = 'BLOCKED' | 'UNBLOCKED' | 'REPORTED';
 
 export interface BlockedUserEvent {
     req_id: string;
-    type: BlockedUserEventType;
+    // type: BlockedUserEventType; (already part of base event data)
     username: string;
     target: string;
-    blocked: string[];
+    // blocked: string[]; (removed to make the event list lighter)
 }
 
-export function eventData(req_id: string, type: BlockedUserEventType, originatorUsername: string, targetUsername: string, newList: string[]): BlockedUserEvent {
+export function eventData(req_id: string, originatorUsername: string, targetUsername: string): BlockedUserEvent {
     return {
-        type,
         req_id,
         username: originatorUsername,
-        target: targetUsername,
-        blocked: newList,
+        target: targetUsername
     }
 }
 
-export function blockEvent(req_id: string, originatorUsername: string, targetUsername: string, newList: string[]): BlockedUserEvent {
-    return eventData(req_id, BLOCKED, originatorUsername, targetUsername, newList);
+export function blockEvent(req_id: string, originatorUsername: string, targetUsername: string): BlockedUserEvent {
+    return eventData(req_id, originatorUsername, targetUsername);
 }
 
-export function unblockEvent(req_id: string, originatorUsername: string, targetUsername: string, newList: string[]) {
-    return eventData(req_id, UNBLOCKED, originatorUsername, targetUsername, newList);
+export function unblockEvent(req_id: string, originatorUsername: string, targetUsername: string): BlockedUserEvent {
+    return eventData(req_id, originatorUsername, targetUsername);
+}
+
+export function reportEvent(req_id: string, originatorUsername: string, targetUsername: string): BlockedUserEvent {
+    return eventData(req_id, originatorUsername, targetUsername);
 }

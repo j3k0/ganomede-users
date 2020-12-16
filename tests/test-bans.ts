@@ -3,7 +3,7 @@
  * DS102: Remove unnecessary code created because of implicit returns
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
-import async from 'async';
+// import async from 'async';
 import { expect } from 'chai';
 import { BanInfo, Bans } from '../src/bans';
 import td from 'testdouble';
@@ -63,7 +63,7 @@ describe('Bans', function() {
     return bans = new Bans({usermetaClient});
   });
 
-  const started = Date.now();
+  // const started = Date.now();
   const params = {
     banned: {username: 'bad-person', apiSecret: 'wever'},
     notBanned: {username: 'good-citizen', apiSecret: 'wever'}
