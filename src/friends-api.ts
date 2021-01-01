@@ -6,12 +6,13 @@
  */
 import log from "./log";
 import restifyErrors from "restify-errors";
+import { FriendsClient } from "./friends-store";
 
 export class FriendsApi {
 
   options: any;
   authMiddleware: any;
-  friendsClient: any;
+  friendsClient: FriendsClient;
   log: any;
 
   constructor(options) {
@@ -58,7 +59,7 @@ export class FriendsApi {
 
   isValidList(friends) {
     return (
-      (typeof friends === 'object') &&
+      Array.isArray(friends) &&
       (friends.length > 0) &&
       (typeof friends[0] === "string")
     );
@@ -68,7 +69,7 @@ export class FriendsApi {
 
     // Retrieve input parameters
     const username = req.params.user != null ? req.params.user.username : undefined;
-    const friends = req.body;
+    const friends: string[] = req.body;
 
     // Check parameters validity
     if (!this.isValidList(friends)) {
@@ -85,7 +86,7 @@ export class FriendsApi {
     };
 
     // Store
-    return this.friendsClient.add(params, friends, (err, friends) => {
+    return this.friendsClient.add(params, friends, (err, friends: undefined | null | string[]) => {
 
       if (err) {
         this.log.error({

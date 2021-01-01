@@ -7,7 +7,7 @@ import Logger from 'bunyan';
 import logMod from './log';
 import { UsermetaClient, UsermetaClientOptions } from './usermeta';
 
- const uniq = function(a) {
+ const uniq = function(a:string[]) {
   const has = {};
   return a.filter(function(item) {
     if (has.hasOwnProperty(item)) {
@@ -88,7 +88,8 @@ const createStore = function(options: FriendsStoreOptions): FriendsClient {
     set(account, friends, cb) {
       friends = friends.splice(0, MAX_FRIENDS);
       return usermetaClient.set(account, KEY_NAME, friends.join(SEPARATOR), (err, result) => {
-        cb(err, result?.split(SEPARATOR));
+        log.info({friends, result: result && JSON.stringify(result)}, 'Save friends.');
+        cb(err, (typeof result?.split === 'function' && result?.split(SEPARATOR)) || []);
       }, 0);
     },
 
