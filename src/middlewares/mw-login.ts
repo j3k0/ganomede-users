@@ -30,6 +30,11 @@ export function createMiddleware(options: LoginMiddlewareOptions) {
             return loginFacebook(req, res, next);
         }
 
+        if (req.body.appleId) {
+            req.log.debug({ body: req.body }, 'apple id found, using loginApple');
+            return loginApple(req, res, next);
+        }
+
         return checkBan(req, res, function (err) {
             if (err) {
                 return next(err);
@@ -64,6 +69,34 @@ export function createMiddleware(options: LoginMiddlewareOptions) {
         });
     };
 
+    // Login (or register) a facebook user account
+    function loginApple(req: restify.Request, res: restify.Response, next: restify.Next) {
+        const account = {
+            req_id: req.id(), // pass over request id for better tracking
+            username: req.body.username,
+            password: req.body.password,
+            appleId: req.body.appleId,
+            appleIdentityToken: req.body.appleIdentityToken,
+            appleAuthorizationCode: req.body.appleAuthorizationCode,
+            givenName: req.body.givenName,
+            surname: req.body.surname,
+        };
+
+        req.log.debug({ account }, 'backend.loginApple');
+        return backend.loginApple(account, function (err, result) {
+            if (err) {
+                req.log.warn({ err }, 'backend.loginApple failed');
+                return next(err);
+            } else if (typeof result !== 'undefined') {
+                req.log.debug({ result }, 'backend.loginApple succeeded');
+                res.send(result);
+            } else {
+                req.log.warn('backend.loginApple returns no result');
+            }
+            return next();
+        });
+    }
+    
     function loginDefault(req: restify.Request, res: restify.Response, next: restify.Next) {
 
         const account = {

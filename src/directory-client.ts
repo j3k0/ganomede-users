@@ -32,6 +32,7 @@ import restifyErrors from 'restify-errors';
 import logMod from './log';
 import { USERS_EVENTS_CHANNEL, CREATE, CHANGE, LOGIN, EventSender, DirectoryEventData, AliasesDictionary } from './event-sender';
 import { Request, Response } from 'restify';
+import { Req } from './backend/directory';
 
 const noop = function() {};
 
@@ -78,19 +79,37 @@ export interface DirectoryAuthResult {
   token: string;
 }
 
+export interface DirectoryPostAccount {
+  /** user identifier */
+  id: string;
+  /** Only specified for updating or creating an account, never returned */
+  password?: string;
+  /** List of aliases */
+  aliases?: DirectoryAlias[];
+};
+
+export interface DirectoryGetAccount {
+  /** user identifier */
+  id: string;
+  /** List of aliases */
+  aliases: {
+    [type: string]: string;
+  }
+};
+
 export type DirectoryAuthCallback = (err: Error | null, authResult?: DirectoryAuthResult) => void;
 
 export interface DirectoryClient {
   endpoint: (subpath: string) => string;
   authenticate: (credentials: DirectoryCredentials, callback: DirectoryAuthCallback) => void;
-  addAccount: (account, callback:DirectoryCallback) => void;
+  addAccount: (account: Req<DirectoryPostAccount>, callback:DirectoryCallback) => void;
   byId: (options: DirectoryIdRequest, callback:DirectoryCallback) => void;
   byAlias: (options: DirectoryAliasRequest, callback:DirectoryCallback) => void;
   byToken: (options: DirectoryTokenRequest, callback:DirectoryCallback) => void;
-  editAccount: (account, callback) => void;
+  editAccount: (account: Req<DirectoryPostAccount>, callback) => void;
 }
 
-export type DirectoryCallback = (err:restifyErrors.HttpError|null, body) => void; 
+export type DirectoryCallback = (err:restifyErrors.HttpError|null, body:DirectoryGetAccount) => void; 
 
 const createClient = function(options): DirectoryClient {
 

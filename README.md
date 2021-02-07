@@ -29,6 +29,9 @@ Link with the facebook API.
  * `FACEBOOK_APP_ID` - Id of the Facebook application
  * `FACEBOOK_APP_SECRET` - Secret of the Facebook application
 
+Link with apple (for Sign In with Apple).
+ * `IOS_BUNDLE_ID` - The bundle identifier of the ios application.
+
 Config:
  * `LEGACY_ERROR_CODES` - Use stormpath compatible error codes.
  * `LOG_LEVEL` - See [bunyan levels](https://github.com/trentm/node-bunyan#levels) (default: info)
@@ -129,11 +132,24 @@ Note, tag instead of username also work (this allows mispellings).
         "facebookToken": "AccessTokenFromFacebook"
     }
 
+### body (application/json)
+
+    {
+        "appleId": "123132.312312.312",
+        "appleIdentityToken": "Base64Encoded IdentityToken from Apple",
+        "appleAuthorizationCode": "Authorization Code from Apple"
+    }
+
+Optionally, you can also include the user `email`, `givenName` and `surname`. An `username` and `password` to use
+if the user doesn't exists, so it can be registered automatically.
+
 ### response [200] OK
 
     {
         "token": "0123456789abcdef012345"
     }
+
+`username` will also be included in the response for Facebook and Apple login.
 
 ## /users/v1/auth/:token/passwordResetEmail [POST]
 

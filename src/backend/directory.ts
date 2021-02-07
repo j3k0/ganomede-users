@@ -22,12 +22,13 @@ import * as tagizerMod from 'ganomede-tagizer';
 import logMod from '../log';
 import emailsMod from '../emails';
 import passwordGeneratorMod from 'password-generator';
-import { DirectoryClient, DirectoryCallback } from "../directory-client";
+import { DirectoryClient, DirectoryCallback, DirectoryAlias, DirectoryPostAccount, DirectoryGetAccount } from "../directory-client";
 import { USERS_EVENTS_CHANNEL } from "../event-sender";
 import { UsermetaClient } from "../usermeta";
 import Logger from "bunyan";
 import { DeferredEvents } from "../deferred-events";
 import { AuthdbClient } from "../authentication";
+import { validateIdentityToken } from "./apple-identity-token";
 
 export type BackendInitializerCallback =(err?: HttpError|null, backend?: Backend) => void;
 
@@ -151,6 +152,209 @@ const createBackend = function(options: BackendOptions): BackendInitializer {
   } else {
     legacyError = x => x;
   }
+
+  const loginApple = async function({
+    username,
+    password,
+    appleId,
+    appleIdentityToken,
+    appleAuthorizationCode,
+    givenName,
+    surname,
+    req_id,
+  }: Req<UserAppleToken>, callback) {
+
+    let ret;
+    try {
+      log.info({ req_id, appleId }, 'login with apple');
+      const identityToken = Buffer.from(appleIdentityToken, 'base64').toString('utf-8');
+      const identity = await validateIdentityToken(identityToken);
+      if (!identity || typeof identity === 'string') {
+        // invalid identity token.
+        log.warn({ req_id, identityToken, identity }, 'Invalid Apple Identity Token');
+        callback(new restifyErrors.BadRequestError('Invalid Apple Identity Token'));
+        return;
+      }
+      let directoryAccount = await loadDirectoryAccount(appleId);
+      if (!directoryAccount && identity.claim.email) {
+        directoryAccount = await loadDirectoryAccountByEmail(identity?.claim.email);
+      }
+      let account: { username: string, email: string } | undefined;
+      if (!directoryAccount) {
+        account = await registerDirectoryAccount({
+          username,
+          password,
+          email: identity.claim.email,
+          appleId,
+        });
+      }
+      else {
+        account = await updateDirectoryAccount(directoryAccount, { appleId });
+      }
+
+      ret = await loginUser(account);
+    }
+    catch (err) {
+      callback(err);
+      return;
+    }
+    callback(null, ret);
+    
+    let fullName: string = '';
+    if (givenName || surname) {
+      if (!givenName)
+        fullName = surname!;
+      else if (!surname)
+        fullName = givenName!;
+      else
+        fullName = givenName + ' ' + surname;
+      saveFullName({ username, fullName });
+    }
+
+    // Load directory account
+    // check in ganomede-directory if there's already a user with
+    // this facebookId
+    function loadDirectoryAccount(appleId:string):Promise<DirectoryGetAccount | undefined> {
+      return new Promise((resolve) => {
+        const alias = {
+          type: `apple.id`,
+          value: appleId
+        };
+        directoryClient.byAlias(alias, (err, directoryAccount) => resolve(directoryAccount));
+      });
+    };
+
+    // Load directory account by email
+    // check in ganomede-directory if there's already a user with
+    // this email
+    function loadDirectoryAccountByEmail(email:string):Promise<DirectoryGetAccount | undefined> {
+      return new Promise((resolve, reject) => {
+        const alias = {
+          type: "email",
+          value: email
+        };        
+        directoryClient.byAlias(alias, (err, directoryAccount) => resolve(directoryAccount));
+      });
+    };
+
+    // when user is neither in directory nor in stormpath
+    // register it in the directory.
+    function registerDirectoryAccount({ username, password, email, appleId }): Promise<{ username: string, email: string }> {
+      return new Promise((resolve, reject) => {
+        const account: Req<DirectoryPostAccount> = {
+          req_id,
+          id: username,
+          password,
+          aliases: [{
+            type: 'apple.id',
+            value: appleId,
+            public: false,
+          }, {
+            type: 'email',
+            value: email,
+            public: false
+          }, {
+            type: 'name',
+            value: username,
+            public: true
+          }, {
+            type: 'tag',
+            value: tagizer.tag(username),
+            public: true
+          }],
+        };
+        directoryClient.addAccount(account, function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve({ username, email });
+          }
+        });
+      });
+    }
+
+    async function updateDirectoryAccount(account: DirectoryGetAccount, { appleId }): Promise<{ username: string, email: string }> {
+      return new Promise((resolve, reject) => {
+        log.info({ account }, 'update directory account');
+        if (!account.aliases?.['apple.id']) {
+          // account found has no apple.id, linking it
+          const aliases = [{
+            type: 'apple.id',
+            value: appleId,
+            public: false
+          }];
+          const email = account.aliases?.email;
+          const request:Req<DirectoryPostAccount> = {
+            req_id,
+            id: account.id,
+            aliases,
+          };
+          return directoryClient.editAccount(request, function (err) {
+            if (err) {
+              return reject(err);
+            } else {
+              return resolve({
+                username: account.id,
+                email: email!,
+              });
+            }
+          });
+        }
+        else {
+          // account found that has an apple id.
+          const email = account.aliases?.email;
+          return resolve({
+            username: account.id,
+            email: email!,
+          })
+        }
+      });
+    }
+
+    // log user in
+    async function loginUser(user: { username: string, email: string }): Promise<{ username: string, email: string, token: string }> {
+      return new Promise((resolve, reject) => {
+        const { username, email } = user;
+        if (!username) {
+          reject(new Error("missing username"));
+        } else if (!password) {
+          reject(new Error("missing password"));
+        } else {
+          const authResult = authenticator.add({ username, email });
+          resolve({
+            ...user,
+            token: authResult.token
+          });
+        }
+      });
+    };
+
+    // save the user's full name (for future reference)
+    async function saveFullName(user: { username: string, fullName?: string }) {
+      return new Promise((resolve) => {
+        const fullName = user.fullName;
+        const username = user.username;
+        if (username && fullName) {
+          const data = usermetaData(user);
+          usermetaClient.set(data, "fullname", fullName, function (err, _reply) {
+            if (err)
+              log.warn("failed to store full name", err, { username, fullName });
+            resolve(user);
+          });
+        }
+        else {
+          resolve(user);
+        }
+      });
+    }
+
+    const apiSecret = process.env.API_SECRET;
+    const usermetaData = user => ({
+      username: user.username,
+      apiSecret,
+      req_id
+    });
+  };
 
   const loginFacebook = function({
     facebookId,  // the facebook id of the user
@@ -539,9 +743,9 @@ const createBackend = function(options: BackendOptions): BackendInitializer {
   };
 
   const sendPasswordResetEmail = function({token, email, req_id}:Req<PasswordResetToken>, callback: PasswordResetCallback) {
-    let id = null;
-    let name = null;
-    let password = null;
+    let id: string | null = null;
+    let name: string | null = null;
+    let password: string | null = null;
     return vasync.waterfall([
 
       // Retrieve the user account from directory
@@ -563,13 +767,11 @@ const createBackend = function(options: BackendOptions): BackendInitializer {
 
       // Edit the user's password
       function(account, cb) {
-        ({
-          id
-        } = account);
+        id = account.id;
         password = generatePassword();
         email = email || (account.aliases != null ? account.aliases.email : undefined);
         name = account.aliases != null ? account.aliases.name : undefined;
-        return directoryClient.editAccount({id, password, req_id}, cb);
+        return directoryClient.editAccount({id: id!, password: password!, req_id}, cb);
       },
 
       // Send the new password by email
@@ -589,6 +791,7 @@ const createBackend = function(options: BackendOptions): BackendInitializer {
     initialize(cb: (err?:HttpError|null, backend?:Backend) => void) {
       return cb(null, {
         loginFacebook,
+        loginApple, 
         loginAccount,
         createAccount,
         sendPasswordResetEmail });
@@ -615,12 +818,26 @@ export interface UserFacebookToken extends UserPassword {
   accessToken: string; // the facebook access token
 }
 
+export interface UserAppleToken extends UserPassword {
+  appleId: string;
+  appleIdentityToken: string;
+  appleAuthorizationCode: string;
+  givenName?: string;
+  surname?: string;
+}
+
 export interface FacebookUser {
   facebookId: string;
   fullName: string;
   email: string;
   birthday: string;
   location: string;
+}
+
+export interface AppleUser {
+  appleId: string;
+  // fullName: string;
+  email: string;
 }
 
 export interface Account {
@@ -639,9 +856,12 @@ export type LoginCallback = (err: HttpError | null | undefined, data?: UserToken
 
 export type FacebookLoginCallback = (err: HttpError | null | undefined, data?: FacebookUser) => void;
 
+export type AppleLoginCallback = (err: HttpError | null | undefined, data?: AppleUser) => void;
+
 export type PasswordResetCallback = DirectoryCallback;
 
 export interface Backend {
+  loginApple: (token: Req<UserAppleToken>, callback: AppleLoginCallback) => void;
   loginFacebook: (token: Req<UserFacebookToken>, callback: FacebookLoginCallback) => void;
   loginAccount: (userpass: Req<UserPassword>, callback: LoginCallback) => void;
   createAccount: (account: Req<Account>, callback: LoginCallback) => void;
