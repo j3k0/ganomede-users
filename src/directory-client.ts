@@ -1,10 +1,3 @@
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * DS201: Simplify complex destructure assignments
- * DS207: Consider shorter variations of null checks
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
 //
 // Talks to directory server
 //
@@ -33,6 +26,7 @@ import logMod from './log';
 import { USERS_EVENTS_CHANNEL, CREATE, CHANGE, LOGIN, EventSender, DirectoryEventData, AliasesDictionary } from './event-sender';
 import { Request, Response } from 'restify';
 import { Req } from './backend/directory';
+import { JsonClientOptions, jsonClientRetry } from './json-client-retry';
 
 const noop = function() {};
 
@@ -126,8 +120,10 @@ const createClient = function(options): DirectoryClient {
     log.warn('Directory client created with sendEvent set to noop');
   }
 
-  const jsonPost = (options, reqBody, cb) => {
-    jsonClient.post(options, reqBody, function(err, req, res, resBody) {
+  const jsonClientR = jsonClientRetry(jsonClient);
+
+  const jsonPost = (options: JsonClientOptions & { retry: boolean }, reqBody, cb) => {
+    (options.retry ? jsonClientR : jsonClient).post(options, reqBody, function(err, req, res, resBody) {
       log.debug({
         options,
         reqBody,
@@ -139,10 +135,12 @@ const createClient = function(options): DirectoryClient {
     });
   }
 
-  const jsonGet = (options, cb) => jsonClient.get(options, function(err, req, res, body) {
+  const jsonGet = (options, cb) => jsonClientR.get(
+    log.child({ req_id: (options.headers != null ? options.headers['x-request-id'] : undefined) }),
+    options, function(err, req, res, body) {
     log.debug({
-      options,
       req_id: (options.headers != null ? options.headers['x-request-id'] : undefined),
+      options,
       resErr: err,
       resBody: body
     }, "directoryClient.get");
@@ -153,7 +151,10 @@ const createClient = function(options): DirectoryClient {
 
   const endpoint = subpath => pathname + subpath;
 
-  const jsonOptions = function({ path, req_id }) {
+  const jsonOptions = function({ path, req_id }): {
+    path: string;
+    headers?: any;
+  } {
     const options: any =
       {path: endpoint(path)};
     if (req_id) {
@@ -168,7 +169,10 @@ const createClient = function(options): DirectoryClient {
     const {
       req_id
     } = credentials;
-    const options = jsonOptions({path: '/users/auth', req_id});
+    const options = {
+      ...jsonOptions({path: '/users/auth', req_id}),
+      retry: true
+    };
     const body = {
       id: credentials.id,
       password: credentials.password
@@ -215,10 +219,13 @@ const createClient = function(options): DirectoryClient {
       );
     }
 
-    const options = jsonOptions({
-      path: '/users',
-      req_id: account.req_id
-    });
+    const options = {
+      ...jsonOptions({
+        path: '/users',
+        req_id: account.req_id
+      }),
+      retry: true,
+    };
 
     const body = {
       secret: apiSecret,
@@ -246,10 +253,13 @@ const createClient = function(options): DirectoryClient {
       );
     }
 
-    const options = jsonOptions({
-      path: "/users/id/" + encodeURIComponent(account.id),
-      req_id: account.req_id
-    });
+    const options = {
+      ...jsonOptions({
+        path: "/users/id/" + encodeURIComponent(account.id),
+        req_id: account.req_id
+        }),
+      retry: true,
+    };
 
     const body: any = {secret: apiSecret};
     let triggerChangeEvent = false;
@@ -278,7 +288,7 @@ const createClient = function(options): DirectoryClient {
     });
   };
 
-  var postAccount = (description, options, body, callback) => jsonPost(options, body, function(err, req, res, body) {
+  var postAccount = (description, options: JsonClientOptions & { retry: boolean; }, body, callback) => jsonPost(options, body, function(err, req, res, body) {
     if (err) {
       return callback(err);
     } else if (res.statusCode !== 200) {

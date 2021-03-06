@@ -45,16 +45,11 @@ else {
       next();
   };
 
-    // Log incoming requests
-  const requestLogger = filteredLogger(false, (req) =>
-        req.log.info({req_id: req.id()}, `${req.method} ${req.url}`));
-  server.use(requestLogger);
-
-    // Enable restify plugins
+  // Enable restify plugins
   server.use(restify.plugins.bodyParser());
-    // server.use(restify.gzipResponse());
+  // server.use(restify.gzipResponse());
 
-    // Audit requests at completion
+  // Audit requests at completion
   server.on('after', filteredLogger(process.env.NODE_ENV === 'production',
         restify.plugins.auditLogger({log: log, body: true, event: 'after'})));
 

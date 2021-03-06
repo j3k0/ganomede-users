@@ -10,12 +10,14 @@ import restifyErrors, { HttpError } from "restify-errors";
 import redis, { RedisClient } from "redis";
 import urllib from 'url';
 import logMod from "./log";
-const log = logMod.child({module:"usermeta"});
+export const log = logMod.child({module:"usermeta"});
 import tagizer from 'ganomede-tagizer';
 import validator from './validator';
 import { AuthdbClient } from "./authentication";
 import { DirectoryClient } from "./directory-client";
 import { Request, Response } from "restify";
+import { callback } from "testdouble";
+import { jsonClientRetry } from "./json-client-retry";
 
 export interface UsermetaClientOptions {
   username: string;
@@ -436,7 +438,7 @@ class GanomedeUsermeta implements SimpleUsermetaClient {
     const {
       url
     } = this.jsonClient;
-    return this.jsonClient.post(options, body, function(err, _req, _res, body) {
+    jsonClientRetry(this.jsonClient).post(log.child({ req_id: params.req_id, url }), options, body, function (err: HttpError | null | undefined, _req, _res, body: string | null | undefined) {
       if (err) {
         log.error({ req_id: params.req_id,
           err, url, options, body, value },
@@ -455,16 +457,19 @@ class GanomedeUsermeta implements SimpleUsermetaClient {
       req_id: params.req_id
     });
     const url = this.jsonClient.url;
-    return this.jsonClient.get(options, function (err: HttpError | null, _req: Request, res: Response, body?: object | null) {
-      if (err) {
-        log.error({err, url, options, body, req_id: params.req_id},
-          "GanomedeUsermeta.get failed");
-        return cb(err, null);
-      } else {
-        const metadata:object = body ? body[params.username] : {};
-        return cb(err, metadata ? metadata[key] || null : null);
+    jsonClientRetry(this.jsonClient).get(
+      log.child({ req_id: params.req_id, url }),
+      options,
+      (err: HttpError | null, _req: Request, _res: Response, body?: object | null) => {
+        if (err) {
+          log.error({err, url, options, body, req_id: params.req_id}, "GanomedeUsermeta.get failed");
+          cb(err, null);
+        } else {
+          const metadata:object = body ? body[params.username] : {};
+          cb(err, metadata ? metadata[key] || null : null);
+        }
       }
-    });
+    );
   }
 }
 
