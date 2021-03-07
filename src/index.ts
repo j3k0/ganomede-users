@@ -50,19 +50,28 @@ else {
   // server.use(restify.gzipResponse());
 
   // Audit requests at completion
-  server.on('after', filteredLogger(process.env.NODE_ENV === 'production',
+  server.on('after', filteredLogger(process.env.NODE_ENV === 'production' && process.env.AUDIT_REQUESTS !== 'force',
         restify.plugins.auditLogger({log: log, body: true, event: 'after'})));
 
   // Send audit statistics
   server.on('after', sendAuditStats);
 
-    // Automatically add a request-id to the response
+  // Automatically add a request-id to the response
+  server.pre(restify.plugins.pre.reqIdHeaders({
+    headers: ['x-request-id', 'request-id', 'cf-request-id']
+  }));
   function setRequestId (req, res, next) {
+    // @ts-ignore
     res.setHeader('x-request-id', req.id());
     req.log = req.log.child({req_id: req.id()});
     return next();
   }
   server.use(setRequestId);
+
+  // Log incoming requests
+  const requestLogger = filteredLogger(false, (req) =>
+        req.log.info({req_id: req.id()}, `${req.method} ${req.url}`));
+  server.use(requestLogger);
 
     // Handle uncaughtException, kill the worker
   server.on('uncaughtException', function (req, res, route, err) {

@@ -35,6 +35,7 @@ Link with apple (for Sign In with Apple).
 Config:
  * `LEGACY_ERROR_CODES` - Use stormpath compatible error codes.
  * `LOG_LEVEL` - See [bunyan levels](https://github.com/trentm/node-bunyan#levels) (default: info)
+ * `AUDIT_REQUESTS` - Set to `force` to audit all requests.
 
 Mailer options (for password reset emails)
 
