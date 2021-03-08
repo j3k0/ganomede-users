@@ -1,11 +1,10 @@
 import { HttpError } from "restify-errors";
 import { Request, Response } from "restify";
 import Logger from "bunyan";
-import { log } from "./usermeta";
 
 export interface JsonClientRetry {
-  get<T>(log: Logger, options: JsonClientOptions, callback: JsonClientCallback<T>): void;
-  post<T>(log: Logger, options: JsonClientOptions, body: any, callback: JsonClientCallback<T>): void;
+  get<T>(options: JsonClientOptions & { log: Logger }, callback: JsonClientCallback<T>): void;
+  post<T>(options: JsonClientOptions & { log: Logger }, body: any, callback: JsonClientCallback<T>): void;
 }
 
 export interface JsonClientOptions {
@@ -17,17 +16,17 @@ export type JsonClientCallback<T> = (err: HttpError | null, _req: Request, _res:
 
 export function jsonClientRetry(jsonClient: any): JsonClientRetry {
   return {
-    get<T>(log: Logger, options: JsonClientOptions, callback: JsonClientCallback<T>): void {
+    get<T>(options: JsonClientOptions & { log: Logger }, callback: JsonClientCallback<T>): void {
       requestAndRetry({
-        log,
+        log: options.log,
         requester: (cb) => jsonClient.get(options, (err: HttpError | null, req: Request, res: Response, body?: T | null) => cb(err, { body, req, res })),
         done: (err: HttpError | null, result: JsonClientResult<T>) => callback(err, result?.req, result?.res, result?.body)
       });
     },
-    post<T>(log: Logger, options: JsonClientOptions, body: any, callback: JsonClientCallback<T>): void {
+    post<T>(options: JsonClientOptions & { log: Logger }, body: any, callback: JsonClientCallback<T>): void {
       // post should probably not be retried
       requestAndRetry({
-        log,
+        log: options.log,
         requester: (cb) => jsonClient.post(options, body, (err: HttpError | null, req: Request, res: Response, body?: T | null) => cb(err, { body, req, res })),
         done: (err: HttpError | null, result: JsonClientResult<T>) => callback(err, result?.req, result?.res, result?.body)
       });
@@ -44,7 +43,7 @@ interface JsonClientResult<T> {
 function requestAndRetry<T>(options: RequestAndRetryOptions<T>, numTries: number = 1, maxTries: number = 3) {
   options.requester((err: HttpError | null, result: T) => {
     if (numTries < maxTries && err?.code === 'ECONNRESET') {
-      log.error({ err_code: err.code, numTries }, "Retrying failed request");
+      options.log.error({ err_code: err.code, numTries }, "Retrying failed request");
       setTimeout(() => requestAndRetry(options, numTries + 1, maxTries), 300);
     }
     else {

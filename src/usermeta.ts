@@ -430,15 +430,16 @@ class GanomedeUsermeta implements SimpleUsermetaClient {
 
   set(pparams:string|UsermetaClientOptions, key:string, value:string, cb:UsermetaClientCallback) {
     const params = parseParams(pparams);
-    const options = jsonOptions({
-      path: authPath(params) + `/${encodeURIComponent(key)}`,
-      req_id: params.req_id
-    });
-    const body = {value};
-    const {
-      url
-    } = this.jsonClient;
-    jsonClientRetry(this.jsonClient).post(log.child({ req_id: params.req_id, url }), options, body, function (err: HttpError | null | undefined, _req, _res, body: string | null | undefined) {
+    const { url } = this.jsonClient;
+    const options = {
+      ...jsonOptions({
+        path: authPath(params) + `/${encodeURIComponent(key)}`,
+        req_id: params.req_id,
+      }),
+      log: log.child({ req_id: params.req_id, url })
+    };
+    const body = { value };
+    jsonClientRetry(this.jsonClient).post(options, body, function (err: HttpError | null | undefined, _req, _res, body: string | null | undefined) {
       if (err) {
         log.error({ req_id: params.req_id,
           err, url, options, body, value },
@@ -452,13 +453,15 @@ class GanomedeUsermeta implements SimpleUsermetaClient {
 
   get(pparams:string|UsermetaClientOptions, key:string, cb:UsermetaClientCallback) {
     const params = parseParams(pparams);
-    const options = jsonOptions({
-      path: authPath(params) + `/${encodeURIComponent(key)}`,
-      req_id: params.req_id
-    });
     const url = this.jsonClient.url;
+    const options = {
+      ...jsonOptions({
+        path: authPath(params) + `/${encodeURIComponent(key)}`,
+        req_id: params.req_id
+      }),
+      log: log.child({ req_id: params.req_id, url })
+    };
     jsonClientRetry(this.jsonClient).get(
-      log.child({ req_id: params.req_id, url }),
       options,
       (err: HttpError | null, _req: Request, _res: Response, body?: object | null) => {
         if (err) {

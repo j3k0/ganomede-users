@@ -120,32 +120,46 @@ const createClient = function(options): DirectoryClient {
     log.warn('Directory client created with sendEvent set to noop');
   }
 
-  const jsonClientR = jsonClientRetry(jsonClient);
+  const jsonClientR = /* jsonClientRetry(jsonClient) */ jsonClient;
 
   const jsonPost = (options: JsonClientOptions & { retry: boolean }, reqBody, cb) => {
-    (options.retry ? jsonClientR : jsonClient).post(options, reqBody, function(err, req, res, resBody) {
-      log.debug({
-        options,
-        reqBody,
-        req_id: (options.headers != null ? options.headers['x-request-id'] : undefined),
-        resErr: err,
-        resBody
-      }, "directoryClient.post");
-      return cb(err, req, res, resBody);
-    });
+    const retry = options.retry;
+    const jsonOptions = {
+      log: log.child({ req_id: (options.headers != null ? options.headers['x-request-id'] : undefined) }),
+      path: options.path,
+      headers: options.headers,
+    };
+    (options.retry ? jsonClientR : jsonClient).post(
+      jsonOptions,
+      reqBody,
+      function (err, req, res, resBody) {
+        log.debug({
+          options,
+          reqBody,
+          req_id: (options.headers != null ? options.headers['x-request-id'] : undefined),
+          resErr: err,
+          resBody
+        }, "directoryClient.post");
+        return cb(err, req, res, resBody);
+      });
   }
 
-  const jsonGet = (options, cb) => jsonClientR.get(
-    log.child({ req_id: (options.headers != null ? options.headers['x-request-id'] : undefined) }),
-    options, function(err, req, res, body) {
-    log.debug({
-      req_id: (options.headers != null ? options.headers['x-request-id'] : undefined),
-      options,
-      resErr: err,
-      resBody: body
-    }, "directoryClient.get");
-    return cb(err, req, res, body);
-  });
+  const jsonGet = (options, cb) => {
+    const jsonOptions = {
+      path: options.path,
+      headers: options.headers,
+      log: log.child({ req_id: (options.headers != null ? options.headers['x-request-id'] : undefined) }),
+    };
+    jsonClientR.get(jsonOptions, function (err, req, res, body) {
+      log.debug({
+        req_id: (options.headers != null ? options.headers['x-request-id'] : undefined),
+        options,
+        resErr: err,
+        resBody: body
+      }, "directoryClient.get");
+      return cb(err, req, res, body);
+    });
+  }
 
   log.info({ pathname }, "DirectoryClient created");
 
@@ -288,20 +302,21 @@ const createClient = function(options): DirectoryClient {
     });
   };
 
-  var postAccount = (description, options: JsonClientOptions & { retry: boolean; }, body, callback) => jsonPost(options, body, function(err, req, res, body) {
-    if (err) {
-      return callback(err);
-    } else if (res.statusCode !== 200) {
-      log.error({code: res.statusCode}, `failed to ${description} account`);
-      return callback(new Error(`HTTP${res.statusCode}`));
-    } else if (!body) {
-      return callback(new restifyErrors.InvalidContentError(
-        'Server replied with no data')
-      );
-    } else {
-      return callback(null, body);
-    }
-  });
+  var postAccount = (description, options: JsonClientOptions & { retry: boolean; }, body, callback) =>
+    jsonPost(options, body, function (err, req, res, body) {
+      if (err) {
+        return callback(err);
+      } else if (res.statusCode !== 200) {
+        log.error({ code: res.statusCode }, `failed to ${description} account`);
+        return callback(new Error(`HTTP${res.statusCode}`));
+      } else if (!body) {
+        return callback(new restifyErrors.InvalidContentError(
+          'Server replied with no data')
+        );
+      } else {
+        return callback(null, body);
+      }
+    });
 
   const processGetResponse = (callback) => (function(err, req, res, body) {
     if (err) {
