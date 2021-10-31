@@ -338,6 +338,13 @@ Blocked user removed successfully or does not exist.
 Invalid authentication token.
 
 
+# Reported Users `/users/v1/auth/:token/reported-users`
+
+## Report user `/users/v1/auth/:token/reported-users [POST]`
+
+Block the user exactly like the `POST blocked-users` endpoint. (cf `/users/v1/auth/:token/blocked-users` endpoint above). However, it adds it to the events stream with type set to `REPORTED` instead of `BLOCKED`.
+
+
 # Blocked Users Admin `/users/v1/admin/:api-secret/blocked-users`
 
 Endpoint used by administrators to find annoying users.

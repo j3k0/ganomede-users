@@ -80,12 +80,15 @@ export class BlockedUsersApi {
       loadTargetFromParamsTag,
       this.del(UNBLOCKED)
     );
-    const reportEndpoint = `/${prefix}/auth/:authToken/reported-user`;
-    server.post(reportEndpoint,
-      this.authMiddleware,
-      loadTargetFromBodyUsername,
-      this.post(REPORTED)
-    );
+    addReportEndpoint(this, `/${prefix}/auth/:authToken/reported-user`);
+    addReportEndpoint(this, `/${prefix}/auth/:authToken/reported-users`);
+    function addReportEndpoint(that, reportEndpoint) {
+      server.post(reportEndpoint,
+        loadTargetFromBodyUsername,
+        that.authMiddleware,
+        that.post(REPORTED)
+      );
+    }
   }
 
   /** handler for GET requests */
