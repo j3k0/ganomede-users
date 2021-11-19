@@ -7,15 +7,18 @@ function json_pp() {
     xargs -0 node -e "console.log(JSON.stringify(JSON.parse(process.argv[1]), null, 2))"
 }
 
+DC="docker-compose -f docker-compose.test.yml -f docker-compose.override.yml"
+
 if [ "x$FULL_CLEANUP" = "x1" ]; then
     echo "Cleaning up database"
-    docker-compose stop
-    docker-compose rm -vf
-    docker-compose up -d
+    $DC stop
+    $DC rm -vf
+    $DC up -d
     sleep 2
 elif [ "x$CLEANUP" = "x1" ]; then
-    docker kill ganomedeusers_users_1; docker rm -vf ganomedeusers_users_1
-    docker-compose up --no-deps --no-recreate -d users
+    $DC kill users
+    $DC rm -vf users
+    $DC up --no-deps --no-recreate -d users
     sleep 2
 fi
 
@@ -23,7 +26,7 @@ set -e
 
 function CURL() {
     if [ "x$RECREATE" = "x1" ]; then
-        docker-compose up --no-deps --no-recreate -d
+        $DC up --no-deps --no-recreate -d
     fi
     curl -s -H 'Content-type: application/json' "$@" > .curloutput.txt ||
         curl -H 'Content-type: application/json' "$@"
@@ -78,6 +81,7 @@ it "[POST /:username/metadata/\$chatdisabled] does not allow setting other users
 
 CURL $PREFIX/login -d "{$USERNAME, $PASSWORD}"
 TOKEN="$(output | jq -r .token)"
+echo "    - [Login TOKEN] $TOKEN"
 
 it "[POST /auth/:token/metadata/\$chatdisabled] sets chatdisabled metadata into local usermeta"
     CURL $PREFIX/auth/$TOKEN/metadata/\$chatdisabled -d '{"value": "true"}'
