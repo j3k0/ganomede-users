@@ -1,12 +1,8 @@
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * DS207: Consider shorter variations of null checks
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
 import log from "./log";
 import restifyErrors from "restify-errors";
+import restify from "restify";
 import { FriendsClient } from "./friends-store";
+import { UsermetaClientOptions } from "./usermeta";
 
 export class FriendsApi {
 
@@ -24,25 +20,26 @@ export class FriendsApi {
     this.log = options.log || log.child({module: "friends-api"});
   }
 
-  addRoutes(prefix, server) {
+  addRoutes(prefix:string, server:restify.Server) {
 
     const endpoint = `/${prefix}/auth/:authToken/friends`;
     server.post(endpoint, this.authMiddleware, this.post.bind(this));
-    return server.get(endpoint, this.authMiddleware, this.get.bind(this));
+    server.get(endpoint, this.authMiddleware, this.get.bind(this));
+    server.del(endpoint + '/:id', this.authMiddleware, this.del.bind(this));
   }
 
-  get(req, res, next) {
+  get(req:restify.Request, res:restify.Response, next:restify.Next) {
 
     const username = req.params.user != null ? req.params.user.username : undefined;
-    const params = {
+    const params:UsermetaClientOptions = {
       log: req.log,
       req_id: req.id(),
       username,
-      authToken: req.params.authToken || req.context.authToken,
+      authToken: req.params.authToken || (req as any).context.authToken,
       apiSecret: req.params.apiSecret
     };
 
-    return this.friendsClient.get(params, (err, friends) => {
+    this.friendsClient.get(params, (err, friends) => {
       if (err) {
         this.log.error({
           message: "friendsClient.get",
@@ -65,10 +62,37 @@ export class FriendsApi {
     );
   }
 
-  post(req, res, next) {
+  del(req:restify.Request, res:restify.Response, next:restify.Next) {
+    const username: string | undefined | null = req.params?.user?.username;
+    const target: string | undefined | null = req.params?.id;
+    if (!username || !target) {
+      return next(new restifyErrors.BadRequestError("No username or no target to remove from friends"));
+    }
+    const params:UsermetaClientOptions = {
+      log: req.log,
+      req_id: req.id(),
+      username,
+      authToken: req.params.authToken || (req as any).context.authToken,
+      apiSecret: req.params.apiSecret
+    };
+    this.friendsClient.del(params, target, (err, friends) => {
+      if (err) {
+        this.log.error({
+          message: "friendsClient.del",
+          err,
+          reply: friends
+        });
+        return next(err);
+      }
+      res.json({ ok: true });
+      next();
+    });
+  }
+
+  post(req:restify.Request, res:restify.Response, next:restify.Next) {
 
     // Retrieve input parameters
-    const username = req.params.user != null ? req.params.user.username : undefined;
+    const username = req.params?.user?.username;
     const friends: string[] = req.body;
 
     // Check parameters validity
@@ -77,16 +101,16 @@ export class FriendsApi {
       return next(err);
     }
 
-    const params = {
+    const params:UsermetaClientOptions = {
       log: req.log,
       req_id: req.id(),
       username,
-      authToken: req.params.authToken || req.context.authToken,
+      authToken: req.params.authToken || (req as any).context.authToken,
       apiSecret: req.params.apiSecret
     };
 
     // Store
-    return this.friendsClient.add(params, friends, (err, friends: undefined | null | string[]) => {
+    this.friendsClient.add(params, friends, (err, friends: undefined | null | string[]) => {
 
       if (err) {
         this.log.error({
@@ -96,8 +120,8 @@ export class FriendsApi {
         });
         return next(err);
       }
-      res.send({ok:!err});
-      return next();
+      res.send({ok:true});
+      next();
     });
   }
 }

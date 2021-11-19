@@ -98,3 +98,41 @@ it "[POST /auth/:token/blocked-users] blocks a user"
 it "[DEL  /auth/:token/blocked-users/:tag] unblocks a user"
     CURL -X DELETE $PREFIX/auth/$TOKEN/blocked-users/bob
     outputExcludes '"bob"'
+
+it "[GET /auth/:token/friends] returns friends"
+    CURL $PREFIX/auth/$TOKEN/friends
+    outputIncludes '\['
+    outputIncludes '\]'
+
+it "[POST /auth/:token/friends] add friends"
+    CURL $PREFIX/auth/$TOKEN/friends -d '["test1","test2"]'
+    outputIncludes '"ok"'
+    outputIncludes 'true'
+
+it "[GET  /auth/:token/friends] contains added friends"
+    CURL $PREFIX/auth/$TOKEN/friends
+    outputIncludes '"test1"'
+    outputIncludes '"test2"'
+
+it "[POST /auth/:token/friends] add more friends"
+    CURL $PREFIX/auth/$TOKEN/friends -d '["test1","test3"]'
+    outputIncludes '"ok"'
+    outputIncludes 'true'
+    CURL $PREFIX/auth/$TOKEN/friends
+    outputIncludes '"test1"'
+    outputIncludes '"test2"'
+    outputIncludes '"test3"'
+
+it "[DEL /auth/:token/friends/:tag] remove a friend"
+    CURL -X DELETE $PREFIX/auth/$TOKEN/friends/test1
+    outputIncludes '"ok"'
+    outputIncludes 'true'
+    CURL $PREFIX/auth/$TOKEN/friends
+    outputExcludes '"test1"'
+    outputIncludes '"test2"'
+    outputIncludes '"test3"'
+
+#final cleanup
+it "[Final cleanup]"
+    CURL -X DELETE $PREFIX/auth/$TOKEN/friends/test2
+    CURL -X DELETE $PREFIX/auth/$TOKEN/friends/test3

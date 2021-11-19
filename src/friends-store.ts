@@ -27,6 +27,7 @@ export interface FriendsStoreOptions {
 
 export interface FriendsClient {
   add(account: string | UsermetaClientOptions, newFriends: string[], cb: FriendsClientCallback);
+  del(account: string | UsermetaClientOptions, removeFriend: string, cb: FriendsClientCallback);
   get(account: string | UsermetaClientOptions, cb: FriendsClientCallback);
   set(account: string | UsermetaClientOptions, friends: string[], cb: FriendsClientCallback);
 }
@@ -76,19 +77,19 @@ const createStore = function(options: FriendsStoreOptions): FriendsClient {
     get(account, cb) {
       const done = function(err, result) {
         if (result) {
-          return cb(err, result.split(SEPARATOR));
+          cb(err, result.split(SEPARATOR));
         } else {
-          return cb(err, EMPTY_SET);
+          cb(err, EMPTY_SET);
         }
       };
-      return usermetaClient.get(account, KEY_NAME, done);
+      usermetaClient.get(account, KEY_NAME, done);
     },
 
     // Save the account friends
     set(account, friends, cb) {
       friends = friends.splice(0, MAX_FRIENDS);
-      return usermetaClient.set(account, KEY_NAME, friends.join(SEPARATOR), (err, result) => {
-        log.info({friends, result: result && JSON.stringify(result)}, 'Save friends.');
+      usermetaClient.set(account, KEY_NAME, friends.join(SEPARATOR), (err, result) => {
+        log.info({friends, result: result && JSON.stringify(result), err}, 'Save friends.');
         cb(err, (typeof result?.split === 'function' && result?.split(SEPARATOR)) || []);
       }, 0);
     },
@@ -100,7 +101,7 @@ const createStore = function(options: FriendsStoreOptions): FriendsClient {
         return this.add(account, [ newFriends ], cb);
       }
 
-      return this.get(account, (err, friends) => {
+      this.get(account, (err, friends) => {
         if (err) {
           return cb(err);
         }
@@ -109,9 +110,24 @@ const createStore = function(options: FriendsStoreOptions): FriendsClient {
         } else {
           friends = friends.concat(newFriends);
         }
-        return this.set(account, uniq(friends), cb);
+        this.set(account, uniq(friends), cb);
+      });
+    },
+
+    del(account, removeFriend, cb) {
+
+      this.get(account, (err, friends) => {
+        if (err) {
+          return cb(err);
+        }
+        if (!friends || friends === EMPTY_SET) {
+          friends = [];
+        }
+        friends = friends.filter(f => f !== removeFriend);
+        this.set(account, uniq(friends), cb);
       });
     }
+
   };
 };
 

@@ -213,20 +213,33 @@ Searching by tag will match any `username`, `name` (or similar looking name) the
 
 List of friends
 
-## List friends [GET]
+## /users/v1/auth/:authToken/friends [GET]
+
+Retrieve the list of friends
 
 ### response [200] OK
 
     [ "jeko", "sousou", "willy" ]
 
-## Add friends [POST]
+## /users/v1/auth/:authToken/friends [POST]
 
-    [ "harry", "potter" ]
+Add friends to the list.
+
+### body (application/json)
+
+    {"ok":true}
 
 ### response [200] OK
 
     [ "jeko", "sousou", "willy", "harry", "potter" ]
 
+## /users/v1/auth/:authToken/friends/:id [DELETE]
+
+Remove friends from the list.
+
+### response [200] OK
+
+    {"ok":true}
 
 # Bans `/users/v1/banned-users/`
 

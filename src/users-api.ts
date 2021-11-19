@@ -192,7 +192,7 @@ const jsonBody = function(req, res, next) {
 const authMiddleware = function(req, res, next) {
 
   let username;
-  const authToken = req.params.authToken || req.context.authToken;
+const authToken = req.params.authToken || (req as any).context.authToken;
   if (!authToken) {
     return sendError(req, new restifyErrors.InvalidContentError({
       message: 'invalid content',
@@ -238,7 +238,7 @@ const postMetadata = function(req, res, next) {
   // (so GanomedeUsermeta can check access rights)
   const params = {
     username: req.params.user.username,
-    authToken: req.params.authToken || req.context.authToken,
+    authToken: req.params.authToken || (req as any).context.authToken,
     apiSecret: req.params.apiSecret,
     req_id: req.id()
   };

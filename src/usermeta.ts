@@ -18,6 +18,7 @@ import { DirectoryClient } from "./directory-client";
 import { Request, Response } from "restify";
 import { callback } from "testdouble";
 import { jsonClientRetry } from "./json-client-retry";
+import Logger from "bunyan";
 
 export interface UsermetaClientOptions {
   username: string;
@@ -27,6 +28,7 @@ export interface UsermetaClientOptions {
   tag?: string;
   name?: string;
   email?: string;
+  log?: Logger;
 }
 
 export type UsermetaClientCallback = (err:Error|null, reply?:string|null) => void;
