@@ -237,6 +237,9 @@ export class BlockedUsersApi {
     };
   }
 
+  // request to return a N number of most reported users.
+  // get latest events (M events)
+  // process them and return the top X number by total-reports desc.
   getReportedUsers(): RequestHandler {
     return (req: Request, res: Response, next: Next) => {
 

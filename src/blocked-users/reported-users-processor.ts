@@ -1,4 +1,10 @@
-import { Next, Request, Response } from "restify";
+/*
+* method responsible for processing the latest events 
+* 1- group all events by users and do calculate the total of reports per user.
+* 2- Sort the groups by the total desc.
+* 3- Execute async parallel over all the users, check if each user is banned.
+* 4- the end results will be an array (configured length) of users not banned in a desc order of their total
+*/
 import { Event } from "../event-sender";
 import { BlockedUserEvent, REPORTED } from "./events";
 import config from '../config';
