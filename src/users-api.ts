@@ -11,12 +11,12 @@ import restifyClients from "restify-clients";
 import restifyErrors from "restify-errors";
 import restify from "restify";
 import logMod from "./log";
-let log = logMod.child({module: "users-api"});
+let log = logMod.child({ module: "users-api" });
 import helpers from "ganomede-helpers";
 import ganomedeDirectory from "ganomede-directory";
 const serviceConfig = helpers.links.ServiceEnv.config;
 import usermeta, { UsermetaClientOptions } from "./usermeta";
-import {UsermetaClient} from "./usermeta";
+import { UsermetaClient } from "./usermeta";
 import aliases, { AliasesClient } from "./aliases";
 import fullnames from "./fullnames";
 import friendsStore, { FriendsClient } from "./friends-store";
@@ -40,6 +40,7 @@ import apiLogin from './api/api-login';
 import { sendError } from './utils/send-error';
 import parseTagMiddleware from './middlewares/mw-parse-tag';
 import facebookFriends from './facebook-friends';
+import eventLatest, { EventLatest } from './event-latest';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -88,7 +89,8 @@ let bans: any = null;
 let authenticator: Authenticator | null = null;
 let directoryClient: DirectoryClient|undefined = undefined;
 let storeFacebookFriends: (options: any) => void | null;
-let sendEvent: EventSender|null = null;
+let sendEvent: EventSender | null = null;
+let eventsLatest: EventLatest | null = null;
 
 // backend, once initialized
 let backend: any = null;
@@ -317,6 +319,8 @@ const initialize = function(cb, options: UsersApiOptions = {}) {
   directoryClient = directoryClient || createDirectoryClient();
 
   sendEvent = options.sendEvent ?? eventSender.createSender();
+  eventsLatest = eventLatest.createLatest();
+
 
   authdbClient = options.authdbClient ?? ganomedeDirectory.createAuthdbClient({
     jsonClient: directoryJsonClient, log, apiSecret
@@ -376,7 +380,10 @@ const initialize = function(cb, options: UsersApiOptions = {}) {
     usermetaClient: centralUsermetaClient!,
     directoryClient,
     authMiddleware,
-    sendEvent: deferredEvents.sendEvent
+    sendEvent: deferredEvents.sendEvent,
+    latest: eventsLatest,
+    bans: bans, 
+    apiSecret: apiSecret
   });
 
   const backendOpts: BackendOptions = {

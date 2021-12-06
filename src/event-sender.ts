@@ -4,7 +4,8 @@ import * as GanomedeEvents from 'ganomede-events';
 const {Client} = GanomedeEvents;
 import logger from './log';
 import config from './config';
-import {BlockedUserEvent} from './blocked-users/events';
+import { BlockedUserEvent } from './blocked-users/events';
+import { stringify } from 'querystring';
 
 // directory-client
 export const USERS_EVENTS_CHANNEL: string = config.api;
@@ -25,9 +26,9 @@ export interface AliasesDictionary {
   name?: string;
 }
 
-export type EventSenderCallback = (err:any, data?:any) => void;
+export type EventSenderCallback = (err: any, data?: any) => void;
 
-const noop: EventSenderCallback = (_err:any, _data?:any) => {};
+const noop: EventSenderCallback = (_err: any, _data?: any) => { };
 
 export type EventData = DirectoryEventData | BlockedUserEvent;
 
