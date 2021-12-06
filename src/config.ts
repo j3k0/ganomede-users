@@ -27,9 +27,14 @@ export const api = pkg.api;
 export const secret = parseApiSecret();
 export const appName = parseAppName();
 export const events = serviceConfig('EVENTS', 8000);
+export const latestEventConfig = {
+  limit: 10000,
+  channel: 'users/v1/blocked-users',
+  processTop: 50
+};
 
 export default {
-  name, api, secret, appName, events
+  name, api, secret, appName, events, latestEventConfig
 }
 
 if (!module.parent)
