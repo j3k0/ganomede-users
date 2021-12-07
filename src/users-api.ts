@@ -26,7 +26,6 @@ import { Bans } from './bans';
 import urllib from 'url';
 import mailer from './mailer';
 import eventSender, { USERS_EVENTS_CHANNEL, EventSender } from './event-sender';
-import eventLatest from './event-latest';
 import deferredEvents from './deferred-events';
 import emails from './emails';
 import statsdWrapper from './statsd-wrapper';
@@ -41,7 +40,7 @@ import apiLogin from './api/api-login';
 import { sendError } from './utils/send-error';
 import parseTagMiddleware from './middlewares/mw-parse-tag';
 import facebookFriends from './facebook-friends';
-import { EventLatest } from './event-latest';
+import eventLatest, { EventLatest } from './event-latest';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -391,7 +390,7 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
     authMiddleware,
     sendEvent: deferredEvents.sendEvent,
     latest: eventsLatest,
-    bans: bans, 
+    bans: bans,
     apiSecret: apiSecret
   });
 
