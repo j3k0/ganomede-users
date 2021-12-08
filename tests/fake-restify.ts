@@ -35,7 +35,7 @@ interface RoutesByMethod {
   del: Routes;
 }
 
-class Server {
+export class Server {
   routes: RoutesByMethod;
   res?: Res;
   log: any;

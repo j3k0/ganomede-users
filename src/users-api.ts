@@ -40,7 +40,9 @@ import apiLogin from './api/api-login';
 import { sendError } from './utils/send-error';
 import parseTagMiddleware from './middlewares/mw-parse-tag';
 import facebookFriends from './facebook-friends';
-import eventLatest, { EventLatest } from './event-latest';
+import eventLatest, { LatestEvents } from './latest-events';
+import reportedUsersApi from './reported-users/api';
+import { processReportedUsers, ProcessReportedUsers } from './reported-users/events-processor';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -48,20 +50,20 @@ export interface UsersApiOptions {
   sendEvent?: EventSender;
   authdbClient?: AuthdbClient;
 
-// rootUsermetaClient: UsermetaClient|null;
-// localUsermetaClient: UsermetaClient|null;
-// centralUsermetaClient:UsermetaClient|null;
-// aliasesClient: any;
-// fullnamesClient: any;
-// friendsClient: any;
-  friendsApi?: FriendsApi|null;
-  bannedUsersApi?: BlockedUsersApi|null;
+  // rootUsermetaClient: UsermetaClient|null;
+  // localUsermetaClient: UsermetaClient|null;
+  // centralUsermetaClient:UsermetaClient|null;
+  // aliasesClient: any;
+  // fullnamesClient: any;
+  // friendsClient: any;
+  friendsApi?: FriendsApi | null;
+  bannedUsersApi?: BlockedUsersApi | null;
   bans?: Bans;
   //createBackend?: () => Backend;
-// authenticator: any;
-// directoryClient: DirectoryClient|null;
-// storeFacebookFriends: (options: any) => void | null;
-// sendEvent: EventSender|null;
+  // authenticator: any;
+  // directoryClient: DirectoryClient|null;
+  // storeFacebookFriends: (options: any) => void | null;
+  // sendEvent: EventSender|null;
   createBackend?: (options: BackendOptions) => BackendInitializer;
 };
 
@@ -77,26 +79,27 @@ const facebookClient: FacebookClient = facebook.createClient({});
 let authdbClient: any = null;
 
 // Extra user data
-let rootUsermetaClient: UsermetaClient|undefined = undefined;
-let localUsermetaClient: UsermetaClient|undefined = undefined;
-let centralUsermetaClient:UsermetaClient|undefined = undefined;
+let rootUsermetaClient: UsermetaClient | undefined = undefined;
+let localUsermetaClient: UsermetaClient | undefined = undefined;
+let centralUsermetaClient: UsermetaClient | undefined = undefined;
 let aliasesClient: AliasesClient | null = null;
 let fullnamesClient: any = null;
 let friendsClient: FriendsClient | null = null;
-let friendsApi: FriendsApi|undefined = undefined;
-let blockedUsersApi: BlockedUsersApi|undefined = undefined;
+let friendsApi: FriendsApi | undefined = undefined;
+let blockedUsersApi: BlockedUsersApi | undefined = undefined;
 let bans: any = null;
 let authenticator: Authenticator | null = null;
-let directoryClient: DirectoryClient|undefined = undefined;
+let directoryClient: DirectoryClient | undefined = undefined;
 let storeFacebookFriends: (options: any) => void | null;
 let sendEvent: EventSender | null = null;
-let eventsLatest: EventLatest | null = null;
+let eventsLatest: LatestEvents | null = null;
+let procReportedUsers: ProcessReportedUsers | null = null;
 
 // backend, once initialized
 let backend: any = null;
 
 // Create a user account
-const createAccount = function(req, res, next) {
+const createAccount = function (req, res, next) {
 
   let usernameError: any;
   if (usernameError = usernameValidator(req.body.username)) {
@@ -104,15 +107,15 @@ const createAccount = function(req, res, next) {
   }
 
   const account = {
-    req_id:   req.id(), // pass over request id for better tracking
-    id:       (req.body.username != null ? req.body.username.replace(/ /g, '') : undefined),
+    req_id: req.id(), // pass over request id for better tracking
+    id: (req.body.username != null ? req.body.username.replace(/ /g, '') : undefined),
     username: (req.body.username != null ? req.body.username.replace(/ /g, '') : undefined),
-    email:    (req.body.email != null ? req.body.email.replace(/ /g, '') : undefined),
+    email: (req.body.email != null ? req.body.email.replace(/ /g, '') : undefined),
     password: req.body.password
   };
-  req.log.info({account}, "createAccount");
+  req.log.info({ account }, "createAccount");
 
-  return backend.createAccount(account, function(err, data) {
+  return backend.createAccount(account, function (err, data) {
     if (err) {
       return sendError(req, err, next);
     } else {
@@ -124,9 +127,9 @@ const createAccount = function(req, res, next) {
       let {
         metadata
       } = req.body;
-      const add = (value, key, callback) => rootUsermetaClient!.set(params, key, value, function(err, reply) {
+      const add = (value, key, callback) => rootUsermetaClient!.set(params, key, value, function (err, reply) {
         if (err) {
-          req.log.warn({key, value, err}, "failed to set metadata");
+          req.log.warn({ key, value, err }, "failed to set metadata");
         }
         return callback();
       });
@@ -139,8 +142,8 @@ const createAccount = function(req, res, next) {
       delete metadata.name;
       delete metadata.tag;
 
-      return async.eachOf(metadata, add, function() {
-        req.log.info({metadata}, 'Adding metadata to CREATE event');
+      return async.eachOf(metadata, add, function () {
+        req.log.info({ metadata }, 'Adding metadata to CREATE event');
         if (emails.isGuestEmail(account.email) || emails.isNoEmail(account.email)) {
           metadata.newsletter = "false";
         }
@@ -154,13 +157,13 @@ const createAccount = function(req, res, next) {
 };
 
 // Send a password reset email
-const passwordResetEmail = function(req, res, next) {
+const passwordResetEmail = function (req, res, next) {
 
   const token = req.params != null ? req.params.authToken : undefined;
   const email = req.body != null ? req.body.email : undefined;
 
   // Send emails using backend, check for failure
-  req.log.info("reset password", {token, email});
+  req.log.info("reset password", { token, email });
 
   if (!token && !email) {
     const err = new restifyErrors.InvalidContentError({
@@ -170,18 +173,18 @@ const passwordResetEmail = function(req, res, next) {
     return sendError(req, err, next);
   }
 
-  return backend.sendPasswordResetEmail({email, token, req_id: req.id()}, function(err) {
+  return backend.sendPasswordResetEmail({ email, token, req_id: req.id() }, function (err) {
     if (err) {
       log.error(err);
       return sendError(req, err, next);
     } else {
-      res.send({ok:true});
+      res.send({ ok: true });
       return next();
     }
   });
 };
 
-const jsonBody = function(req, res, next) {
+const jsonBody = function (req, res, next) {
   if (typeof req.params !== 'object') {
     return sendError(req, new restifyErrors.BadRequestError({
       message: 'Body is not json',
@@ -191,10 +194,10 @@ const jsonBody = function(req, res, next) {
   return next();
 };
 
-const authMiddleware = function(req, res, next) {
+const authMiddleware = function (req, res, next) {
 
   let username;
-const authToken = req.params.authToken || (req as any).context.authToken;
+  const authToken = req.params.authToken || (req as any).context.authToken;
   if (!authToken) {
     return sendError(req, new restifyErrors.InvalidContentError({
       message: 'invalid content',
@@ -217,7 +220,7 @@ const authToken = req.params.authToken || (req as any).context.authToken;
     }
   }
 
-  return authdbClient.getAccount(authToken, function(err, account) {
+  return authdbClient.getAccount(authToken, function (err, account) {
     if (err || !account) {
       return sendError(req, new restifyErrors.UnauthorizedError({
         message: 'not authorized',
@@ -235,7 +238,7 @@ const authToken = req.params.authToken || (req as any).context.authToken;
 };
 
 // Set metadata
-const postMetadata = function(req, res, next) {
+const postMetadata = function (req, res, next) {
   // send who is the calling user, or null if not known
   // (so GanomedeUsermeta can check access rights)
   const params = {
@@ -250,20 +253,20 @@ const postMetadata = function(req, res, next) {
   const {
     value
   } = req.body;
-  return rootUsermetaClient!.set(params, key, value, function(err, reply) {
+  return rootUsermetaClient!.set(params, key, value, function (err, reply) {
     if (err) {
       log.error({
         err,
         reply
       });
     }
-    res.send({ok:!err});
+    res.send({ ok: !err });
     return next();
   });
 };
 
 // Get metadata
-const getMetadata = function(req, res, next) {
+const getMetadata = function (req, res, next) {
   const params: UsermetaClientOptions = {
     req_id: req.id(),
     authToken: req.params?.authToken || req.context?.authToken,
@@ -272,12 +275,12 @@ const getMetadata = function(req, res, next) {
   // fill in already loaded info when we have them
   if (req.params.user) {
     params.username = req.params.user.username;
-    params.tag      = req.params.user.tag;
-    params.name     = req.params.user.name;
-    params.email    = req.params.user.email;
+    params.tag = req.params.user.tag;
+    params.name = req.params.user.name;
+    params.email = req.params.user.email;
   }
   const key = req.params.key;
-  return rootUsermetaClient!.get(params, key, function(err, reply) {
+  return rootUsermetaClient!.get(params, key, function (err, reply) {
     res.send({
       key,
       value: reply
@@ -288,7 +291,7 @@ const getMetadata = function(req, res, next) {
 
 
 // Initialize the module
-const initialize = function(cb, options: UsersApiOptions = {}) {
+const initialize = function (cb, options: UsersApiOptions = {}) {
 
   if (options.log)
     log = options.log;
@@ -296,17 +299,17 @@ const initialize = function(cb, options: UsersApiOptions = {}) {
   // Initialize the directory client (if possible)
   directoryClient = options.directoryClient || undefined;
   let directoryJsonClient = null;
-  const createDirectoryClient = function() {
+  const createDirectoryClient = function () {
     const directoryService = serviceConfig('DIRECTORY', 8000);
     if (!directoryService.exists) {
       throw new Error('Directory is not properly configured');
     }
-    log.info({directoryService}, "Link to ganomede-directory");
+    log.info({ directoryService }, "Link to ganomede-directory");
     directoryJsonClient = restifyClients.createJsonClient({
       url: urllib.format({
         protocol: directoryService.protocol || 'http',
         hostname: directoryService.host,
-        port:     directoryService.port,
+        port: directoryService.port,
         pathname: 'directory/v1'
       })
     });
@@ -319,20 +322,21 @@ const initialize = function(cb, options: UsersApiOptions = {}) {
   directoryClient = directoryClient || createDirectoryClient();
 
   sendEvent = options.sendEvent ?? eventSender.createSender();
-  eventsLatest = eventLatest.createLatest();
+  eventsLatest = eventLatest.createLatestEventsClient();
+  procReportedUsers = processReportedUsers(log, bans);
 
 
   authdbClient = options.authdbClient ?? ganomedeDirectory.createAuthdbClient({
     jsonClient: directoryJsonClient, log, apiSecret
   });
 
-  const createGanomedeUsermetaClient = function(name, ganomedeEnv) {
+  const createGanomedeUsermetaClient = function (name, ganomedeEnv) {
     const ganomedeConfig = serviceConfig(ganomedeEnv, 8000);
     if (options[name]) {
       return options[name];
     } else if (ganomedeConfig.exists) {
-      log.info({ganomedeConfig}, `usermeta[${name}]`);
-      return usermeta.create({ganomedeConfig});
+      log.info({ ganomedeConfig }, `usermeta[${name}]`);
+      return usermeta.create({ ganomedeConfig });
     } else {
       log.warn(`cant create usermeta client, no ${ganomedeEnv} config`);
       return null;
@@ -343,33 +347,41 @@ const initialize = function(cb, options: UsersApiOptions = {}) {
     "localUsermetaClient", 'LOCAL_USERMETA');
   centralUsermetaClient = createGanomedeUsermetaClient(
     "centralUsermetaClient", 'CENTRAL_USERMETA');
-  rootUsermetaClient = usermeta.create({router: {
-    directoryPublic: usermeta.create({
-      directoryClient, authdbClient, mode: 'public'}),
-    directoryProtected: usermeta.create({
-      directoryClient, authdbClient}),
-    ganomedeLocal: localUsermetaClient,
-    ganomedeCentral: centralUsermetaClient
-  }
+  rootUsermetaClient = usermeta.create({
+    router: {
+      directoryPublic: usermeta.create({
+        directoryClient, authdbClient, mode: 'public'
+      }),
+      directoryProtected: usermeta.create({
+        directoryClient, authdbClient
+      }),
+      ganomedeLocal: localUsermetaClient,
+      ganomedeCentral: centralUsermetaClient
+    }
   });
 
-  bans = options.bans ?? new Bans({usermetaClient: centralUsermetaClient});
+  bans = options.bans ?? new Bans({ usermetaClient: centralUsermetaClient });
+
 
   // Aliases
   aliasesClient = aliases.createClient({
-    usermetaClient: centralUsermetaClient!});
+    usermetaClient: centralUsermetaClient!
+  });
 
   // Full names
   fullnamesClient = fullnames.createClient({
-    usermetaClient: centralUsermetaClient!});
+    usermetaClient: centralUsermetaClient!
+  });
 
   // Friends
   friendsClient = friendsStore.createClient({
-    log, usermetaClient: centralUsermetaClient! });
+    log, usermetaClient: centralUsermetaClient!
+  });
 
   // Authenticator
   authenticator = authentication.createAuthenticator({
-    authdbClient, localUsermetaClient, centralUsermetaClient });
+    authdbClient, localUsermetaClient, centralUsermetaClient
+  });
 
   friendsApi = options.friendsApi ?? friendsApiMod.createApi({
     friendsClient,
@@ -380,10 +392,7 @@ const initialize = function(cb, options: UsersApiOptions = {}) {
     usermetaClient: centralUsermetaClient!,
     directoryClient,
     authMiddleware,
-    sendEvent: deferredEvents.sendEvent,
-    latest: eventsLatest,
-    bans: bans, 
-    apiSecret: apiSecret
+    sendEvent: deferredEvents.sendEvent
   });
 
   const backendOpts: BackendOptions = {
@@ -404,7 +413,7 @@ const initialize = function(cb, options: UsersApiOptions = {}) {
     stats
   };
 
-  const prepareDirectoryBackend = function() {
+  const prepareDirectoryBackend = function () {
     directoryClient = directoryClient || createDirectoryClient();
     if (!directoryClient) {
       throw new Error("directory service not configured properly");
@@ -414,7 +423,8 @@ const initialize = function(cb, options: UsersApiOptions = {}) {
       .createTemplate({
         subject: process.env.MAILER_SEND_SUBJECT,
         text: process.env.MAILER_SEND_TEXT,
-        html: process.env.MAILER_SEND_HTML });
+        html: process.env.MAILER_SEND_HTML
+      });
     return backendOpts.mailerTransport = mailer.createTransport();
   };
 
@@ -426,7 +436,7 @@ const initialize = function(cb, options: UsersApiOptions = {}) {
   }
 
   const be = createBackend(backendOpts);
-  return be.initialize(function(err, be) {
+  return be.initialize(function (err, be) {
     if (err) {
       log.error(err, "failed to create backend");
       return cb(err);
@@ -437,7 +447,7 @@ const initialize = function(cb, options: UsersApiOptions = {}) {
   });
 };
 
-const validateSecret = function(req, res, next) {
+const validateSecret = function (req, res, next) {
   const present = apiSecret && req.body && req.body.apiSecret;
   const ok = present ? apiSecret === req.body.apiSecret : false;
 
@@ -450,14 +460,14 @@ const validateSecret = function(req, res, next) {
   }
 };
 
-const banAdd = function(req, res, next) {
+const banAdd = function (req, res, next) {
   const params = {
     username: req.body.username,
     apiSecret: req.body.apiSecret
   };
-  return bans.ban(params, function(err) {
+  return bans.ban(params, function (err) {
     if (err) {
-      log.error('banAdd() failed', {err, username: params.username});
+      log.error('banAdd() failed', { err, username: params.username });
       return next(err);
     }
 
@@ -466,14 +476,14 @@ const banAdd = function(req, res, next) {
   });
 };
 
-const banRemove = function(req, res, next) {
+const banRemove = function (req, res, next) {
   const params = {
     username: req.params.username,
     apiSecret: req.body.apiSecret
   };
-  return bans.unban(params, function(err) {
+  return bans.unban(params, function (err) {
     if (err) {
-      log.error('banRemove() failed', {err, username: params.username});
+      log.error('banRemove() failed', { err, username: params.username });
       return next(err);
     }
 
@@ -482,11 +492,11 @@ const banRemove = function(req, res, next) {
   });
 };
 
-const banStatus = function(req, res, next) {
-  const {username} = req.params;
-  return bans.get({username,apiSecret}, function(err, ban) {
+const banStatus = function (req, res, next) {
+  const { username } = req.params;
+  return bans.get({ username, apiSecret }, function (err, ban) {
     if (err) {
-      log.error('banStatus() failed', {err, username});
+      log.error('banStatus() failed', { err, username });
       return next(err);
     }
 
@@ -500,14 +510,16 @@ const banStatus = function(req, res, next) {
  * 
  * Notes, this MUST be called after `initialize` callback has been called.
  */
-const addRoutes = function(prefix: string, server: restify.Server): void {
+const addRoutes = function (prefix: string, server: restify.Server): void {
 
   const parseTag = parseTagMiddleware.createParamsMiddleware({
-    directoryClient: directoryClient!, log});
-  Object.defineProperty(parseTag, "name", {value: "parseTag"});
+    directoryClient: directoryClient!, log
+  });
+  Object.defineProperty(parseTag, "name", { value: "parseTag" });
   const bodyTag = parseTagMiddleware.createBodyMiddleware({
-    directoryClient: directoryClient!, log, tagField: "username"});
-  Object.defineProperty(bodyTag, "name", {value: "bodyTag"});
+    directoryClient: directoryClient!, log, tagField: "username"
+  });
+  Object.defineProperty(bodyTag, "name", { value: "bodyTag" });
 
   server.post(`/${prefix}/accounts`, createAccount);
 
@@ -528,6 +540,10 @@ const addRoutes = function(prefix: string, server: restify.Server): void {
 
   apiLogin.addRoutes(apiOptions);
   apiMe.addRoutes(apiOptions);
+
+
+
+  reportedUsersApi.addRoutes(prefix, eventsLatest, procReportedUsers, server);
 
   server.post(`/${prefix}/banned-users`,
     jsonBody, validateSecret, bodyTag, banAdd);

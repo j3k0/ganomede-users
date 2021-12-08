@@ -398,3 +398,24 @@ You can add a number of filters:
 }
 ```
 
+
+# Reported users `/users/v1/reported-users?secret=1111 [GET]` 
+
+A list of the most reported users, it requires the secret.
+
+1-retrieve a large number of the last events in the "Events" database, channel users/v1/blocked-users.
+Maybe the last 10,000.
+2-Process this list to count the number of reports per user.
+3-For each reported user, check if he is banned (logic for this already part of ganomede-users).
+4-Sort descending, only returning users that are not banned.
+
+Returns the list of reported users.
+
+### response [200] OK
+
+```js
+[ 
+    { target: 'user1', total: 10 },  
+    { target: 'user2', total: 8 } 
+]
+```

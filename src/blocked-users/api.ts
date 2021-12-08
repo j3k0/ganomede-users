@@ -10,9 +10,6 @@ import parseTagMod from '../middlewares/mw-parse-tag';
 import { EventSender } from "../event-sender";
 import { BLOCKED, UNBLOCKED, CHANNEL, eventData, BlockedUserEventType, REPORTED } from "./events";
 import config from "../config";
-import { EventLatest } from "../event-latest";
-import { processReportedUsers, UserReports } from "./reported-users-processor";
-import { Bans } from "../bans";
 
 export interface BlockedUsersApiOptions {
   log?: Logger;
@@ -20,12 +17,9 @@ export interface BlockedUsersApiOptions {
   directoryClient: DirectoryClient;
   usermetaClient: UsermetaClient;
   sendEvent: EventSender;
-  latest: EventLatest;
-  bans: Bans;
-  apiSecret: string;
 }
 
-export const META_KEY:string = '$blocked';
+export const META_KEY: string = '$blocked';
 
 export class BlockedUsersApi {
 
@@ -35,9 +29,6 @@ export class BlockedUsersApi {
   directoryClient: DirectoryClient;
   log: Logger;
   sendEvent: EventSender;
-  latestEvent: EventLatest;
-  bans: Bans
-  apiSecret: string;
 
   constructor(options: BlockedUsersApiOptions) {
 
@@ -48,9 +39,6 @@ export class BlockedUsersApi {
     this.usermetaClient = options.usermetaClient;
     this.directoryClient = options.directoryClient;
     this.sendEvent = options.sendEvent;
-    this.latestEvent = options.latest;
-    this.bans = options.bans;
-    this.apiSecret = options.apiSecret;
   }
 
   addRoutes(prefix: string, server: restify.Server) {
@@ -95,11 +83,6 @@ export class BlockedUsersApi {
     addReportEndpoint(this, `/${prefix}/auth/:authToken/reported-user`);
     addReportEndpoint(this, `/${prefix}/auth/:authToken/reported-users`);
 
-    server.get(`/${prefix}/auth/:authToken/reported-users`,
-      this.authMiddleware,
-      this.getReportedUsers()
-    );
-
     function addReportEndpoint(that, reportEndpoint) {
       server.post(reportEndpoint,
         loadTargetFromBodyUsername,
@@ -110,7 +93,7 @@ export class BlockedUsersApi {
   }
 
   /** handler for GET requests */
-  get():RequestHandler {
+  get(): RequestHandler {
     return (req: Request, res: Response, next: Next) => {
 
       // retrieve the username
@@ -231,34 +214,6 @@ export class BlockedUsersApi {
             }, 'Request to usermeta client failed'));
           }
           res.send(value);
-          next();
-        });
-      });
-    };
-  }
-
-  // request to return a N number of most reported users.
-  // get latest events (M events)
-  // process them and return the top X number by total-reports desc.
-  getReportedUsers(): RequestHandler {
-    return (req: Request, res: Response, next: Next) => {
-
-      this.latestEvent(config.latestEventConfig.channel, config.latestEventConfig.limit, (err: Error | null, data: any) => {
-        if (err) {
-          return next(new restifyErrors.InternalServerError({
-            context: err,
-          }, 'Request to latest event failed'));
-        }
-
-        processReportedUsers(this.log, this.apiSecret, this.bans, data, (error: Error | null, results: UserReports[] | null) => {
-
-          if (error) {
-            return next(new restifyErrors.InternalServerError({
-              context: err,
-            }, 'Request to process reported users failed'));
-          }
-
-          res.send(results);
           next();
         });
       });
