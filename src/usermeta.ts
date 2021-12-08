@@ -31,7 +31,8 @@ export interface UsermetaClientOptions {
   log?: Logger;
 }
 
-export type UsermetaClientCallback = (err:Error|null, reply?:string|null) => void;
+export type UsermetaClientCallback = (err: Error | null, reply?: string | null) => void;
+export type UsermetaClientBulkCallback = (err: Error | null, reply?: object[] | null) => void;
 
 export interface SimpleUsermetaClient {
   set: (params:UsermetaClientOptions|string, key:string, value:string, callback:UsermetaClientCallback, maxLength?:number) => void;
