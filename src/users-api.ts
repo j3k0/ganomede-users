@@ -40,7 +40,9 @@ import apiLogin from './api/api-login';
 import { sendError } from './utils/send-error';
 import parseTagMiddleware from './middlewares/mw-parse-tag';
 import facebookFriends from './facebook-friends';
-import eventLatest, { EventLatest } from './event-latest';
+import eventLatest, { LatestEvents } from './latest-events';
+import reportedUsersApi from './reported-users/api';
+import { processReportedUsers, ProcessReportedUsers } from './reported-users/events-processor';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -90,7 +92,8 @@ let authenticator: Authenticator | null = null;
 let directoryClient: DirectoryClient | undefined = undefined;
 let storeFacebookFriends: (options: any) => void | null;
 let sendEvent: EventSender | null = null;
-let eventsLatest: EventLatest | null = null;
+let eventsLatest: LatestEvents | null = null;
+let procReportedUsers: ProcessReportedUsers | null = null;
 
 // backend, once initialized
 let backend: any = null;
@@ -319,7 +322,8 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
   directoryClient = directoryClient || createDirectoryClient();
 
   sendEvent = options.sendEvent ?? eventSender.createSender();
-  eventsLatest = eventLatest.createLatest();
+  eventsLatest = eventLatest.createLatestEventsClient();
+  procReportedUsers = processReportedUsers(log, bans);
 
 
   authdbClient = options.authdbClient ?? ganomedeDirectory.createAuthdbClient({
@@ -388,10 +392,7 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
     usermetaClient: centralUsermetaClient!,
     directoryClient,
     authMiddleware,
-    sendEvent: deferredEvents.sendEvent,
-    latest: eventsLatest,
-    bans: bans,
-    apiSecret: apiSecret
+    sendEvent: deferredEvents.sendEvent
   });
 
   const backendOpts: BackendOptions = {
@@ -539,6 +540,10 @@ const addRoutes = function (prefix: string, server: restify.Server): void {
 
   apiLogin.addRoutes(apiOptions);
   apiMe.addRoutes(apiOptions);
+
+
+
+  reportedUsersApi.addRoutes(prefix, eventsLatest, procReportedUsers, server);
 
   server.post(`/${prefix}/banned-users`,
     jsonBody, validateSecret, bodyTag, banAdd);

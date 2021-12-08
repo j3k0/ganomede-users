@@ -6,7 +6,7 @@
 * 4- the end results will be an array (configured length) of users not banned in a desc order of their total
 */
 import { Event } from "../event-sender";
-import { BlockedUserEvent, REPORTED } from "./events";
+import { BlockedUserEvent, REPORTED } from "../blocked-users/events";
 import config from '../config';
 import { BanInfo, Bans } from "../bans";
 import Logger from "bunyan";
@@ -14,8 +14,9 @@ import async from 'async';
 
 export type UserReports = { target: string, total: number };
 
-export const processReportedUsers = (log: Logger, secret: string, bans: Bans, events: Event[], cb: (error: Error | null, results: UserReports[] | null) => void) => {
+export type ProcessReportedUsers = (secret: string, events: Event[], cb: (error: Error | null, results: UserReports[] | null) => void) => void;
 
+export const processReportedUsers = (log: Logger, bans: Bans) => (secret: string, events: Event[], cb: (error: Error | null, results: UserReports[] | null) => void) => {
     //build a key-value pair of user, total.
     //filter only reported events.
     //sum for each user the number of reports.
@@ -80,7 +81,7 @@ export const processReportedUsers = (log: Logger, secret: string, bans: Bans, ev
             //re-sort data items as per their total desc
             results = results.sort((a, b) => b.total - a.total);
             //get the first N elements from the array.
-            results = results.slice(0, Math.min(totalItemsTobeReturned, results.length));
+            results = results.slice(0, totalItemsTobeReturned);
             cb(null, results);
         }
     });
