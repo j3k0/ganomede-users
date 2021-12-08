@@ -8,6 +8,13 @@ import { expect } from 'chai';
 import { BanInfo, Bans } from '../src/bans';
 import td from 'testdouble';
 
+
+const params = {
+  banned: {username: 'bad-person', apiSecret: 'wever'},
+  notBanned: {username: 'good-citizen', apiSecret: 'wever'},
+  multiBannedChecked: {usernames:['bad-person','good-citizen' ], apiSecret: 'wever'}
+};
+
 describe('BanInfo', function() {
   const username = 'someone';
 
@@ -50,7 +57,7 @@ describe('Bans', function() {
   let bans: any = null;
 
   beforeEach(function() {
-    usermetaClient = td.object(['get', 'set']);
+    usermetaClient = td.object(['get', 'set', 'getBulk']);
     td.when(usermetaClient.set(
       td.matchers.anything(),
       td.matchers.anything(),
@@ -60,14 +67,15 @@ describe('Bans', function() {
       td.matchers.anything(), td.matchers.anything()))
         .thenCallback(null, null);
 
+        td.when(usermetaClient.getBulk(
+          td.matchers.anything(), td.matchers.anything()))
+            .thenCallback(null, [{username:params.multiBannedChecked.usernames[0]}, {username:params.multiBannedChecked.usernames[1]}]);
+
     return bans = new Bans({usermetaClient});
   });
 
   // const started = Date.now();
-  const params = {
-    banned: {username: 'bad-person', apiSecret: 'wever'},
-    notBanned: {username: 'good-citizen', apiSecret: 'wever'}
-  };
+ 
 
   describe('#ban()', () => it('adds bans', done => bans.ban(params.banned, function(err) {
     expect(err).to.be.null;
@@ -80,7 +88,7 @@ describe('Bans', function() {
 
   describe('#get()', function() {
     it('returns BanInfo instances', done => bans.get(params.banned.username, function(err, info) {
-      expect(err).to.be.null;
+      expect(err).to.be.null; 
       expect(info).to.be.instanceof(BanInfo);
       return done();
     }));
@@ -96,6 +104,16 @@ describe('Bans', function() {
         expect(infos.notBanned.exists).to.be.false;
         return done();
     })); */
+  });
+
+  describe('#getbulk()', function() {
+    it('returns Multi BanInfo instances', done => bans.getBulk(params.multiBannedChecked, function(err, info) {
+      expect(err).to.be.null; 
+      expect(info).to.be.instanceof(Object);
+      expect(info[params.multiBannedChecked.usernames[0]]).to.be.instanceof(BanInfo);
+      return done();
+    }));
+ 
   });
 
   // return describe.skip('#unban()', () => it('removes existing bans', done => bans.unban(params.banned.username, function(err) {

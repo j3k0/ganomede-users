@@ -12,7 +12,7 @@ import { Event } from "../src/event-sender";
 import config from '../src/config';
 
 let server: Server | null;
-let eventsLatest;
+let latestEvents;
 
 
 const blockedEvent1: Event = {
@@ -59,15 +59,15 @@ describe("reported-users-api", () => {
 
     beforeEach(() => {
         server = fakeRestify.createServer();
-        eventsLatest = td.function('latestEvent');
+        latestEvents = td.function('latestEvent');
         const log = td.object(['info', 'warn', 'error']) as Logger;
         const bans = td.object(Bans.prototype);
-        td.when(bans.get(td.matchers.anything(), td.callback)).thenCallback(null, {});
-        reportedApi.addRoutes("users/v1", eventsLatest, processReportedUsers(log, bans), server as unknown as restify.Server)
+        td.when(bans.getBulk(td.matchers.anything(), td.callback)).thenCallback(null, {});
+        reportedApi.addRoutes("users/v1", latestEvents, processReportedUsers(log, bans), server as unknown as restify.Server)
     });
 
     afterEach(() => {
-        server = eventsLatest = null;
+        server = latestEvents = null;
     });
 
     it("test if the endpoint 'GET /users/v1/reported-users' exists", () => {
@@ -85,7 +85,7 @@ describe("reported-users-api", () => {
 
     it("expect the response of the endpoint to be an array", (done) => {
 
-        td.when(eventsLatest!(td.matchers.anything(), td.matchers.anything(), td.callback)).
+        td.when(latestEvents!(td.matchers.anything(), td.matchers.anything(), td.callback)).
             thenCallback(null, [{ target: 'test', total: 10 }]);
 
         server?.request("get", '/users/v1/reported-users', { params: { secret: '1' } }, (res) => {
@@ -97,7 +97,7 @@ describe("reported-users-api", () => {
 
     it("call the latest events from the ganomede-events", (done) => {
 
-        td.when(eventsLatest!(td.matchers.anything(), td.matchers.anything(), td.callback)).
+        td.when(latestEvents!(td.matchers.anything(), td.matchers.anything(), td.callback)).
             thenCallback(null, [blockedEvent1, blockedEvent2]);
 
         server?.request("get", '/users/v1/reported-users', { params: { secret: '1' } }, (res) => {
@@ -108,7 +108,7 @@ describe("reported-users-api", () => {
     });
 
     it("retreive 10,000 events from the endpoint as per the limit", (done) => {
-        td.when(eventsLatest!(td.matchers.anything(), 10000, td.callback)).
+        td.when(latestEvents!(td.matchers.anything(), 10000, td.callback)).
             thenCallback(null, blockedEventsArray);
 
         server?.request("get", '/users/v1/reported-users', { params: { secret: '1' } }, (res) => {

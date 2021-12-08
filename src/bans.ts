@@ -7,6 +7,14 @@ export interface Timestamp {
   okay: boolean;
   value: number;
 }
+
+export type GetBulkparams = {
+  usernames: string[];
+  apiSecret: string;
+}
+
+export type MultiBanInfo= { [key: string]: BanInfo; };
+
 const parseTimestampString = function(value:string|number|null|undefined): Timestamp {
   const str = String(value);
   const i = parseInt(str, 10);
@@ -57,6 +65,25 @@ export class Bans {
       }
       const info = new BanInfo(username, reply);
       return cb(null, info);
+    });
+  }
+
+  getBulk(params: GetBulkparams, cb: (e: Error | null, res?: MultiBanInfo) => void) {
+    const {apiSecret, usernames} = params;
+    const pparams = {username: usernames.join(','),apiSecret};
+    return this.usermetaClient.getBulk(pparams, [this.prefix], function(err, reply) {
+      if (err) {
+        return cb(err);
+      } 
+      let banInfos: {[key:string]: BanInfo} = {};
+      reply?.forEach((obj) => {
+        if(obj !== null){
+          const info = new BanInfo(obj['username'], obj);
+          banInfos[obj['username']] = info;
+        }
+      });
+      
+      return cb(null, banInfos);
     });
   }
 

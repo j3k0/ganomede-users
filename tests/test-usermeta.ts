@@ -234,6 +234,33 @@ describe("usermeta", function() {
       });
     });
 
+    describe(".getBulk", function() {
+      it("delegates to the jsonClient", function() {
+        usermetaClient.getBulk("username1,username2", ["age"], td.function('callback'));
+        return td.verify(jsonClient.get(
+          td.matchers.contains({path: '/usermeta/v1/username1%2Cusername2/age'}),
+          td.callback));
+      });
+
+      it("uses apiSecret if defined", function() {
+        usermetaClient.getBulk({
+          username: "username1,username2", apiSecret: "1234", authToken: "token"},
+          ["age"], td.function('callback'));
+        return td.verify(jsonClient.get(
+          td.matchers.contains({path: '/usermeta/v1/auth/1234.username1%2Cusername2/age'}),
+          td.callback));
+      });
+
+      return it("uses authToken if defined", function() {
+        usermetaClient.getBulk({
+          username: "username1,username2", authToken: "token"},
+          ["age"], td.function('callback'));
+        return td.verify(jsonClient.get(
+          td.matchers.contains({path: '/usermeta/v1/auth/token/age'}),
+          td.callback));
+      });
+    });
+
     return describe(".set", () => it("delegates to the jsonClient", function() {
       usermetaClient.set("username", "age", "25", td.function('callback'));
       return td.verify(jsonClient.post(

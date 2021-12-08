@@ -76,7 +76,7 @@ describe('reported-users-processor', () => {
     });
 
     it('count the numbers of repport per user', (done) => {
-        td.when(bans!.get(td.matchers.anything(), td.callback)).thenCallback(null, {});
+        td.when(bans!.getBulk(td.matchers.anything(), td.callback)).thenCallback(null, []);
         eventsProcessor!("1", [blockedEvent1, blockedEvent2], (error, results: UserReports[] | null) => {
             expect(error).to.be.equal(null);
             expect(results?.length).to.be.eql(1);
@@ -86,7 +86,7 @@ describe('reported-users-processor', () => {
     });
 
     it('check for each user if he is banned, and return 0 results', (done) => {
-        td.when(bans!.get(td.matchers.anything(), td.callback)).thenCallback(null, { exists: true });
+        td.when(bans!.getBulk(td.matchers.anything(), td.callback)).thenCallback(null, { user1: { exists: true }, user2: { exists: true } });
         eventsProcessor!("1", [blockedEvent1, blockedEvent2], (error, results: UserReports[] | null) => {
             expect(error).to.be.equal(null);
             expect(results?.length).to.be.eql(0);
@@ -95,7 +95,7 @@ describe('reported-users-processor', () => {
     });
 
     it('sort result by total of reports descending', (done) => {
-        td.when(bans!.get(td.matchers.anything(), td.callback)).thenCallback(null, {});
+        td.when(bans!.getBulk(td.matchers.anything(), td.callback)).thenCallback(null, {});
         eventsProcessor!("1", [blockedEvent1, blockedEvent2, blockedEvent3], (error, results: UserReports[] | null) => {
             expect(error).to.be.equal(null);
             expect(results?.length).to.be.eql(2);
@@ -105,9 +105,8 @@ describe('reported-users-processor', () => {
     });
 
     it('return only users that are not banned', (done) => {
-        td.when(bans!.get({ username: 'user1', apiSecret: '1' }, td.callback)).thenCallback(null, {});
-        td.when(bans!.get({ username: 'user2', apiSecret: '1' }, td.callback)).thenCallback(null, { exists: true });
-        td.when(bans!.get({ username: 'user3', apiSecret: '1' }, td.callback)).thenCallback(null, {});
+        td.when(bans!.getBulk({ usernames: ['user2', 'user1'], apiSecret: '1' }, td.callback))
+            .thenCallback(null, { user2: { exists: true }, user3: { exists: true } });
         eventsProcessor!("1", [blockedEvent1, blockedEvent2, blockedEvent3], (error, results: UserReports[] | null) => {
             expect(error).to.be.equal(null);
             expect(results?.length).to.be.eql(1);
@@ -117,7 +116,7 @@ describe('reported-users-processor', () => {
     });
 
     it('return only limited number of users as per the config', (done) => {
-        td.when(bans!.get(td.matchers.anything(), td.callback)).thenCallback(null, {});
+        td.when(bans!.getBulk(td.matchers.anything(), td.callback)).thenCallback(null, {});
         eventsProcessor!("1", blockedEventsArray, (error, results: UserReports[] | null) => {
             expect(error).to.be.equal(null);
             expect(results?.length).to.be.eql(config.latestEventConfig.processTop);

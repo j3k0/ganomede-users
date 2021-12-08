@@ -8,7 +8,7 @@
 import { Event } from "../event-sender";
 import { BlockedUserEvent, REPORTED } from "../blocked-users/events";
 import config from '../config';
-import { BanInfo, Bans } from "../bans";
+import { BanInfo, Bans, MultiBanInfo } from "../bans";
 import Logger from "bunyan";
 import async from 'async';
 
@@ -47,27 +47,45 @@ export const processReportedUsers = (log: Logger, bans: Bans) => (secret: string
     let totalItemsTobeReturned = config.latestEventConfig.processTop;
 
     //check ban for a user, and callback the user in case only its not banned, else callback null.
-    const checkBanAndCallbackUser = (user: UserReports, callback: (e: Error | null, notBannedUser: UserReports | null) => void) => {
+    const checkBanAndCallbackUsers = (users: UserReports[], callback: (e: Error | null, notBannedUser?: UserReports[]) => void) => {
         //calling bans api to get status of a user.
-        bans.get({ username: user.target, apiSecret: secret }, (err: Error | null, ban?: BanInfo) => {
+        let usernames: string[] = users.map((user) => user.target);
+        bans.getBulk({ usernames, apiSecret: secret }, (err: Error | null, bans?: MultiBanInfo) => {
             if (err) {
-                log.error('checkBan() failed', { err, username: user.target });
-                return callback(err, null);
+                log.error('checkBan() failed', { err, usernames: usernames });
+                return callback(err);
             }
-            //if not banned, then callback the user object
-            if (!ban?.exists)
-                return callback(null, user);
 
-            // user is banned, callback null.
-            return callback(null, null);
+            if (bans === undefined) {
+                log.error('checkBan() failed, bans is undefined', { err, usernames: usernames });
+                return callback(new Error('bans object is undefined'));
+            }
+            //for each user-report we check if not banned, then callback the user object
+            let results: UserReports[] = [];
+            users.forEach(userReport => {
+                let ban = bans[userReport.target];
+                if (ban !== null && !ban?.exists) {
+                    results.push(userReport);
+                }
+            });
+
+            return callback(null, results);
         });
     };
+
+    //split array into equal chunks to call bans.getBulk for better performance.
+    const perChunk = 15;
+    const chunkedReportedUsers: UserReports[][] = reportedUsersArray.reduce((all: UserReports[][], one: UserReports, i) => {
+        const ch = Math.floor(i / perChunk);
+        all[ch] = ([] as UserReports[]).concat((all[ch] || []), one);
+        return all
+    }, [])
 
     //prepare tasks to  be runned in parallel
     //each task will execute the ban check method, and callback the user.
     let tasks: any[] = [];
-    reportedUsersArray.forEach((user) => {
-        tasks.push(cb1 => checkBanAndCallbackUser(user, cb1));
+    chunkedReportedUsers.forEach((users) => {
+        tasks.push(cb1 => checkBanAndCallbackUsers(users, cb1));
     });
 
     //doing parallel tasks
@@ -76,8 +94,10 @@ export const processReportedUsers = (log: Logger, bans: Bans) => (secret: string
             cb(err, null);
         }
         else {
+            //make the 2 levels array to 1 level => [[], [], []] => []
+            let oneLevelArrayUserReports: UserReports[] = (data as UserReports[][])?.flat();
             //filter data items that are not null
-            let results = (data?.filter((u) => u !== null)) as UserReports[];
+            let results = (oneLevelArrayUserReports?.filter((u) => u !== null)) as UserReports[];
             //re-sort data items as per their total desc
             results = results.sort((a, b) => b.total - a.total);
             //get the first N elements from the array.

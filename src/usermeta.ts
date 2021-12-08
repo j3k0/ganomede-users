@@ -38,6 +38,10 @@ export interface SimpleUsermetaClient {
   get: (params:UsermetaClientOptions|string, key:string, callback:UsermetaClientCallback) => void;
 };
 
+export interface BulkedUsermetaClient extends SimpleUsermetaClient {
+  getBulk: (params: UsermetaClientOptions | string, key: string[], callback: UsermetaClientBulkCallback) => void;
+}
+
 export interface RestrictedUsermetaClient extends SimpleUsermetaClient {
   validKeys?: { [key: string]: boolean; };
   isValid(key: string): boolean;
@@ -48,7 +52,7 @@ export interface ProtectedUsermetaClient extends RestrictedUsermetaClient {
   isWriteOnly(key: string): boolean;
 };
 
-export type UsermetaClient = SimpleUsermetaClient | RestrictedUsermetaClient | ProtectedUsermetaClient;
+export type UsermetaClient = SimpleUsermetaClient | BulkedUsermetaClient | RestrictedUsermetaClient | ProtectedUsermetaClient;
 
 const DEFAULT_MAX_LENGTH:number = 1000;
 
@@ -420,7 +424,7 @@ const authPath = function(params:UsermetaClientOptions):string {
 
 // Stores metadata in ganomede-usermeta
 // ganomede-usermeta server will take care of key validation
-class GanomedeUsermeta implements SimpleUsermetaClient {
+class GanomedeUsermeta implements BulkedUsermetaClient {
 
   jsonClient: any;
   type: string;
@@ -453,25 +457,62 @@ class GanomedeUsermeta implements SimpleUsermetaClient {
     });
   }
 
-  get(pparams:string|UsermetaClientOptions, key:string, cb:UsermetaClientCallback) {
+  prepareGet(pparams: string | UsermetaClientOptions, key: string[]) {
     const params = parseParams(pparams);
+    const keys = key.join(',');
     const url = this.jsonClient.url;
     const options = {
       ...jsonOptions({
-        path: authPath(params) + `/${encodeURIComponent(key)}`,
+        path: authPath(params) + `/${encodeURIComponent(keys)}`,
         req_id: params.req_id
       }),
       log: log.child({ req_id: params.req_id, url })
     };
+    return { params, url, options };
+  }
+
+  get(pparams: string | UsermetaClientOptions, key: string, cb: UsermetaClientCallback) {
+
+    const { params, url, options } = this.prepareGet(pparams, [key]);
+
     jsonClientRetry(this.jsonClient).get(
       options,
       (err: HttpError | null, _req: Request, _res: Response, body?: object | null) => {
         if (err) {
-          log.error({err, url, options, body, req_id: params.req_id}, "GanomedeUsermeta.get failed");
+          log.error({ err, url, options, body, req_id: params.req_id }, "GanomedeUsermeta.get failed");
           cb(err, null);
         } else {
-          const metadata:object = body ? body[params.username] : {};
+          const metadata: object = body ? body[params.username] : {};
           cb(err, metadata ? metadata[key] || null : null);
+        }
+      }
+    );
+  }
+
+  getBulk(pparams: UsermetaClientOptions | string, key: string[], cb: UsermetaClientBulkCallback) {
+    const { params, url, options } = this.prepareGet(pparams, key);
+
+    jsonClientRetry(this.jsonClient).get(
+      options,
+      (err: HttpError | null, _req: Request, _res: Response, body?: object | null) => {
+        if (err) {
+          log.error({ err, url, options, body, req_id: params.req_id }, "GanomedeUsermeta.getBulk failed");
+          cb(err, null);
+        } else {
+          const userNames = params.username.split(',');
+          let result : object[] = [];
+          userNames.forEach((name) => {
+            const metadata: object = body ? body[params.username] : {};
+            metadata['username'] = name;
+            if (metadata) {
+              key.forEach((k) => {
+                metadata[k] = metadata[k] || null;
+              })
+            }
+            result.push(metadata);
+          });
+
+          cb(err, result ? result : null);
         }
       }
     );
