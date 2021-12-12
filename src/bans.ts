@@ -69,9 +69,9 @@ export class Bans {
   }
 
   getBulk(params: GetBulkparams, cb: (e: Error | null, res?: MultiBanInfo) => void) {
-    const {apiSecret, usernames} = params;
-    const pparams = {username: usernames.join(','),apiSecret};
-    return this.usermetaClient.getBulk(pparams, [this.prefix], function(err, reply) {
+    const { apiSecret, usernames } = params;
+    const pparams = { usernames, apiSecret };
+    return this.usermetaClient.getBulk(pparams, [this.prefix], function (err, reply) {
       if (err) {
         return cb(err);
       } 

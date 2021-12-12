@@ -42,7 +42,7 @@ import parseTagMiddleware from './middlewares/mw-parse-tag';
 import facebookFriends from './facebook-friends';
 import eventLatest, { LatestEvents } from './latest-events';
 import reportedUsersApi from './reported-users/api';
-import { processReportedUsers, ProcessReportedUsers } from './reported-users/events-processor';
+import { createReportedUsersProcessor, ProcessReportedUsers } from './reported-users/events-processor';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -323,7 +323,7 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
 
   sendEvent = options.sendEvent ?? eventSender.createSender();
   eventsLatest = eventLatest.createLatestEventsClient();
-  procReportedUsers = processReportedUsers(log, bans);
+  procReportedUsers = createReportedUsersProcessor(log, bans);
 
 
   authdbClient = options.authdbClient ?? ganomedeDirectory.createAuthdbClient({

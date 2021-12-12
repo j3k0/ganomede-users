@@ -7,6 +7,7 @@ import restifyErrors from "restify-errors";
 import { LatestEvents } from '../latest-events';
 import config from "../config";
 import { ProcessReportedUsers, UserReports } from "./events-processor";
+import { CHANNEL } from '../blocked-users/events';
 
 const reportedUsersApi = (latestEvent: LatestEvents | null, processReportedUsers: ProcessReportedUsers | null) =>
     (req: restify.Request, res: restify.Response, next: restify.Next) => {
@@ -15,7 +16,7 @@ const reportedUsersApi = (latestEvent: LatestEvents | null, processReportedUsers
             return next(new restifyErrors.InternalServerError("Secret is not provided"));
         }
 
-        latestEvent!(config.latestEventConfig.channel, config.latestEventConfig.limit, (err: Error | null, data: any) => {
+        latestEvent!(CHANNEL, config.reportedUsersApiConfig.numEventsToProcess, (err: Error | null, data: any) => {
             if (err) {
                 return next(new restifyErrors.InternalServerError({
                     context: err,

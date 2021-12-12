@@ -16,7 +16,7 @@ export type UserReports = { target: string, total: number };
 
 export type ProcessReportedUsers = (secret: string, events: Event[], cb: (error: Error | null, results: UserReports[] | null) => void) => void;
 
-export const processReportedUsers = (log: Logger, bans: Bans) => (secret: string, events: Event[], cb: (error: Error | null, results: UserReports[] | null) => void) => {
+export const createReportedUsersProcessor = (log: Logger, bans: Bans) => (secret: string, events: Event[], cb: (error: Error | null, results: UserReports[] | null) => void) => {
     //build a key-value pair of user, total.
     //filter only reported events.
     //sum for each user the number of reports.
@@ -44,7 +44,7 @@ export const processReportedUsers = (log: Logger, bans: Bans) => (secret: string
     reportedUsersArray = reportedUsersArray.sort((a, b) => b.total - a.total);
 
     //return only a number of reported users as per the config.
-    let totalItemsTobeReturned = config.latestEventConfig.processTop;
+    let totalItemsTobeReturned = config.reportedUsersApiConfig.maxReturnedUsers;
 
     //check ban for a user, and callback the user in case only its not banned, else callback null.
     const checkBanAndCallbackUsers = (users: UserReports[], callback: (e: Error | null, notBannedUser?: UserReports[]) => void) => {
