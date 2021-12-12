@@ -47,6 +47,7 @@ else {
 
   // Enable restify plugins
   server.use(restify.plugins.bodyParser());
+  server.use(restify.plugins.queryParser());
   // server.use(restify.gzipResponse());
 
   // Audit requests at completion

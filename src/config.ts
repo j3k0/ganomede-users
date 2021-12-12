@@ -33,6 +33,13 @@ export const latestEventConfig = {
   processTop: 50
 };
 
+export const blockedIndexerConfig = {
+  blockedByUsernameId: 'blocks-by-username',
+  blockedByUsernameField: 'data.username',
+  blockedByTargetId: 'blocks-by-target',
+  blockedByTargetField: 'data.target'
+};
+
 export default {
   name, api, secret, appName, events, latestEventConfig
 }
