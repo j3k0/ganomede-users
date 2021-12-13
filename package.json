@@ -11,7 +11,8 @@
     "start": "node -r source-map-support/register build/src/index.js",
     "startw": "nodemon --exec \"npm start\" --watch build",
     "startw2": "forever --watch --watchDirectory build --fifo -c 'node -r source-map-support' build/src/index.js",
-    "test": "APP_NAME=app API_SECRET=42 mocha --color --require ts-node/register --extensions ts tests/**/test-*.ts | bunyan -l error -o short --color",
+    "test": "APP_NAME=app API_SECRET=42 mocha --color --require ts-node/register --extensions ts tests/**/test-*.ts",
+    "test-pretty": "APP_NAME=app API_SECRET=42 mocha --color --require ts-node/register --extensions ts tests/**/test-*.ts | bunyan -l error -o short --color",
     "build": "tsc",
     "buildw": "tsc -w",
     "debug": "APP_NAME=app API_SECRET=42 nodemon --exec \"ts-node src/index.ts\" -w src -e ts | bunyan -o short --color"
