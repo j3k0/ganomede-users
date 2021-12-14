@@ -83,6 +83,16 @@ CURL $PREFIX/login -d "{$USERNAME, $PASSWORD}"
 TOKEN="$(output | jq -r .token)"
 echo "    - [Login TOKEN] $TOKEN"
 
+function cleanup() {
+    CURL -X DELETE $PREFIX/auth/$TOKEN/friends/test2
+    CURL -X DELETE $PREFIX/auth/$TOKEN/friends/test3
+    CURL -X DELETE $PREFIX/auth/$TOKEN/blocked-users/bob
+    CURL -X DELETE $PREFIX/auth/$TOKEN/blocked-users/roger
+}
+
+it "[Initial cleanup]"
+    cleanup
+
 it "[POST /auth/:token/metadata/\$chatdisabled] sets chatdisabled metadata into local usermeta"
     CURL $PREFIX/auth/$TOKEN/metadata/\$chatdisabled -d '{"value": "true"}'
     outputIncludes true
@@ -91,12 +101,26 @@ it "[GET  /auth/:token/metadata/\$chatdisabled] loads chatdisabled metadata from
     CURL $PREFIX/auth/$TOKEN/metadata/\$chatdisabled
     outputIncludes true
 
+it "[POST /auth/:token/reported-users] reports a user"
+    CURL $PREFIX/auth/$TOKEN/reported-users -d '{"username": "roger"}'
+    outputIncludes '"roger"'
+
+it "[GET /users/v1/reported-users] returns recently reported users"
+    CURL $PREFIX/admin/reported-users?secret=$API_SECRET
+    outputIncludes '"roger"'
+
 it "[GET  /auth/:token/blocked-users] returns blocked users"
     CURL $PREFIX/auth/$TOKEN/blocked-users
-    outputIncludes '\[\]'
+    outputIncludes '"roger"'
 
 it "[POST /auth/:token/blocked-users] blocks a user"
     CURL $PREFIX/auth/$TOKEN/blocked-users -d '{"username": "bob"}'
+    outputIncludes '"roger"'
+    outputIncludes '"bob"'
+
+it "[GET /admin/blocks/:username] returns the list of block"
+    CURL $PREFIX/admin/blocks/$USERNAME?secret=$API_SECRET
+    outputIncludes '"roger"'
     outputIncludes '"bob"'
 
 it "[DEL  /auth/:token/blocked-users/:tag] unblocks a user"
@@ -138,5 +162,4 @@ it "[DEL /auth/:token/friends/:tag] remove a friend"
 
 #final cleanup
 it "[Final cleanup]"
-    CURL -X DELETE $PREFIX/auth/$TOKEN/friends/test2
-    CURL -X DELETE $PREFIX/auth/$TOKEN/friends/test3
+    cleanup
