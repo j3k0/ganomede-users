@@ -37,7 +37,7 @@
     "lodash": "^4.17.4",
     "node-rsa": "^1.1.1",
     "node-statsd": "^0.1.1",
-    "nodemailer": "^6.4.14",
+    "nodemailer": "^6.6.1",
     "password-generator": "^2.1.0",
     "redis": "^3.0.2",
     "restify": "^8.5.1",
