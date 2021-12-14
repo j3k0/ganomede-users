@@ -23,7 +23,7 @@
     "@types/chai": "^4.3.0",
     "@types/node-rsa": "^1.0.0",
     "async": "^3.2.0",
-    "axios": "^0.21.1",
+    "axios": "^0.21.2",
     "base64url": "^3.0.1",
     "bunyan": "^1.8.12",
     "concat-stream": "^1.4.10",
