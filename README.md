@@ -399,17 +399,23 @@ You can add a number of filters:
 ```
 
 
-# Reported users `/users/v1/reported-users?secret=1111 [GET]` 
+# Reported users `/users/v1/reported-users` 
 
-A list of the most reported users, it requires the secret.
+A list of the most reported users.
 
-1-retrieve a large number of the last events in the "Events" database, channel users/v1/blocked-users.
-Maybe the last 10,000.
-2-Process this list to count the number of reports per user.
-3-For each reported user, check if he is banned (logic for this already part of ganomede-users).
-4-Sort descending, only returning users that are not banned.
+## List reported users `[GET]`
 
-Returns the list of reported users.
+Returns the list of recently reported users.
+
+1. Retrieve a large number of the last events in the "Events" database, channel users/v1/blocked-users.
+2. Process this list to count the number of reports per user.
+3. Sort descending, only returning users that are not banned.
+
+### query parameters
+
+| parameter  | type      | description |
+|------------|-----------|-------------|
+| `secret` | string | `API_SECRET`, passed as `?secret=xxxx` |
 
 ### response [200] OK
 
