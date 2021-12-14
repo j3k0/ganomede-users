@@ -419,3 +419,53 @@ Returns the list of reported users.
     { target: 'user2', total: 8 } 
 ]
 ```
+
+
+# Blocks and Reports Admin `/users/v1/admin/blocks`
+
+## List of blocks and reports for a given user `/users/v1/admin/blocks/:username` [GET]
+
+`username` is the ID of the user we're interested in.
+
+## query parameters
+
+| parameter  | type      | description |
+|------------|-----------|-------------|
+| `secret` | string | Passed as `?secret=xxxx` |
+
+## response [200]
+
+```js
+{
+  "blockedBy": [{
+    "username": "bob",
+    "on": 1476531925454
+  }, {
+    "username": "marco",
+    "on": 1576531925454
+  }],
+
+  "reportedBy": [{
+    "username": "harry",
+    "on": 1376531925457
+  }],
+
+  "reports": [{
+    "username": "polo",
+    "on": 1526531925451
+  }],
+
+  "blocks": [{
+    "username": "roger",
+    "on": 1546531925452
+  }, {
+    "username": "albert",
+    "on": 1146531925453
+  }]
+}
+```
+
+- `blockedBy`: the `BLOCKED` events targeting this user.
+- `reportedBy`: the `REPORTED` events targeting this user.
+- `blocks`: the `BLOCKED` events from this user.
+- `reports`: the `REPORTED` events from this user.
