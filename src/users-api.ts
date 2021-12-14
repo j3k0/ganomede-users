@@ -43,6 +43,7 @@ import facebookFriends from './facebook-friends';
 import eventLatest, { LatestEvents } from './latest-events';
 import reportedUsersApi from './reported-users/api';
 import { createReportedUsersProcessor, ProcessReportedUsers } from './reported-users/events-processor';
+import getBlocksApi from './blocked-users/get-blocks-api';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -539,8 +540,7 @@ const addRoutes = function (prefix: string, server: restify.Server): void {
   apiLogin.addRoutes(apiOptions);
   apiMe.addRoutes(apiOptions);
 
-
-
+  getBlocksApi.addRoutes(prefix, server);
   reportedUsersApi.addRoutes(prefix, eventsLatest, processReportedUsers, server);
 
   server.post(`/${prefix}/banned-users`,

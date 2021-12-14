@@ -119,7 +119,7 @@ it "[POST /auth/:token/blocked-users] blocks a user"
     outputIncludes '"bob"'
 
 it "[GET /admin/blocks/:username] returns the list of block"
-    CURL $PREFIX/admin/blocks/$USERNAME?secret=$API_SECRET
+    CURL $PREFIX/admin/blocks/test124?secret=$API_SECRET
     outputIncludes '"roger"'
     outputIncludes '"bob"'
 
