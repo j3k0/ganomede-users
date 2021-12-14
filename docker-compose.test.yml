@@ -111,8 +111,8 @@ services:
      - ./tests/wait-for-it:/wait-for-it
 
   events:
-    image: ganomede/events:v1.2.0
-    command: sh -c "/wait-for-it -t 0 eventsredis:6379 && node index.js"
+    image: ganomede/events:v1.5.0
+    command: sh -c "/wait-for-it -t 0 eventsredis:6379 && node build/index.js"
     depends_on:
      - eventsredis
     environment:
