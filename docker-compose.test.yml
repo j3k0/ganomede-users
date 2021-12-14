@@ -111,7 +111,7 @@ services:
      - ./tests/wait-for-it:/wait-for-it
 
   events:
-    image: ganomede/events:v1.5.0
+    image: ganomede/events:v1.5.3
     command: sh -c "/wait-for-it -t 0 eventsredis:6379 && node build/index.js"
     depends_on:
      - eventsredis

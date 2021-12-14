@@ -29,7 +29,7 @@ export const createIndexerClient = ({
             port
         });
 
-    const createIndex: CreateIndexRequest = (id: string, channel: string, field: string, callback: (e: Error, h: any) => void) => {
+    const createIndex: CreateIndexRequest = (id: string, channel: string, field: string, callback: (e: Error, h: string) => void) => {
         client?.createIndex(id, channel, field, callback);
     };
 
@@ -65,11 +65,7 @@ const getBlocksApis = (createIndexRequest: CreateIndexRequest,
         ];
         let indexCreationtasks: any[] = [];
         indexCreation.forEach((item) => {
-            indexCreationtasks.push((cb2: (e: Error | null, h: any) => void) => createIndexRequest(item.id, CHANNEL, item.field, (e2, h2) => {
-                if (e2 && e2.message === 'Key already exists')
-                    return cb2(null, "OK");
-                cb2(e2, h2);
-            }));
+            indexCreationtasks.push((cb2: (error: Error | null, result: string) => void) => createIndexRequest(item.id, CHANNEL, item.field, cb2));
         });
 
         //prepare get events from each index
@@ -79,7 +75,7 @@ const getBlocksApis = (createIndexRequest: CreateIndexRequest,
         let getEventsFromIndexTasks: any[] = [];
         indexCreation.forEach((item) => {
             getEventsFromIndexTasks.push((cb2: (err: Error | null, result: EventWithTimeStamp[]) => void) => getIndexEventsRequest(item.id, username, (err, result) => {
-                cb2(err, result ? result.rows as EventWithTimeStamp[] : []);
+                cb2(err, (result?.rows as EventWithTimeStamp[]) || []);
             }));
         });
 
@@ -149,6 +145,7 @@ const getBlocksApis = (createIndexRequest: CreateIndexRequest,
         //parallel the create index - requests.
         async.parallel(indexCreationtasks, (err, data) => {
             if (err) {
+                req.log.error({ err, data }, 'Failed to create index');
                 return next(new restifyErrors.InternalServerError("Creating index failed"));
             }
             //create index requests are done, so now lets get the events for each index.

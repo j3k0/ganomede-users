@@ -18,7 +18,7 @@ export type CreateIndexerClientOptions = {
     client?: GanomedeEvents.IndexerClient;
 };
 
-export type CreateIndexRequest = (id: string, channel: string, field: string, callback: (e: Error | null, h: any) => void) => void;
+export type CreateIndexRequest = (id: string, channel: string, field: string, callback: (error: Error | null, result: string) => void) => void;
 export type GetIndexEventsRequest = (indexId: string, indexValue: string, callback: (err: Error | null, result: GanomedeEvents.GetIndexEventsResult) => void) => void;
 
 export type EventWithTimeStamp = Event & {
