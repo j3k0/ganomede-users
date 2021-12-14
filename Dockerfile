@@ -1,4 +1,4 @@
-FROM node:12
+FROM node:14
 WORKDIR /home/app/code
 MAINTAINER Jean-Christophe Hoelt <hoelt@fovea.cc>
 EXPOSE 8000
