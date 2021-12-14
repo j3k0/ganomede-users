@@ -38,7 +38,7 @@ const reportedUsersApi = (latestEvent: LatestEvents | null, processReportedUsers
     };
 
 const addRoutes = (prefix: string, latestEvent: LatestEvents | null, processReportedUsers: ProcessReportedUsers | null, server: restify.Server) => {
-    server.get(`/${prefix}/reported-users`, reportedUsersApi(latestEvent, processReportedUsers));
+    server.get(`/${prefix}/admin/reported-users`, reportedUsersApi(latestEvent, processReportedUsers));
 };
 
 export default { addRoutes };

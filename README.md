@@ -399,7 +399,7 @@ You can add a number of filters:
 ```
 
 
-# Reported users `/users/v1/reported-users` 
+# Reported users `/users/v1/admin/reported-users` 
 
 A list of the most reported users.
 
