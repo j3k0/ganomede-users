@@ -31,6 +31,10 @@ export interface UsermetaClientOptions {
   log?: Logger;
 }
 
+export interface UsermetaClientBulkOptions extends UsermetaClientOptions {
+  usernames: string[];
+};
+
 export type UsermetaClientCallback = (err: Error | null, reply?: string | null) => void;
 export type UsermetaClientBulkCallback = (err: Error | null, reply?: object[] | null) => void;
 
@@ -40,7 +44,7 @@ export interface SimpleUsermetaClient {
 };
 
 export interface BulkedUsermetaClient extends SimpleUsermetaClient {
-  getBulk: (params: UsermetaClientOptions | string, key: string[], callback: UsermetaClientBulkCallback) => void;
+  getBulk: (params: UsermetaClientBulkOptions | string, key: string[], callback: UsermetaClientBulkCallback) => void;
 }
 
 export interface RestrictedUsermetaClient extends SimpleUsermetaClient {
@@ -57,14 +61,17 @@ export type UsermetaClient = SimpleUsermetaClient | BulkedUsermetaClient | Restr
 
 const DEFAULT_MAX_LENGTH:number = 1000;
 
-const parseParams = function(obj:UsermetaClientOptions|string):UsermetaClientOptions {
+const parseParams = function (obj: UsermetaClientOptions | UsermetaClientBulkOptions | string): UsermetaClientOptions {
   if (typeof obj === 'string') {
     return {
       username: obj
     };
   }
-  else {
-    return obj;
+  else if (obj.hasOwnProperty('usernames') && (obj as UsermetaClientBulkOptions).usernames !== undefined) {
+    obj.username = (obj as UsermetaClientBulkOptions).usernames.join(',');
+    return obj as UsermetaClientOptions;
+  } else {
+    return obj as UsermetaClientOptions;
   }
 };
 
@@ -458,7 +465,7 @@ class GanomedeUsermeta implements BulkedUsermetaClient {
     });
   }
 
-  prepareGet(pparams: string | UsermetaClientOptions, key: string[]) {
+  prepareGet(pparams: string | UsermetaClientOptions | UsermetaClientBulkOptions, key: string[]) {
     const params = parseParams(pparams);
     const keys = key.join(',');
     const url = this.jsonClient.url;
@@ -490,7 +497,7 @@ class GanomedeUsermeta implements BulkedUsermetaClient {
     );
   }
 
-  getBulk(pparams: UsermetaClientOptions | string, key: string[], cb: UsermetaClientBulkCallback) {
+  getBulk(pparams: UsermetaClientBulkOptions | string, key: string[], cb: UsermetaClientBulkCallback) {
     const { params, url, options } = this.prepareGet(pparams, key);
 
     jsonClientRetry(this.jsonClient).get(

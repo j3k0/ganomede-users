@@ -5,7 +5,7 @@ import assert from "assert";
 import { expect } from 'chai';
 import td from 'testdouble';
 import { REPORTED } from "../src/blocked-users/events";
-import { processReportedUsers } from "../src/reported-users/events-processor";
+import { createReportedUsersProcessor } from "../src/reported-users/events-processor";
 import Logger from "bunyan";
 import { Bans } from "../src/bans";
 import { Event } from "../src/event-sender";
@@ -63,7 +63,7 @@ describe("reported-users-api", () => {
         const log = td.object(['info', 'warn', 'error']) as Logger;
         const bans = td.object(Bans.prototype);
         td.when(bans.getBulk(td.matchers.anything(), td.callback)).thenCallback(null, {});
-        reportedApi.addRoutes("users/v1", latestEvents, processReportedUsers(log, bans), server as unknown as restify.Server)
+        reportedApi.addRoutes("users/v1", latestEvents, createReportedUsersProcessor(log, bans), server as unknown as restify.Server)
     });
 
     afterEach(() => {
@@ -112,7 +112,7 @@ describe("reported-users-api", () => {
             thenCallback(null, blockedEventsArray);
 
         server?.request("get", '/users/v1/reported-users', { params: { secret: '1' } }, (res) => {
-            expect(res?.body.length).to.be.eql(config.latestEventConfig.processTop);
+            expect(res?.body.length).to.be.eql(config.reportedUsersApiConfig.maxReturnedUsers);
             expect(res?.status).to.equal(200);
             done();
         });
