@@ -161,8 +161,7 @@ describe('GET /admin/blocks/:username', () => {
 
     it('should respond', (done) => {
         superagent
-            .get(endpoint('/admin/blocks/whatever?secret=1'))
-            .query({ secret: "1" })
+            .get(endpoint('/admin/blocks/whatever?secret=' + process.env.API_SECRET))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.status, 'response status').to.equal(200);
@@ -188,10 +187,21 @@ describe('GET /admin/blocks/:username', () => {
             });
     });
 
+    it('requires a valid api secret or fails with 403 (Forbidden)', (done) => {
+        superagent
+            .get(endpoint(`/admin/blocks/${USERNAME}`))
+            .query({ secret: 'invalid_secret' })
+            .end((_err, res) => {
+                expect(res?.status, 'response status').to.equal(403);
+                done();
+            });
+    });
+
     describe('response.blockedBy', () => {
         it('is an array', (done) => {
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).blockedBy, 'response.blockedBy').to.be.an('array');
                     done();
@@ -202,7 +212,8 @@ describe('GET /admin/blocks/:username', () => {
             createStubsForGetIndexEvents();
 
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).blockedBy[0].username, 'response.blockedBy[0].username').to.not.be.equal(USERNAME);
                     done();
@@ -213,7 +224,8 @@ describe('GET /admin/blocks/:username', () => {
             createStubsForGetIndexEvents();
 
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).blockedBy[0]).to.have.own.property('username');
                     done();
@@ -224,7 +236,8 @@ describe('GET /admin/blocks/:username', () => {
             createStubsForGetIndexEvents();
 
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).blockedBy[0]).to.have.own.property('on');
                     expect((res?.body as GetUserBlocks).blockedBy[0].on).to.equal(now);
@@ -236,7 +249,8 @@ describe('GET /admin/blocks/:username', () => {
             createStubsForGetIndexEventsWithUnblocked();
 
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).blockedBy.length).to.equal(0);
                     done();
@@ -247,7 +261,8 @@ describe('GET /admin/blocks/:username', () => {
     describe('response.reportedBy', () => {
         it('is an array', (done) => {
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).reportedBy, 'response.reportedBy').to.be.an('array');
                     done();
@@ -257,7 +272,8 @@ describe('GET /admin/blocks/:username', () => {
             createStubsForGetIndexEvents();
 
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).reportedBy[0].username, 'response.reportedBy[0].username').to.not.be.equal(USERNAME);
                     done();
@@ -267,7 +283,8 @@ describe('GET /admin/blocks/:username', () => {
             createStubsForGetIndexEvents();
 
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).reportedBy[0]).to.have.own.property('username');
                     done();
@@ -277,7 +294,8 @@ describe('GET /admin/blocks/:username', () => {
             createStubsForGetIndexEvents();
 
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).reportedBy[0]).to.have.own.property('on');
                     expect((res?.body as GetUserBlocks).reportedBy[0].on).to.equal(now);
@@ -289,7 +307,8 @@ describe('GET /admin/blocks/:username', () => {
     describe('response.reports', () => {
         it('is an array', (done) => {
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).reports, 'response.reports').to.be.an('array');
                     done();
@@ -299,7 +318,8 @@ describe('GET /admin/blocks/:username', () => {
             createStubsForGetIndexEventsForReports();
 
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).reports[0].username, 'response.reports[0].username').to.not.be.equal(USERNAME);
                     done();
@@ -309,7 +329,8 @@ describe('GET /admin/blocks/:username', () => {
             createStubsForGetIndexEventsForReports();
 
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).reports[0]).to.have.own.property('username');
                     done();
@@ -319,7 +340,8 @@ describe('GET /admin/blocks/:username', () => {
             createStubsForGetIndexEventsForReports();
 
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).reports[0]).to.have.own.property('on');
                     expect((res?.body as GetUserBlocks).reports[0].on).to.equal(now);
@@ -331,7 +353,8 @@ describe('GET /admin/blocks/:username', () => {
     describe('response.blocks', () => {
         it('is an array', (done) => {
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).blocks, 'response.blocks').to.be.an('array');
                     done();
@@ -341,7 +364,8 @@ describe('GET /admin/blocks/:username', () => {
             createStubsForGetIndexEventsForBlocks();
 
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).blocks[0].username, 'response.blocks[0].username').to.not.be.equal(USERNAME);
                     done();
@@ -351,7 +375,8 @@ describe('GET /admin/blocks/:username', () => {
             createStubsForGetIndexEventsForBlocks();
 
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).blocks[0]).to.have.own.property('username');
                     done();
@@ -361,7 +386,8 @@ describe('GET /admin/blocks/:username', () => {
             createStubsForGetIndexEventsForBlocks();
 
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).blocks[0]).to.have.own.property('on');
                     expect((res?.body as GetUserBlocks).blocks[0].on).to.equal(now);
@@ -372,7 +398,8 @@ describe('GET /admin/blocks/:username', () => {
             createStubsForGetIndexEventsForBlocksWithUnblock();
 
             superagent
-                .get(endpoint(`/admin/blocks/${USERNAME}?secret=1`))
+                .get(endpoint(`/admin/blocks/${USERNAME}`))
+                .query({ secret: process.env.API_SECRET })
                 .end((_err, res) => {
                     expect((res?.body as GetUserBlocks).blocks.length).to.equal(0);
                     done();

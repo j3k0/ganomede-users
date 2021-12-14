@@ -51,7 +51,7 @@ const getBlocksApis = (createIndexRequest: CreateIndexRequest,
 
         //checking secret, cause its mandatory
         const { secret } = req.query;
-        if (secret === null || secret === undefined || secret === '') {
+        if (secret === null || secret === undefined || secret === '' || secret !== process.env.API_SECRET) {
             return next(new restifyErrors.ForbiddenError("Secret is not provided"));
         }
 

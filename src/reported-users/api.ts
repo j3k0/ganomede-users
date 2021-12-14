@@ -11,9 +11,9 @@ import { CHANNEL } from '../blocked-users/events';
 
 const reportedUsersApi = (latestEvent: LatestEvents | null, processReportedUsers: ProcessReportedUsers | null) =>
     (req: restify.Request, res: restify.Response, next: restify.Next) => {
-        const secret = req.params.secret;
-        if (secret === null || secret === undefined || secret === '') {
-            return next(new restifyErrors.InternalServerError("Secret is not provided"));
+        const secret = req.query.secret;
+        if (secret === null || secret === undefined || secret === '' || secret !== process.env.API_SECRET) {
+            return next(new restifyErrors.ForbiddenError("Secret is not provided"));
         }
 
         latestEvent!(CHANNEL, config.reportedUsersApiConfig.numEventsToProcess, (err: Error | null, data: any) => {
