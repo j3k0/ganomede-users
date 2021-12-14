@@ -38,7 +38,7 @@ export const createReportedUsersProcessor = (log: Logger, bans: Bans) => (secret
 
     //mapping the object to array of { target: string, total: number } for easy sorting.
     var reportedUsersArray: UserReports[] = Object.keys(groupedUserReported).map((key) => { return { target: key, total: groupedUserReported[key] }; });
-
+    
     //sorting the array descending by the total reports.
     //we have now a sorted array [{username, totalReports}]
     reportedUsersArray = reportedUsersArray.sort((a, b) => b.total - a.total);

@@ -93,7 +93,7 @@ let directoryClient: DirectoryClient | undefined = undefined;
 let storeFacebookFriends: (options: any) => void | null;
 let sendEvent: EventSender | null = null;
 let eventsLatest: LatestEvents | null = null;
-let procReportedUsers: ProcessReportedUsers | null = null;
+let processReportedUsers: ProcessReportedUsers | null = null;
 
 // backend, once initialized
 let backend: any = null;
@@ -323,8 +323,6 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
 
   sendEvent = options.sendEvent ?? eventSender.createSender();
   eventsLatest = eventLatest.createLatestEventsClient();
-  procReportedUsers = createReportedUsersProcessor(log, bans);
-
 
   authdbClient = options.authdbClient ?? ganomedeDirectory.createAuthdbClient({
     jsonClient: directoryJsonClient, log, apiSecret
@@ -361,7 +359,7 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
   });
 
   bans = options.bans ?? new Bans({ usermetaClient: centralUsermetaClient });
-
+  processReportedUsers = createReportedUsersProcessor(log, bans);
 
   // Aliases
   aliasesClient = aliases.createClient({
@@ -543,7 +541,7 @@ const addRoutes = function (prefix: string, server: restify.Server): void {
 
 
 
-  reportedUsersApi.addRoutes(prefix, eventsLatest, procReportedUsers, server);
+  reportedUsersApi.addRoutes(prefix, eventsLatest, processReportedUsers, server);
 
   server.post(`/${prefix}/banned-users`,
     jsonBody, validateSecret, bodyTag, banAdd);
