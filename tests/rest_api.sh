@@ -106,7 +106,7 @@ it "[POST /auth/:token/reported-users] reports a user"
     outputIncludes '"roger"'
 
 it "[GET /users/v1/reported-users] returns recently reported users"
-    CURL $PREFIX/admin/reported-users?secret=$API_SECRET
+    CURL $PREFIX/reported-users?secret=$API_SECRET
     outputIncludes '"roger"'
 
 it "[GET  /auth/:token/blocked-users] returns blocked users"
