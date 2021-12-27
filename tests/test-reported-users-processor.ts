@@ -43,6 +43,16 @@ const blockedEvent3: Event = {
     from: 'user2'
 };
 
+const blockedEvent4: Event = {
+    req_id: '3',
+    type: REPORTED,
+    data: {
+        req_id: '3',
+        username: 'user2',
+        target: 'user1'
+    },
+    from: 'user2'
+};
 
 const blockedEventsArray: Event[] = Array.from(
     { length: 10000 },
@@ -120,6 +130,16 @@ describe('reported-users-processor', () => {
         eventsProcessor!("1", blockedEventsArray, (error, results: UserReports[] | null) => {
             expect(error).to.be.equal(null);
             expect(results?.length).to.be.eql(config.reportedUsersApiConfig.maxReturnedUsers);
+            done();
+        });
+    });
+
+    it('return only distinct users', (done) => {
+        td.when(bans!.getBulk(td.matchers.anything(), td.callback)).thenCallback(null, {});
+        eventsProcessor!("1", [blockedEvent1, blockedEvent2, blockedEvent3, blockedEvent4], (error, results: UserReports[] | null) => {
+            expect(error).to.be.equal(null);
+            expect(results?.length).to.be.eql(2);
+            expect(results).to.be.eql([{ target: 'user2', total: 2 }, { target: 'user1', total: 1 }]);
             done();
         });
     });
