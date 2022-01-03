@@ -18,6 +18,12 @@ describe("aliases", function() {
       set(username, key, value, cb) {
         this.meta[`${username}:${key}`] = value;
         return cb(null);
+      },
+      getBulk(username, keys, cb) {
+        return cb(null, null); //TODO
+      },
+      setBulk(username, keyValues, cb) {
+        return cb(null, null); //TODO
       }
     };
     aliasesClient = aliases.createClient({

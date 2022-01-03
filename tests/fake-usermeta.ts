@@ -1,9 +1,11 @@
-import { UsermetaClientOptions, UsermetaClientCallback, SimpleUsermetaClient } from "../src/usermeta";
+import { UsermetaClientOptions, UsermetaClientCallback, SimpleUsermetaClient, UsermetaClientBulkOptions, UsermetaClientBulkCallback, KeyValue, BulkedUsermetaClient } from "../src/usermeta";
+import async from 'async';
 
 const DEFAULT_MAX_LENGTH = 200;
-class FakeUsermetaClient implements SimpleUsermetaClient {
+class FakeUsermetaClient extends BulkedUsermetaClient implements SimpleUsermetaClient {
   store: any;
   constructor() {
+    super();
     this.store = {};
   }
   set(params:UsermetaClientOptions|string, key:string, value:string, cb:UsermetaClientCallback, maxLength?:number): void {

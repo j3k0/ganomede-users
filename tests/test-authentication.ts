@@ -22,8 +22,8 @@ const createTestable = function() {
 
   const authdbClient = td.object([ 'addAccount' ]) as AuthdbClient;
 
-  const localUsermetaClient = td.object([ 'get', 'set' ]);
-  const centralUsermetaClient = td.object([ 'get', 'set' ]);
+  const localUsermetaClient = td.object(['get', 'set', 'getBulk', 'setBulk']);
+  const centralUsermetaClient = td.object(['get', 'set', 'getBulk', 'setBulk']);
 
   const authenticator = authentication.createAuthenticator({
     authdbClient, localUsermetaClient, centralUsermetaClient,

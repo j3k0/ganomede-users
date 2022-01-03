@@ -16,9 +16,10 @@ import validator from './validator';
 import { AuthdbClient } from "./authentication";
 import { DirectoryClient } from "./directory-client";
 import { Request, Response } from "restify";
-import { callback } from "testdouble";
 import { jsonClientRetry } from "./json-client-retry";
 import Logger from "bunyan";
+import async from 'async';
+import { syncBuiltinESMExports } from "module";
 
 export interface UsermetaClientOptions {
   username: string;
@@ -31,20 +32,78 @@ export interface UsermetaClientOptions {
   log?: Logger;
 }
 
+export type KeyValue = { key: string, value: string };
+
 export interface UsermetaClientBulkOptions extends UsermetaClientOptions {
   usernames: string[];
 };
 
 export type UsermetaClientCallback = (err: Error | null, reply?: string | null) => void;
-export type UsermetaClientBulkCallback = (err: Error | null, reply?: object[] | null) => void;
+export type UsermetaClientBulkCallback = (err: Error | null, reply?: object[] | null | string) => void;
 
 export interface SimpleUsermetaClient {
-  set: (params:UsermetaClientOptions|string, key:string, value:string, callback:UsermetaClientCallback, maxLength?:number) => void;
-  get: (params:UsermetaClientOptions|string, key:string, callback:UsermetaClientCallback) => void;
+  set: (params: UsermetaClientOptions | string, key: string, value: string, callback: UsermetaClientCallback, maxLength?: number) => void;
+  get: (params: UsermetaClientOptions | string, key: string, callback: UsermetaClientCallback) => void;
+  getBulk: (pparams: UsermetaClientBulkOptions | string, keys: string[], cb: UsermetaClientBulkCallback) => void;
+  setBulk: (pparams: UsermetaClientBulkOptions | string, keyValues: KeyValue[], cb: UsermetaClientBulkCallback) => void;
 };
 
-export interface BulkedUsermetaClient extends SimpleUsermetaClient {
-  getBulk: (params: UsermetaClientBulkOptions | string, key: string[], callback: UsermetaClientBulkCallback) => void;
+export class BulkedUsermetaClient {
+  getBulk(pparams: UsermetaClientBulkOptions | string, keys: string[], cb: UsermetaClientBulkCallback) {
+    let tasks: any[] = [];
+    let userNames: string[] = [];
+    if (typeof pparams === 'object' && (pparams as UsermetaClientBulkOptions).usernames.length > 0) {
+      userNames = (pparams as UsermetaClientBulkOptions).usernames;
+    } else {
+      userNames = [(pparams as string)];
+    }
+    userNames.forEach((username) => {
+      let clonedParams: any;
+      if (typeof pparams === 'object') {
+        clonedParams = Object.assign({}, pparams);
+        clonedParams.username = username;
+      } else
+        clonedParams = username.toString();
+
+      keys.forEach((key) => {
+
+        tasks.push(cb2 => this['get'](clonedParams, key, (err: Error | null, reply?: string | null) => {
+
+          if (err) {
+            return cb2(err, { username, key, value: '' });
+          }
+          cb2(err, { username, key, value: reply });
+        }))
+      });
+    });
+
+    async.parallel(tasks, (err, data) => {
+      if (err) {
+        cb(err, []);
+      }
+      else {
+        //make the 2 levels array to 1 level => [[], [], []] => []
+        let oneLevelArray = (data as any[][])?.flat();
+        cb(null, oneLevelArray);
+      }
+    });
+  }
+  setBulk(pparams: UsermetaClientBulkOptions | string, keyValues: KeyValue[], cb: UsermetaClientBulkCallback) {
+    let tasks: any[] = [];
+    keyValues.forEach((kv) => {
+      tasks.push(cb2 => this['set'](pparams, kv.key, kv.value, cb2))
+    });
+    async.parallel(tasks, (err, data) => {
+      if (err) {
+        cb(err, null);
+      }
+      else {
+        //make the 2 levels array to 1 level => [[], [], []] => []
+        let oneLevelArray = (data as any[][])?.flat();
+        cb(null, oneLevelArray);
+      }
+    });
+  }
 }
 
 export interface RestrictedUsermetaClient extends SimpleUsermetaClient {
@@ -57,7 +116,7 @@ export interface ProtectedUsermetaClient extends RestrictedUsermetaClient {
   isWriteOnly(key: string): boolean;
 };
 
-export type UsermetaClient = SimpleUsermetaClient | BulkedUsermetaClient | RestrictedUsermetaClient | ProtectedUsermetaClient;
+export type UsermetaClient = SimpleUsermetaClient | /*BulkedUsermetaClient |*/ RestrictedUsermetaClient | ProtectedUsermetaClient;
 
 const DEFAULT_MAX_LENGTH:number = 1000;
 
@@ -67,10 +126,11 @@ const parseParams = function (obj: UsermetaClientOptions | UsermetaClientBulkOpt
       username: obj
     };
   }
-  else if (obj.hasOwnProperty('usernames') && (obj as UsermetaClientBulkOptions).usernames !== undefined) {
+  /*else if (obj.hasOwnProperty('usernames') && (obj as UsermetaClientBulkOptions).usernames !== undefined &&
+    (obj as UsermetaClientBulkOptions).usernames.length > 0) {
     obj.username = (obj as UsermetaClientBulkOptions).usernames.join(',');
     return obj as UsermetaClientOptions;
-  } else {
+  }*/ else {
     return obj as UsermetaClientOptions;
   }
 };
@@ -245,7 +305,7 @@ var directory = {
 };
 
 // Stores "protected" metadata as directory account aliases
-class DirectoryAliasesProtected implements ProtectedUsermetaClient {
+class DirectoryAliasesProtected extends BulkedUsermetaClient implements ProtectedUsermetaClient {
 
   type: string;
   directoryClient: DirectoryClient;
@@ -254,7 +314,8 @@ class DirectoryAliasesProtected implements ProtectedUsermetaClient {
     [key: string]: boolean;
   };
 
-  constructor(directoryClient:DirectoryClient, authdbClient:AuthdbClient) {
+  constructor(directoryClient: DirectoryClient, authdbClient: AuthdbClient) {
+    super();
     this.directoryClient = directoryClient;
     this.authdbClient = authdbClient;
     this.validKeys = {
@@ -305,7 +366,7 @@ class DirectoryAliasesProtected implements ProtectedUsermetaClient {
 }
 
 // Stores "public" metadata as directory account aliases
-class DirectoryAliasesPublic {
+class DirectoryAliasesPublic extends BulkedUsermetaClient implements SimpleUsermetaClient {
 
   type: string;
   directoryClient: DirectoryClient;
@@ -314,7 +375,8 @@ class DirectoryAliasesPublic {
     [key: string]: boolean;
   };
 
-  constructor(directoryClient:DirectoryClient, authdbClient:AuthdbClient) {
+  constructor(directoryClient: DirectoryClient, authdbClient: AuthdbClient) {
+    super();
     this.directoryClient = directoryClient;
     this.authdbClient = authdbClient;
     this.validKeys = {name: true, tag: true, username: true};
@@ -354,7 +416,7 @@ class DirectoryAliasesPublic {
 }
 
 // Stores "public" metadata in redis
-class RedisUsermeta implements RestrictedUsermetaClient {
+class RedisUsermeta extends BulkedUsermetaClient implements RestrictedUsermetaClient {
 
   type: string;
   validKeys?: {
@@ -363,6 +425,7 @@ class RedisUsermeta implements RestrictedUsermetaClient {
   redisClient: RedisClient;
 
   constructor(redisClient: RedisClient) {
+    super();
     this.redisClient = redisClient;
     this.type = "RedisUsermeta";
     this.validKeys = undefined;
@@ -432,12 +495,13 @@ const authPath = function(params:UsermetaClientOptions):string {
 
 // Stores metadata in ganomede-usermeta
 // ganomede-usermeta server will take care of key validation
-class GanomedeUsermeta implements BulkedUsermetaClient {
+class GanomedeUsermeta extends BulkedUsermetaClient implements SimpleUsermetaClient {
 
   jsonClient: any;
   type: string;
 
   constructor(jsonClient) {
+    super();
     this.jsonClient = jsonClient;
     this.type = "GanomedeUsermeta";
   }
@@ -465,13 +529,17 @@ class GanomedeUsermeta implements BulkedUsermetaClient {
     });
   }
 
-  prepareGet(pparams: string | UsermetaClientOptions | UsermetaClientBulkOptions, key: string[]) {
+  prepareGet(pparams: string | UsermetaClientOptions | UsermetaClientBulkOptions, keys: string[]) {
+    if (typeof pparams === 'object' && pparams.hasOwnProperty('usernames') && (pparams as UsermetaClientBulkOptions).usernames !== undefined &&
+      (pparams as UsermetaClientBulkOptions).usernames.length > 0) {
+      (pparams as UsermetaClientBulkOptions).username = (pparams as UsermetaClientBulkOptions).usernames.join(',');
+    }
     const params = parseParams(pparams);
-    const keys = key.join(',');
+    const keyString = keys.join(',');
     const url = this.jsonClient.url;
     const options = {
       ...jsonOptions({
-        path: authPath(params) + `/${encodeURIComponent(keys)}`,
+        path: authPath(params) + `/${encodeURIComponent(keyString)}`,
         req_id: params.req_id
       }),
       log: log.child({ req_id: params.req_id, url })
@@ -497,8 +565,8 @@ class GanomedeUsermeta implements BulkedUsermetaClient {
     );
   }
 
-  getBulk(pparams: UsermetaClientBulkOptions | string, key: string[], cb: UsermetaClientBulkCallback) {
-    const { params, url, options } = this.prepareGet(pparams, key);
+  getBulk(pparams: UsermetaClientBulkOptions | string, keys: string[], cb: UsermetaClientBulkCallback) {
+    const { params, url, options } = this.prepareGet(pparams, keys);
 
     jsonClientRetry(this.jsonClient).get(
       options,
@@ -507,23 +575,57 @@ class GanomedeUsermeta implements BulkedUsermetaClient {
           log.error({ err, url, options, body, req_id: params.req_id }, "GanomedeUsermeta.getBulk failed");
           cb(err, null);
         } else {
-          const userNames = params.username.split(',');
-          let result : object[] = [];
+          const userNames = params.username.split(',').filter(x => x);
+          let result: object[] = [];
           userNames.forEach((name) => {
             const metadata: object = body ? body[params.username] : {};
             metadata['username'] = name;
             if (metadata) {
-              key.forEach((k) => {
+              keys.forEach((k) => {
                 metadata[k] = metadata[k] || null;
               })
             }
             result.push(metadata);
           });
+          //format final result to be [{username, key, value}]
+          let finalResult: object[] = [];
+          result.forEach((x) => {
+            let _username = x['username'];
+            Object.keys(x).filter((m) => { return m !== 'username' }).forEach((kk) => {
+              finalResult.push({ username: _username, key: kk, value: x[kk] });
+            });
+          });
 
-          cb(err, result ? result : null);
+          cb(err, finalResult ? finalResult : null);
         }
       }
     );
+  }
+
+  setBulk(pparams: UsermetaClientBulkOptions | string, keyValues: KeyValue[], cb: UsermetaClientBulkCallback) {
+    const params = parseParams(pparams);
+    const { url } = this.jsonClient;
+    const options = {
+      ...jsonOptions({
+        path: authPath(params),
+        req_id: params.req_id,
+      }),
+      log: log.child({ req_id: params.req_id, url })
+    };
+    const body = {};
+    keyValues.forEach((kv) => { body[kv.key] = kv.value });
+    jsonClientRetry(this.jsonClient).post(options, body, function (err: HttpError | null | undefined, _req, _res, body: string | null | undefined) {
+      if (err) {
+        log.error({
+          req_id: params.req_id,
+          err, url, options, body, keyValues
+        },
+          "GanomedeUsermeta.multipost failed");
+        return cb(err, null);
+      } else {
+        return cb(null, "OK");
+      }
+    });
   }
 }
 
@@ -545,7 +647,7 @@ interface UsermetaRouterOptions {
 //  - 'country' -> GanomedeUsermeta.Central
 //  - 'yearofbirth' -> GanomedeUsermeta.Central
 //  - * -> GanomedeUsermeta.Local
-class UsermetaRouter {
+class UsermetaRouter extends BulkedUsermetaClient implements SimpleUsermetaClient {
 
   type: string;
   directoryPublic: any;
@@ -560,6 +662,7 @@ class UsermetaRouter {
     ganomedeCentral,
     ganomedeLocal
   }: UsermetaRouterOptions) {
+    super();
     this.directoryPublic = directoryPublic;
     this.directoryProtected = directoryProtected;
     this.ganomedeCentral = ganomedeCentral;
@@ -587,6 +690,112 @@ class UsermetaRouter {
     const client = this.routes[key] || this.ganomedeLocal;
     return client.get(params, key, cb);
   }
+
+  getTasksForBulk(params: UsermetaClientBulkOptions | string, keys: string[], buildTask: (clientObj, _keys: string[]) => any[]): any[] {
+    let clients = {};
+    //sorting keys as per the client from routes.
+    //grouping each clients with its own keys.
+    keys.forEach((key) => {
+      const client = this.routes[key] || this.ganomedeLocal;
+      const clientType = client.type;
+      if (!clients[clientType]) {
+        clients[clientType] = {};
+        clients[clientType].keys = [];
+        clients[clientType].client = client;
+      }
+      clients[clientType].keys.push(key);
+    });
+
+    let tasks: any[] = [];
+    //generate the tasks for parallel
+    Object.keys(clients).forEach((clientType: string) => {
+      const clientObj = clients[clientType];
+      const _keys: string[] = clientObj.keys;
+      const _client = clientObj.client;
+      tasks = tasks.concat(buildTask(_client, _keys));
+    });
+    return tasks;
+  }
+
+  getBulk(params: UsermetaClientBulkOptions | string, keys: string[], cb: UsermetaClientBulkCallback) {
+    //generate tasks for get.
+    if (keys.length === 0)
+      return cb(null, []);
+    const tasks: any[] = this.getTasksForBulk(params, keys, (_client, _keys) => {
+      let _tasks: any[] = [];
+      //if getBulk method exists on this client ..  then we call getbulk method => and passing the keys
+      //related.
+      if (_client.getBulk) {
+        _tasks.push(cb1 => _client.getBulk(params, _keys, cb1));
+      }
+      else {
+        //else we loop over the keys => and we will create tasks based for each key => client =>call for key.
+        _keys.forEach((key: string) => {
+          _tasks.push(cb1 => _client.get(params, key, (err: Error | null, reply?: string | null) => {
+            if (err) {
+              return cb1(err, reply);
+            }
+            cb1(err, { key, value: reply });
+          }));
+        });
+      }
+      return _tasks;
+    });
+
+    async.parallel(tasks, (err, data) => {
+      if (err) {
+        cb(err, null);
+      }
+      else {
+        //make the 2 levels array to 1 level => [[], [], []] => []
+        let oneLevelArray = (data as any[][])?.flat();
+        cb(null, oneLevelArray);
+      }
+    });
+  }
+  setBulk(pparams: UsermetaClientBulkOptions | string, keyValues: KeyValue[], cb: UsermetaClientBulkCallback) {
+    if (keyValues.length === 0)
+      return cb(null, 'OK');
+    //get list of keys from keyvalue pair.
+    const keys = keyValues.map((i) => i.key);
+    //generate tasks for set.
+    const tasks: any[] = this.getTasksForBulk(pparams, keys, (_client, _keys) => {
+      let _tasks: any[] = [];
+      // if setBulk method exists on this client ..  then we call setbulk method => and passing the keys
+      // and valuesrelated.
+      if (_client.setBulk) {
+        const values = keyValues.filter((x) => _keys.includes(x.key));
+        _tasks.push(cb1 => _client.setBulk(pparams, values, cb1));
+      }
+      else {
+        //else we loop over the keys => and we will create tasks based for each key => client =>call for key/value.
+        _keys.forEach((key: string) => {
+          const val = keyValues.filter((x) => x.key == key)[0].value;
+          _tasks.push(cb1 => _client.set(pparams, key, val, cb1));
+        });
+      }
+      return _tasks;
+    });
+
+    async.parallel(tasks, (err, data) => {
+      if (err) {
+        cb(err, null);
+      }
+      else {
+        //make the 2 levels array to 1 level => [[], [], []] => []
+        let oneLevelArray = (data as any[][])?.flat();
+        cb(null, oneLevelArray);
+      }
+    });
+  }
+
+  // getBulk(usernames: string[], keys: string[], cb: UsermetaClientCallback) {
+
+  // }
+
+  // setBulk(usernames: string[], keys: string[], cb: UsermetaClientCallback) {
+
+  // }
 }
 
 export default {

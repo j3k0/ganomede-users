@@ -28,6 +28,12 @@ describe("friends", function() {
         this.meta[`${username}:${key}`] = value;
         this.meta[`${username}:${key}:maxLength`] = maxLength;
         return cb(null);
+      },
+      getBulk(username, keys, cb) {
+        return cb(null, null); //TODO
+      },
+      setBulk(username, keyValues, cb) {
+        return cb(null, null); //TODO
       }
     };
     friendsClient = friendsStore.createClient({

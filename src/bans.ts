@@ -74,10 +74,20 @@ export class Bans {
     return this.usermetaClient.getBulk(pparams, [this.prefix], function (err, reply) {
       if (err) {
         return cb(err);
-      } 
-      let banInfos: {[key:string]: BanInfo} = {};
+      }
+      let banInfos: { [key: string]: BanInfo } = {};
+      let tempObj = {};
+      //format reply object from [{username, key, value}] to {username, key:value}
+      reply.forEach(elem => {
+        if (!tempObj[elem.username]) {
+          tempObj[elem.username] = {};
+          tempObj[elem.username]['username'] = elem.username;
+        }
+        tempObj[elem.username][elem.key] = elem.value;
+      });
+      reply = Object.keys(tempObj).map((k) => { return tempObj[k] });
       reply?.forEach((obj) => {
-        if(obj !== null){
+        if (obj !== null) {
           const info = new BanInfo(obj['username'], obj);
           banInfos[obj['username']] = info;
         }
