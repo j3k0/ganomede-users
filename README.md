@@ -535,4 +535,22 @@ Missing or unknown keys, and those you are not allowed to read will be omitted (
 If the key doesn't exist or cannot be accessed, it will be omitted from the result.
 
 ---
+
+
+## POST /users/v1/admin/user-reviews
+
+Create an event that indicates that the user has been reviewed in the "blocked-users" channel.
+
+- Type: "USER_REVIEW"
+- The action taken: `data.action = "CLEAN"`
+
+
+### body (application/json)
+
+    { 
+        "username": "user1"
+    }
+
+### response [200] OK
+---
  
