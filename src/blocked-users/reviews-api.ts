@@ -4,6 +4,12 @@ import restifyErrors from "restify-errors";
 import { EventSender } from "../event-sender";
 import { CHANNEL, USER_REVIEW, eventData } from "./events";
 
+const sendDataReview = (sendEvent: EventSender, req: Request, username: string, action: string) => {
+    let data = eventData(req.id(), '$$', username);
+    data.action = action;
+    sendEvent(CHANNEL, USER_REVIEW, data);
+}
+
 const addUserReview = (sendEvent: EventSender) => (req: Request, res: Response, next: Next) => {
 
     //checking secret, cause its mandatory
@@ -18,10 +24,7 @@ const addUserReview = (sendEvent: EventSender) => (req: Request, res: Response, 
         return next(new restifyErrors.InvalidContentError("Username is not provided"));
     }
 
-    let data = eventData(req.id(), '$$', username);
-    data.action = "CLEAN";
-
-    sendEvent(CHANNEL, USER_REVIEW, data);
+    sendDataReview(sendEvent, req, username, "CLEAN");
 
     res.send("OK");
     next();
@@ -32,4 +35,4 @@ export function addRoutes(prefix: string, server: Server, sendEvent: EventSender
     server.post(`/${prefix}/admin/user-reviews`, addUserReview(sendEvent));
 }
 
-export default { addRoutes };
+export default { addRoutes, sendDataReview };
