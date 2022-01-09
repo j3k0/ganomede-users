@@ -504,7 +504,7 @@ const validateSecret = function (req, res, next) {
   }
 };
 
-const banAdd = function (req, res, next) {
+const banAdd = function (req: Request, res: Response, next: Next) {
   const params = {
     username: req.body.username,
     apiSecret: req.body.apiSecret
@@ -514,6 +514,8 @@ const banAdd = function (req, res, next) {
       log.error('banAdd() failed', { err, username: params.username });
       return next(err);
     }
+
+    postUserReviews.sendDataReview(deferredEvents.sendEvent, req, req.body.username, "BAN");
 
     res.send(200);
     return next();
