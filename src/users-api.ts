@@ -45,6 +45,7 @@ import reportedUsersApi from './reported-users/api';
 import { createReportedUsersProcessor, ProcessReportedUsers } from './reported-users/events-processor';
 import getBlocksApi from './blocked-users/get-blocks-api';
 import postUserReviews from './blocked-users/reviews-api';
+import { EmailConfirmation } from './email-confirmation/api';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -67,6 +68,7 @@ export interface UsersApiOptions {
   // storeFacebookFriends: (options: any) => void | null;
   // sendEvent: EventSender|null;
   createBackend?: (options: BackendOptions) => BackendInitializer;
+  mailer?: any;
 };
 
 const stats = statsdWrapper.createClient();
@@ -96,6 +98,7 @@ let storeFacebookFriends: (options: any) => void | null;
 let sendEvent: EventSender | null = null;
 let eventsLatest: LatestEvents | null = null;
 let processReportedUsers: ProcessReportedUsers | null = null;
+let emailConfirmation: EmailConfirmation | null = null;
 
 // backend, once initialized
 let backend: any = null;
@@ -137,6 +140,10 @@ const createAccount = function (req, res, next) {
       });
       if (typeof metadata !== 'object') {
         metadata = {};
+      }
+
+      if (!emails.isGuestEmail(account.email) && !emails.isNoEmail(account.email)) {
+        emailConfirmation?.sendEmailConfirmation(params, account.username, account.email);
       }
 
       // Make sure aliases are not set (createAccount already did)
@@ -261,6 +268,9 @@ const postMetadata = function (req, res, next) {
         err,
         reply
       });
+    } else if (key === 'email' && req.params.user.email &&
+      !emails.isGuestEmail(value) && !emails.isNoEmail(value)) {
+      emailConfirmation?.sendEmailConfirmation(params, params.username, value, true);
     }
     res.send({ ok: !err });
     return next();
@@ -417,6 +427,13 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
 
   bans = options.bans ?? new Bans({ usermetaClient: centralUsermetaClient });
   processReportedUsers = createReportedUsersProcessor(log, bans);
+  emailConfirmation = new EmailConfirmation(centralUsermetaClient!,
+    options.mailer ? options.mailer.createTransport() : mailer.createTransport(),
+    mailTemplate.createTemplate({
+      subject: process.env.MAILER_SEND_SUBJECT,
+      text: process.env.MAILER_SEND_TEXT,
+      html: process.env.MAILER_SEND_HTML
+    }));
 
   // Aliases
   aliasesClient = aliases.createClient({
@@ -634,6 +651,9 @@ const addRoutes = function (prefix: string, server: restify.Server): void {
   // Change multiple users' custom data.
   server.post(`/${prefix}/auth/:authToken/multi/metadata`,
     jsonBody, authMiddleware, postMultiMetadata);
+
+  server.post(`/${prefix}/auth/:authToken/confirm-email`,
+    jsonBody, authMiddleware, emailConfirmation!.confirmEmailCode);
 
   friendsApi?.addRoutes(prefix, server);
   blockedUsersApi?.addRoutes(prefix, server);

@@ -554,3 +554,29 @@ Create an event that indicates that the user has been reviewed in the "blocked-u
 ### response [200] OK
 ---
  
+
+## POST /users/v1/auth/:authToken/confirm-email
+
+confirm user's email by sending to this endpoint in 2 cases only:
+- on user account creation
+- on email change.
+
+then the usermeta will be updated by a new key "ConfirmedOn" will contains timestamps for each email confirmed (timestamp will be confirmed time):
+
+the user token is required.
+
+```
+{
+    'alice@test.com': 12334235492, 
+    'alice2@test.com': 12343424242
+}
+```
+
+### body (application/json)
+
+    { 
+        "accessCode": "234354"
+    }
+
+### response [200] OK
+---
