@@ -51,7 +51,11 @@ export interface SimpleUsermetaClient {
   setBulk: (pparams: UsermetaClientBulkOptions | string, keyValues: KeyValue[], cb: UsermetaClientBulkCallback) => void;
 };
 
-export class BulkedUsermetaClient {
+export abstract class BulkedUsermetaClient {
+
+  abstract set(params: UsermetaClientOptions | string, key: string, value: string, callback: UsermetaClientCallback, maxLength?: number): void
+  abstract get(params: UsermetaClientOptions | string, key: string, callback: UsermetaClientCallback): void;
+
   getBulk(pparams: UsermetaClientBulkOptions | string, keys: string[], cb: UsermetaClientBulkCallback) {
     let tasks: AsyncFunction<StringOrObject, Error | null>[] = [];
     let userNames: string[] = [];
@@ -70,7 +74,7 @@ export class BulkedUsermetaClient {
 
       keys.forEach((key) => {
 
-        tasks.push(cb2 => (this as unknown as SimpleUsermetaClient).get(clonedParams, key, (err: Error | null, reply?: string | null) => {
+        tasks.push(cb2 => this.get(clonedParams, key, (err: Error | null, reply?: string | null) => {
 
           if (err) {
             return cb2(err, { username, key, value: '' });
@@ -93,7 +97,7 @@ export class BulkedUsermetaClient {
   }
   setBulk(pparams: UsermetaClientBulkOptions | string, keyValues: KeyValue[], cb: UsermetaClientBulkCallback) {
     const tasks: AsyncFunction<string | null | undefined, Error | null>[] = keyValues.map((kv) =>
-      (cb2 => (this as unknown as SimpleUsermetaClient).set(pparams, kv.key, kv.value, cb2)));
+      (cb2 => this.set(pparams, kv.key, kv.value, cb2)));
 
     async.parallel(tasks, (err, data) => {
       if (err) {
