@@ -18,8 +18,7 @@ import { DirectoryClient } from "./directory-client";
 import { Request, Response } from "restify";
 import { jsonClientRetry } from "./json-client-retry";
 import Logger from "bunyan";
-import async from 'async';
-import { syncBuiltinESMExports } from "module";
+import async, { AsyncFunction } from 'async';
 
 export interface UsermetaClientOptions {
   username: string;
@@ -33,6 +32,9 @@ export interface UsermetaClientOptions {
 }
 
 export type KeyValue = { key: string, value: string };
+export type StringOrObject = string | object | null;
+export type BuildTask = AsyncFunction<StringOrObject, Error | null>;
+export type BuildTaskCallback = (clientObj, _keys: string[]) => BuildTask[];
 
 export interface UsermetaClientBulkOptions extends UsermetaClientOptions {
   usernames: string[];
@@ -42,6 +44,7 @@ export type UsermetaClientCallback = (err: Error | null, reply?: string | null) 
 export type UsermetaClientBulkCallback = (err: Error | null, reply?: object[] | null | string) => void;
 
 export interface SimpleUsermetaClient {
+  type: string;
   set: (params: UsermetaClientOptions | string, key: string, value: string, callback: UsermetaClientCallback, maxLength?: number) => void;
   get: (params: UsermetaClientOptions | string, key: string, callback: UsermetaClientCallback) => void;
   getBulk: (pparams: UsermetaClientBulkOptions | string, keys: string[], cb: UsermetaClientBulkCallback) => void;
@@ -50,7 +53,7 @@ export interface SimpleUsermetaClient {
 
 export class BulkedUsermetaClient {
   getBulk(pparams: UsermetaClientBulkOptions | string, keys: string[], cb: UsermetaClientBulkCallback) {
-    let tasks: any[] = [];
+    let tasks: AsyncFunction<StringOrObject, Error | null>[] = [];
     let userNames: string[] = [];
     if (typeof pparams === 'object' && (pparams as UsermetaClientBulkOptions).usernames.length > 0) {
       userNames = (pparams as UsermetaClientBulkOptions).usernames;
@@ -58,7 +61,7 @@ export class BulkedUsermetaClient {
       userNames = [(pparams as string)];
     }
     userNames.forEach((username) => {
-      let clonedParams: any;
+      let clonedParams: UsermetaClientBulkOptions | string;
       if (typeof pparams === 'object') {
         clonedParams = Object.assign({}, pparams);
         clonedParams.username = username;
@@ -67,7 +70,7 @@ export class BulkedUsermetaClient {
 
       keys.forEach((key) => {
 
-        tasks.push(cb2 => this['get'](clonedParams, key, (err: Error | null, reply?: string | null) => {
+        tasks.push(cb2 => (this as unknown as SimpleUsermetaClient).get(clonedParams, key, (err: Error | null, reply?: string | null) => {
 
           if (err) {
             return cb2(err, { username, key, value: '' });
@@ -83,24 +86,23 @@ export class BulkedUsermetaClient {
       }
       else {
         //make the 2 levels array to 1 level => [[], [], []] => []
-        let oneLevelArray = (data as any[][])?.flat();
+        let oneLevelArray = (data as object[][])?.flat();
         cb(null, oneLevelArray);
       }
     });
   }
   setBulk(pparams: UsermetaClientBulkOptions | string, keyValues: KeyValue[], cb: UsermetaClientBulkCallback) {
-    let tasks: any[] = [];
-    keyValues.forEach((kv) => {
-      tasks.push(cb2 => this['set'](pparams, kv.key, kv.value, cb2))
-    });
+    const tasks: AsyncFunction<string | null | undefined, Error | null>[] = keyValues.map((kv) =>
+      (cb2 => (this as unknown as SimpleUsermetaClient).set(pparams, kv.key, kv.value, cb2)));
+
     async.parallel(tasks, (err, data) => {
       if (err) {
         cb(err, null);
       }
       else {
         //make the 2 levels array to 1 level => [[], [], []] => []
-        let oneLevelArray = (data as any[][])?.flat();
-        cb(null, oneLevelArray);
+        //let oneLevelArray = (data as string[])?.flat();
+        cb(null, "OK");
       }
     });
   }
@@ -691,13 +693,13 @@ class UsermetaRouter extends BulkedUsermetaClient implements SimpleUsermetaClien
     return client.get(params, key, cb);
   }
 
-  getTasksForBulk(params: UsermetaClientBulkOptions | string, keys: string[], buildTask: (clientObj, _keys: string[]) => any[]): any[] {
+  getTasksForBulk(params: UsermetaClientBulkOptions | string, keys: string[], buildTask: BuildTaskCallback): BuildTask[] {
     let clients = {};
     //sorting keys as per the client from routes.
     //grouping each clients with its own keys.
     keys.forEach((key) => {
-      const client = this.routes[key] || this.ganomedeLocal;
-      const clientType = client.type;
+      const client: UsermetaClient = this.routes[key] || this.ganomedeLocal;
+      const clientType: string = client.type;
       if (!clients[clientType]) {
         clients[clientType] = {};
         clients[clientType].keys = [];
@@ -706,7 +708,7 @@ class UsermetaRouter extends BulkedUsermetaClient implements SimpleUsermetaClien
       clients[clientType].keys.push(key);
     });
 
-    let tasks: any[] = [];
+    let tasks: BuildTask[] = [];
     //generate the tasks for parallel
     Object.keys(clients).forEach((clientType: string) => {
       const clientObj = clients[clientType];
@@ -721,25 +723,21 @@ class UsermetaRouter extends BulkedUsermetaClient implements SimpleUsermetaClien
     //generate tasks for get.
     if (keys.length === 0)
       return cb(null, []);
-    const tasks: any[] = this.getTasksForBulk(params, keys, (_client, _keys) => {
-      let _tasks: any[] = [];
+      
+    const tasks: BuildTask[] = this.getTasksForBulk(params, keys, (_client, _keys) => {
       //if getBulk method exists on this client ..  then we call getbulk method => and passing the keys
       //related.
-      if (_client.getBulk) {
-        _tasks.push(cb1 => _client.getBulk(params, _keys, cb1));
-      }
-      else {
-        //else we loop over the keys => and we will create tasks based for each key => client =>call for key.
-        _keys.forEach((key: string) => {
-          _tasks.push(cb1 => _client.get(params, key, (err: Error | null, reply?: string | null) => {
-            if (err) {
-              return cb1(err, reply);
-            }
-            cb1(err, { key, value: reply });
-          }));
-        });
-      }
-      return _tasks;
+      if (_client.getBulk)
+        return [cb1 => _client.getBulk(params, _keys, cb1)];
+
+      //else we loop over the keys => and we will create tasks based for each key => client =>call for key.
+      return _keys.map((key: string) =>
+        cb1 => _client.get(params, key, (err: Error | null, reply?: string | null) => {
+          if (err) {
+            return cb1(err, reply);
+          }
+          cb1(err, { key, value: reply });
+        }));
     });
 
     async.parallel(tasks, (err, data) => {
@@ -748,7 +746,7 @@ class UsermetaRouter extends BulkedUsermetaClient implements SimpleUsermetaClien
       }
       else {
         //make the 2 levels array to 1 level => [[], [], []] => []
-        let oneLevelArray = (data as any[][])?.flat();
+        let oneLevelArray = (data as object[][])?.flat();
         cb(null, oneLevelArray);
       }
     });
@@ -759,22 +757,18 @@ class UsermetaRouter extends BulkedUsermetaClient implements SimpleUsermetaClien
     //get list of keys from keyvalue pair.
     const keys = keyValues.map((i) => i.key);
     //generate tasks for set.
-    const tasks: any[] = this.getTasksForBulk(pparams, keys, (_client, _keys) => {
-      let _tasks: any[] = [];
+    const tasks: BuildTask[] = this.getTasksForBulk(pparams, keys, (_client, _keys) => {
       // if setBulk method exists on this client ..  then we call setbulk method => and passing the keys
       // and valuesrelated.
       if (_client.setBulk) {
         const values = keyValues.filter((x) => _keys.includes(x.key));
-        _tasks.push(cb1 => _client.setBulk(pparams, values, cb1));
+        return [cb1 => _client.setBulk(pparams, values, cb1)];
       }
-      else {
-        //else we loop over the keys => and we will create tasks based for each key => client =>call for key/value.
-        _keys.forEach((key: string) => {
-          const val = keyValues.filter((x) => x.key == key)[0].value;
-          _tasks.push(cb1 => _client.set(pparams, key, val, cb1));
-        });
-      }
-      return _tasks;
+      //else we loop over the keys => and we will create tasks based for each key => client =>call for key/value.
+      return _keys.map((key: string) => {
+        const val = keyValues.filter((x) => x.key == key)[0].value;
+        return cb1 => _client.set(pparams, key, val, cb1);
+      });
     });
 
     async.parallel(tasks, (err, data) => {
@@ -783,7 +777,7 @@ class UsermetaRouter extends BulkedUsermetaClient implements SimpleUsermetaClien
       }
       else {
         //make the 2 levels array to 1 level => [[], [], []] => []
-        let oneLevelArray = (data as any[][])?.flat();
+        let oneLevelArray = (data as object[])?.flat();
         cb(null, oneLevelArray);
       }
     });

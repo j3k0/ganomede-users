@@ -10,6 +10,7 @@ describe("aliases", function() {
   let aliasesClient: any = null;
   before(function() {
     const fakeUsermetaClient = {
+      type: 'fakeUsermetaClient',
       meta: {},
       isValid(key) { return true; },
       get(username, key, cb) {

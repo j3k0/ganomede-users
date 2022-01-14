@@ -4,9 +4,11 @@ import async from 'async';
 const DEFAULT_MAX_LENGTH = 200;
 class FakeUsermetaClient extends BulkedUsermetaClient implements SimpleUsermetaClient {
   store: any;
+  type: string;
   constructor() {
     super();
     this.store = {};
+    this.type = "FakeUsermetaClient";
   }
   set(params:UsermetaClientOptions|string, key:string, value:string, cb:UsermetaClientCallback, maxLength?:number): void {
     if (maxLength == null) { maxLength = DEFAULT_MAX_LENGTH; }

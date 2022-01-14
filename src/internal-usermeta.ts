@@ -14,6 +14,7 @@ export interface InternalUsermetaOptions {
 };
 
 export interface InternalUsermetaClient {
+  type: string;
   set: (username: string, value: string, callback: UsermetaClientCallback) => void;
   get: (username: string, callback: UsermetaClientCallback) => void;
 }
@@ -35,6 +36,7 @@ export function createClient(options: InternalUsermetaOptions): InternalUsermeta
   }
 
   return {
+    type: usermetaClient.type,
     // Retrieve account alias
     get(username, cb) {
       return usermetaClient.get(username, KEY_NAME, cb);
