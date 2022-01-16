@@ -47,6 +47,9 @@ const data = {
     token: VALID_AUTH_TOKEN
   }]
 };
+
+const confirmedOn = { "test@test.com": 2345342342, "jeko@tttt.com": 4234213433 };
+
 const apiSecret = process.env.API_SECRET;
 
 const baseTest = function() {
@@ -115,6 +118,13 @@ const restTest = function(done) {
   const localUsermeta = fakeUsermeta.createClient();
   const centralUsermeta = fakeUsermeta.createClient();
   ret.bans = td.object(Bans.prototype);
+
+  localUsermeta.set(data.createAccount.valid, 'ConfirmedOn',
+    JSON.stringify(confirmedOn),
+    () => { });
+  centralUsermeta.set(data.createAccount.valid, 'ConfirmedOn',
+    JSON.stringify(confirmedOn),
+    () => { });
 
   data.tokens.forEach(info => ret.authdbClient.addAccount(info.token, {
     username: data.createAccount[info.createAccountKey].username
@@ -221,7 +231,9 @@ describe('users-api', function() {
               country: null,
               yearofbirth: null,
               '$chatdisabled': null,
-            }});
+              ConfirmedOn: confirmedOn
+            }
+          });
           return done();
       });
     }));

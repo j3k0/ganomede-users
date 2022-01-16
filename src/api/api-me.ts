@@ -115,12 +115,21 @@ export function addRoutes(options: ApiMeOptions) {
             'country': 1,
             'yearofbirth': 1,
             '$chatdisabled': 1,
-        }, function(_one, key, callback) {
+            'ConfirmedOn': 1
+        }, function (_one, key, callback) {
             options.rootUsermetaClient.get(params, key, callback);
         }, function(err, results) {
             if (err) {
                 req.log.warn({err}, 'Failed to fetch metadata');
             }
+
+            if (results['ConfirmedOn'] !== null && results['ConfirmedOn'] != undefined &&
+                results['ConfirmedOn'] !== '') {
+                try {
+                    results['ConfirmedOn'] = JSON.parse(results['ConfirmedOn']);
+                } catch { }
+            }
+
             req.params._store.account.metadata = results;
             return next();
         });
