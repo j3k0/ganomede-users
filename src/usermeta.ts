@@ -14,7 +14,7 @@ export const log = logMod.child({module:"usermeta"});
 import tagizer from 'ganomede-tagizer';
 import validator from './validator';
 import { AuthdbClient } from "./authentication";
-import { DirectoryClient } from "./directory-client";
+import { DirectoryClient, DirectoryIdRequest } from "./directory-client";
 import { Request, Response } from "restify";
 import { jsonClientRetry } from "./json-client-retry";
 import Logger from "bunyan";
@@ -56,33 +56,15 @@ export abstract class BulkedUsermetaClient {
   abstract set(params: UsermetaClientOptions | string, key: string, value: string, callback: UsermetaClientCallback, maxLength?: number): void
   abstract get(params: UsermetaClientOptions | string, key: string, callback: UsermetaClientCallback): void;
 
-  getBulk(pparams: UsermetaClientBulkOptions | string, keys: string[], cb: UsermetaClientBulkCallback) {
-    let tasks: AsyncFunction<StringOrObject, Error | null>[] = [];
-    let userNames: string[] = [];
-    if (typeof pparams === 'object' && (pparams as UsermetaClientBulkOptions).usernames.length > 0) {
-      userNames = (pparams as UsermetaClientBulkOptions).usernames;
-    } else {
-      userNames = [(pparams as string)];
-    }
-    userNames.forEach((username) => {
-      let clonedParams: UsermetaClientBulkOptions | string;
-      if (typeof pparams === 'object') {
-        clonedParams = Object.assign({}, pparams);
-        clonedParams.username = username;
-      } else
-        clonedParams = username.toString();
+  getBulkForUser(pparams: UsermetaClientBulkOptions | string, username: string, keys: string[], cb: UsermetaClientBulkCallback) {
+    const tasks: AsyncFunction<StringOrObject, Error | null>[] =
+      keys.map((key) => cb2 => this.get(pparams, key, (err: Error | null, reply?: string | null) => {
 
-      keys.forEach((key) => {
-
-        tasks.push(cb2 => this.get(clonedParams, key, (err: Error | null, reply?: string | null) => {
-
-          if (err) {
-            return cb2(err, { username, key, value: '' });
-          }
-          cb2(err, { username, key, value: reply });
-        }))
-      });
-    });
+        if (err) {
+          return cb2(err, { username, key, value: '' });
+        }
+        cb2(err, { username, key, value: reply });
+      }));
 
     async.parallel(tasks, (err, data) => {
       if (err) {
@@ -90,7 +72,37 @@ export abstract class BulkedUsermetaClient {
       }
       else {
         //make the 2 levels array to 1 level => [[], [], []] => []
-        let oneLevelArray = (data as object[][])?.flat();
+        const oneLevelArray = (data as object[][])?.flat();
+        cb(null, oneLevelArray);
+      }
+    });
+  }
+
+  getBulk(pparams: UsermetaClientBulkOptions | string, keys: string[], cb: UsermetaClientBulkCallback) {
+    let userNames: string[] = [];
+    if (typeof pparams === 'object' && (pparams as UsermetaClientBulkOptions).usernames.length > 0) {
+      userNames = (pparams as UsermetaClientBulkOptions).usernames;
+    } else {
+      userNames = [(pparams as string)];
+    }
+    const tasks: AsyncFunction<StringOrObject, Error | null>[] =
+      userNames.map((username) => {
+        let clonedParams: UsermetaClientBulkOptions | string;
+        if (typeof pparams === 'object') {
+          clonedParams = Object.assign({}, pparams);
+          clonedParams.username = username;
+        } else
+          clonedParams = username.toString();
+        return cb2 => this.getBulkForUser(clonedParams, username, keys, cb2)
+      });
+
+    async.parallel(tasks, (err, data) => {
+      if (err) {
+        cb(err, []);
+      }
+      else {
+        //make the 2 levels array to 1 level => [[], [], []] => []
+        const oneLevelArray = (data as object[][])?.flat();
         cb(null, oneLevelArray);
       }
     });
@@ -401,25 +413,84 @@ class DirectoryAliasesPublic extends BulkedUsermetaClient implements SimpleUserm
     return directory.set(this.directoryClient, params, key, value, cb);
   }
 
-  get(params:UsermetaClientOptions|string, key:string, cb:UsermetaClientCallback) {
+  private checkAccountParams(params: UsermetaClientOptions | string, key: string): Error | string | DirectoryIdRequest {
     if (!this.isValid(key)) {
-      return cb(new restifyErrors.BadRequestError({
+      return new restifyErrors.BadRequestError({
         message: "Forbidden meta key",
         code: 'BadRequestError',
-      }));
+      });
     }
     params = parseParams(params);
     if (params[key]) {
       // return a response without making a outgoing request if we already
       // have the data in the incoming request.
-      return cb(null, params[key]);
+      return params[key];
     }
-    const account = {
+    return {
       id: params.username,
       req_id: params.req_id
     };
-    return this.directoryClient.byId(account,
-      directory.handleResponse(this.authdbClient, params, key, cb));
+  }
+
+  get(params: UsermetaClientOptions | string, key: string, cb: UsermetaClientCallback) {
+    const value = this.checkAccountParams(params, key);
+    if (value instanceof (Error)) {
+      return cb(value);
+    }
+    if (typeof value === "string") {
+      return cb(null, value);
+    }
+    if (typeof value === "object") {
+      params = parseParams(params);
+      return this.directoryClient.byId(value,
+        directory.handleResponse(this.authdbClient, params, key, cb));
+    }
+  }
+
+  getBulkForUser(pparams: UsermetaClientBulkOptions | string, username: string, keys: string[], cb: UsermetaClientBulkCallback) {
+    const account = {
+      id: username,
+      req_id: (pparams as UsermetaClientOptions).req_id
+    };
+    //first we get the values of existing keys.
+    const mappedKeyValues = keys.map((key) => {
+      const value = this.checkAccountParams(pparams, key);
+      if (value instanceof (Error))
+        return { username, key, value: '' };
+      if (typeof value === "string")
+        return { username, key, value };
+      return { username, key };
+    });
+    //check if there are undefined values.
+    //if no undefined values, then we will callback, cause we have now all the values needed.
+    const undefinedValues = mappedKeyValues.filter(item => item.value === undefined);
+    if (undefinedValues.length === 0) {
+      return cb(null, mappedKeyValues);
+    }
+
+    //if there is undefined keys, then we need to getById from directory
+    return this.directoryClient.byId(account, (byIdError, byIdBody) => {
+      const params = parseParams(pparams);
+      //for each undefined value, we need to get the value of the key from the account of the user.
+      //we already have the account in body object.
+      undefinedValues.forEach((item) => {
+        directory.handleResponse(this.authdbClient, params, item.key, (err2, reply2) => {
+          if (err2) {
+            reply2 = '';
+            log.warn({
+              req_id: params.req_id,
+              err2, account, key: item.key
+            });
+          }
+          if (!reply2)
+            reply2 = '';
+          //update the value in the mappedkeyValues array.
+          mappedKeyValues.find((elem) => elem.key === item.key)!.value = reply2;
+        })(byIdError, byIdBody);
+      });
+      //callback the full mappedkeyvalues.
+      cb(null, mappedKeyValues);
+    });
   }
 }
 
@@ -596,9 +667,9 @@ class GanomedeUsermeta extends BulkedUsermetaClient implements SimpleUsermetaCli
             result.push(metadata);
           });
           //format final result to be [{username, key, value}]
-          let finalResult: object[] = [];
+          const finalResult: object[] = [];
           result.forEach((x) => {
-            let _username = x['username'];
+            const _username = x['username'];
             Object.keys(x).filter((m) => { return m !== 'username' }).forEach((kk) => {
               finalResult.push({ username: _username, key: kk, value: x[kk] });
             });
@@ -752,7 +823,7 @@ class UsermetaRouter extends BulkedUsermetaClient implements SimpleUsermetaClien
       }
       else {
         //make the 2 levels array to 1 level => [[], [], []] => []
-        let oneLevelArray = (data as object[][])?.flat();
+        const oneLevelArray = (data as object[][])?.flat();
         cb(null, oneLevelArray);
       }
     });
@@ -783,7 +854,7 @@ class UsermetaRouter extends BulkedUsermetaClient implements SimpleUsermetaClien
       }
       else {
         //make the 2 levels array to 1 level => [[], [], []] => []
-        let oneLevelArray = (data as object[])?.flat();
+        const oneLevelArray = (data as object[])?.flat();
         cb(null, oneLevelArray);
       }
     });

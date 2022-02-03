@@ -314,7 +314,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             });
     });
 
-    it.skip('fetches data from the public directory in the minimal number of requests', done => {
+    it('fetches data from the public directory in the minimal number of requests', done => {
         superagent
             .get(sTools.endpoint('/multi/metadata/alice,bob/name,tag'))
             .end((err, res) => {
@@ -362,27 +362,48 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             done();
         });
     });
-    
-    it.skip('handles mixed types of metadata', done => {
+
+    it('handles mixed types of metadata', done => {
+
+        td.when(sTools.getTest().directoryClient.byId(td.matchers.contains({ id: 'nobody' }), td.callback))
+            .thenCallback(new Error('notfound'), null);
+
         superagent
         .get(sTools.endpoint('/multi/metadata/alice,bob,nobody/name,username,country,tag,key1,yearofbirth,key2'))
         .end((err, res) => {
             expect(err, 'request error').to.be.null;
 
-            td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 3 });
-            expect(sTools.getTest().centralUsermetaClient.callCounts.getBulk).to.equal(1);
-            expect(sTools.getTest().centralUsermetaClient.callCounts.get).to.equal(0);
-            expect(sTools.getTest().localUsermetaClient.callCounts.getBulk).to.equal(1);
-            expect(sTools.getTest().localUsermetaClient.callCounts.get).to.equal(0);
+                td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 3 });
+                expect(sTools.getTest().centralUsermetaClient.callCounts.getBulk).to.equal(1);
+                expect(sTools.getTest().centralUsermetaClient.callCounts.get).to.equal(0);
+                expect(sTools.getTest().localUsermetaClient.callCounts.getBulk).to.equal(0);
+                expect(sTools.getTest().localUsermetaClient.callCounts.get).to.equal(0);
 
-            expect(res?.body).to.eql([
-                {username: 'alice', key: 'key1', value: 'alice-key1'},
-                {username: 'alice', key: 'key2', value: 'alice-key2'},
-                {username: 'bob', key: 'key1', value: 'bob-key1'},
-                {username: 'bob', key: 'key2', value: 'bob-key2'},
-            ]);
-            done();
-        });
+                expect(res?.body).to.eql([
+                    { username: 'alice', key: 'name', value: 'alice-name' },
+                    { username: 'alice', key: 'username', value: 'alice' },
+                    { username: 'alice', key: 'tag', value: 'alice-tag' },
+                    { username: 'bob', key: 'name', value: 'bob-name' },
+                    { username: 'bob', key: 'username', value: 'bob' },
+                    { username: 'bob', key: 'tag', value: 'bob-tag' },
+                    { username: 'nobody', key: 'name', value: '' },
+                    { username: 'nobody', key: 'username', value: 'nobody' },
+                    { username: 'nobody', key: 'tag', value: '' },
+                    { username: 'alice', key: 'country', value: 'alice-country' },
+                    { username: 'alice', key: 'key1' },
+                    { username: 'alice', key: 'yearofbirth', value: 'alice-yearofbirth' },
+                    { username: 'alice', key: 'key2' },
+                    { username: 'bob', key: 'country', value: 'bob-country' },
+                    { username: 'bob', key: 'key1' },
+                    { username: 'bob', key: 'yearofbirth', value: 'bob-yearofbirth' },
+                    { username: 'bob', key: 'key2' },
+                    { username: 'nobody', key: 'country' },
+                    { username: 'nobody', key: 'key1' },
+                    { username: 'nobody', key: 'yearofbirth' },
+                    { username: 'nobody', key: 'key2' }
+                ]);
+                done();
+            });
     });
 
 });
