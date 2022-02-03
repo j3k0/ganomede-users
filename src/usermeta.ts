@@ -10,7 +10,7 @@ import restifyErrors, { HttpError } from "restify-errors";
 import redis, { RedisClient } from "redis";
 import urllib from 'url';
 import logMod from "./log";
-export const log = logMod.child({module:"usermeta"});
+export const log = logMod.child({ module: "usermeta" });
 import tagizer from 'ganomede-tagizer';
 import validator from './validator';
 import { AuthdbClient } from "./authentication";
@@ -136,7 +136,7 @@ export interface ProtectedUsermetaClient extends RestrictedUsermetaClient {
 
 export type UsermetaClient = SimpleUsermetaClient | /*BulkedUsermetaClient |*/ RestrictedUsermetaClient | ProtectedUsermetaClient;
 
-const DEFAULT_MAX_LENGTH:number = 1000;
+const DEFAULT_MAX_LENGTH: number = 1000;
 
 const parseParams = function (obj: UsermetaClientOptions | UsermetaClientBulkOptions | string): UsermetaClientOptions {
   if (typeof obj === 'string') {
@@ -182,19 +182,19 @@ var directory = {
   // In stormpath, 'name' and 'username' are the same. 'email'
   // was stored in the authdb. So we have some fallbacks.
   userNotFound: {
-    password(_authdbClient:AuthdbClient, params:UsermetaClientOptions, cb:UsermetaClientCallback) {
+    password(_authdbClient: AuthdbClient, params: UsermetaClientOptions, cb: UsermetaClientCallback) {
       return cb(new restifyErrors.NotAuthorizedError({
         code: 'NotAuthorizedError',
         message: "Forbidden"
       }));
     },
-    name(_authdbClient:AuthdbClient, params:UsermetaClientOptions, cb:UsermetaClientCallback) {
+    name(_authdbClient: AuthdbClient, params: UsermetaClientOptions, cb: UsermetaClientCallback) {
       return cb(null, (params.name || params.username));
     },
-    tag(_authdbClient:AuthdbClient, params:UsermetaClientOptions, cb:UsermetaClientCallback) {
+    tag(_authdbClient: AuthdbClient, params: UsermetaClientOptions, cb: UsermetaClientCallback) {
       return cb(null, tagizer.tag(params.tag || params.username));
     },
-    email(authdbClient:AuthdbClient, params:UsermetaClientOptions, cb:UsermetaClientCallback) {
+    email(authdbClient: AuthdbClient, params: UsermetaClientOptions, cb: UsermetaClientCallback) {
       if (params.email) {
         return cb(null, params.email);
       }
@@ -212,31 +212,33 @@ var directory = {
   },
 
   // handles replies from directoryClient's read requests
-  handleResponse(authdbClient:AuthdbClient, params:UsermetaClientOptions, key:string, cb:UsermetaClientCallback) { return function(err, account) {
+  handleResponse(authdbClient: AuthdbClient, params: UsermetaClientOptions, key: string, cb: UsermetaClientCallback) {
+    return function (err, account) {
 
-    if (err) {
+      if (err) {
 
-      // the user isn't in the directory,
-      if (err.restCode === 'UserNotFoundError') {
-        // let's attempt some fallback.
-        if (directory.userNotFound[key]) {
-          return directory.userNotFound[key](
-            authdbClient, params, cb);
+        // the user isn't in the directory,
+        if (err.restCode === 'UserNotFoundError') {
+          // let's attempt some fallback.
+          if (directory.userNotFound[key]) {
+            return directory.userNotFound[key](
+              authdbClient, params, cb);
+          }
         }
+
+        // unexpectde error, or no fallback
+        log.error({ err, req_id: params.req_id },
+          "directoryClient.get failed");
+        return cb(err, null);
+
+        // all but username stored as aliases
+      } else if (key === 'username') {
+        return cb(null, (account.id || null));
+      } else {
+        return cb(null, (account.aliases[key] || null));
       }
-
-      // unexpectde error, or no fallback
-      log.error({err, req_id: params.req_id},
-        "directoryClient.get failed");
-      return cb(err, null);
-
-    // all but username stored as aliases
-    } else if (key === 'username') {
-      return cb(null, (account.id || null));
-    } else {
-      return cb(null, (account.aliases[key] || null));
-    }
-  }; },
+    };
+  },
 
   publicAlias: {
     username: true,
@@ -252,18 +254,18 @@ var directory = {
 
   beforeEdit: {
     // change the tag before changing the name
-    name(directoryClient:DirectoryClient, params:UsermetaClientOptions, _key:string, value:string, cb:UsermetaClientCallback) {
+    name(directoryClient: DirectoryClient, params: UsermetaClientOptions, _key: string, value: string, cb: UsermetaClientCallback) {
       const account = directory.account(params, "tag", tagizer.tag(value));
       directoryClient.editAccount(account, cb);
     },
     // tag and username are read-only
-    tag(_directoryClient:DirectoryClient, _params:UsermetaClientOptions, _key:string, _value:string, cb:UsermetaClientCallback) {
+    tag(_directoryClient: DirectoryClient, _params: UsermetaClientOptions, _key: string, _value: string, cb: UsermetaClientCallback) {
       cb(new restifyErrors.NotAuthorizedError({
         message: "tag is read-only",
         code: 'NotAuthorizedError'
       }));
     },
-    username(_directoryClient:DirectoryClient, _params:UsermetaClientOptions, _key:string, _value:string, cb:UsermetaClientCallback) {
+    username(_directoryClient: DirectoryClient, _params: UsermetaClientOptions, _key: string, _value: string, cb: UsermetaClientCallback) {
       cb(new restifyErrors.NotAuthorizedError({
         message: "username is read-only",
         code: 'NotAuthorizedError'
@@ -272,7 +274,7 @@ var directory = {
   },
 
   // create a directory account object suitable for POSTing
-  account(params:UsermetaClientOptions, key:string, value:string) {
+  account(params: UsermetaClientOptions, key: string, value: string) {
     if (key === 'password') {
       return {
         id: params.username,
@@ -292,7 +294,7 @@ var directory = {
     }
   },
 
-  set(directoryClient:DirectoryClient, options:UsermetaClientOptions|string, key:string, value:string, cb:UsermetaClientCallback) {
+  set(directoryClient: DirectoryClient, options: UsermetaClientOptions | string, key: string, value: string, cb: UsermetaClientCallback) {
     const params = parseParams(options);
     if (!params.authToken) {
       return cb(new restifyErrors.NotAuthorizedError({
@@ -313,7 +315,7 @@ var directory = {
 
     const passTrough = (_directoryClient, _params, _key, _value, cb) => cb(null);
     const beforeEdit = directory.beforeEdit[key] || passTrough;
-    return beforeEdit(directoryClient, params, key, value, function(err) {
+    return beforeEdit(directoryClient, params, key, value, function (err) {
       if (err) {
         return cb(err);
       }
@@ -338,15 +340,16 @@ class DirectoryAliasesProtected extends BulkedUsermetaClient implements Protecte
     this.authdbClient = authdbClient;
     this.validKeys = {
       email: true, name: true, tag: true,
-      username: true, password: true};
+      username: true, password: true
+    };
     this.type = "DirectoryAliasesProtected";
   }
 
-  isValid(key:string):boolean { return !!this.validKeys[key]; }
-  isReadOnly(key:string):boolean { return key === "tag"; }
-  isWriteOnly(key:string):boolean { return key === "password"; }
+  isValid(key: string): boolean { return !!this.validKeys[key]; }
+  isReadOnly(key: string): boolean { return key === "tag"; }
+  isWriteOnly(key: string): boolean { return key === "password"; }
 
-  set(params:UsermetaClientOptions|string, key:string, value:string, cb:UsermetaClientCallback) {
+  set(params: UsermetaClientOptions | string, key: string, value: string, cb: UsermetaClientCallback) {
     if (!this.isValid(key) || this.isReadOnly(key)) {
       return cb(new restifyErrors.BadRequestError({
         message: "Forbidden meta key",
@@ -356,7 +359,7 @@ class DirectoryAliasesProtected extends BulkedUsermetaClient implements Protecte
     return directory.set(this.directoryClient, params, key, value, cb);
   }
 
-  get(params:UsermetaClientOptions|string, key:string, cb:UsermetaClientCallback) {
+  get(params: UsermetaClientOptions | string, key: string, cb: UsermetaClientCallback) {
     if (!this.isValid(key) || this.isWriteOnly(key)) {
       return cb(new restifyErrors.BadRequestError({
         message: "Forbidden meta key",
@@ -397,13 +400,13 @@ class DirectoryAliasesPublic extends BulkedUsermetaClient implements SimpleUserm
     super();
     this.directoryClient = directoryClient;
     this.authdbClient = authdbClient;
-    this.validKeys = {name: true, tag: true, username: true};
+    this.validKeys = { name: true, tag: true, username: true };
     this.type = "DirectoryAliasesPublic";
   }
 
-  isValid(key:string):boolean { return !!this.validKeys[key]; }
+  isValid(key: string): boolean { return !!this.validKeys[key]; }
 
-  set(params:UsermetaClientOptions|string, key:string, value:string, cb:UsermetaClientCallback) {
+  set(params: UsermetaClientOptions | string, key: string, value: string, cb: UsermetaClientCallback) {
     if (!this.isValid(key)) {
       return cb(new restifyErrors.BadRequestError({
         message: "Forbidden meta key",
@@ -517,9 +520,9 @@ class RedisUsermeta extends BulkedUsermetaClient implements RestrictedUsermetaCl
     }
   }
 
-  set(params:UsermetaClientOptions|string, key:string, value:string, cb:UsermetaClientCallback, maxLength?:number) {
+  set(params: UsermetaClientOptions | string, key: string, value: string, cb: UsermetaClientCallback, maxLength?: number) {
     if (maxLength == null) { maxLength = DEFAULT_MAX_LENGTH; }
-    const {username} = parseParams(params);
+    const { username } = parseParams(params);
     if (maxLength > 0 && value?.length > maxLength) {
       cb(new restifyErrors.BadRequestError({
         code: 'BadRequestError',
@@ -537,18 +540,18 @@ class RedisUsermeta extends BulkedUsermetaClient implements RestrictedUsermetaCl
     }
   }
 
-  get(params:UsermetaClientOptions|string, key:string, cb:UsermetaClientCallback) {
-    const {username} = parseParams(params);
+  get(params: UsermetaClientOptions | string, key: string, cb: UsermetaClientCallback) {
+    const { username } = parseParams(params);
     return this.redisClient.get(`${username}:${key}`, (err, reply) => cb(err, reply));
   }
 
-  isValid(key:string):boolean {
+  isValid(key: string): boolean {
     if ((this.validKeys === undefined) || (this.validKeys[key])) { return true; } else { return false; }
   }
 }
 
-const endpoint = (subpath:string) => `/usermeta/v1${subpath}`;
-const jsonOptions = function({ path, req_id }) {
+const endpoint = (subpath: string) => `/usermeta/v1${subpath}`;
+const jsonOptions = function ({ path, req_id }) {
   const options: {
     path: string;
     headers?: any;
@@ -557,12 +560,12 @@ const jsonOptions = function({ path, req_id }) {
   };
   if (req_id) {
     options.headers =
-      {"x-request-id": req_id};
+      { "x-request-id": req_id };
   }
   return options;
 };
 
-const authPath = function(params:UsermetaClientOptions):string {
+const authPath = function (params: UsermetaClientOptions): string {
   if (params.apiSecret) {
     return `/auth/${encodeURIComponent(params.apiSecret)}.${encodeURIComponent(params.username)}`;
   } else if (params.authToken) {
@@ -585,7 +588,7 @@ class GanomedeUsermeta extends BulkedUsermetaClient implements SimpleUsermetaCli
     this.type = "GanomedeUsermeta";
   }
 
-  set(pparams:string|UsermetaClientOptions, key:string, value:string, cb:UsermetaClientCallback) {
+  set(pparams: string | UsermetaClientOptions, key: string, value: string, cb: UsermetaClientCallback) {
     const params = parseParams(pparams);
     const { url } = this.jsonClient;
     const options = {
@@ -598,8 +601,10 @@ class GanomedeUsermeta extends BulkedUsermetaClient implements SimpleUsermetaCli
     const body = { value };
     jsonClientRetry(this.jsonClient).post(options, body, function (err: HttpError | null | undefined, _req, _res, body: string | null | undefined) {
       if (err) {
-        log.error({ req_id: params.req_id,
-          err, url, options, body, value },
+        log.error({
+          req_id: params.req_id,
+          err, url, options, body, value
+        },
           "GanomedeUsermeta.post failed");
         return cb(err, null);
       } else {
@@ -758,13 +763,13 @@ class UsermetaRouter extends BulkedUsermetaClient implements SimpleUsermetaClien
     };
   }
 
-  set(params:UsermetaClientOptions|string, key:string, value:string, cb:UsermetaClientCallback) {
+  set(params: UsermetaClientOptions | string, key: string, value: string, cb: UsermetaClientCallback) {
     params = parseParams(params);
     const client = this.routes[key] || this.ganomedeLocal;
     return client.set(params, key, value, cb);
   }
 
-  get(params:UsermetaClientOptions|string, key:string, cb:UsermetaClientCallback) {
+  get(params: UsermetaClientOptions | string, key: string, cb: UsermetaClientCallback) {
     params = parseParams(params);
     const client = this.routes[key] || this.ganomedeLocal;
     return client.get(params, key, cb);
@@ -800,7 +805,7 @@ class UsermetaRouter extends BulkedUsermetaClient implements SimpleUsermetaClien
     //generate tasks for get.
     if (keys.length === 0)
       return cb(null, []);
-      
+
     const tasks: BuildTask[] = this.getTasksForBulk(params, keys, (_client, _keys) => {
       //if getBulk method exists on this client ..  then we call getbulk method => and passing the keys
       //related.
@@ -881,7 +886,7 @@ export default {
         url: urllib.format({
           protocol: config.ganomedeConfig.protocol || 'http',
           hostname: config.ganomedeConfig.host,
-          port:     config.ganomedeConfig.port,
+          port: config.ganomedeConfig.port,
           pathname: config.ganomedeConfig.pathname || 'usermeta/v1'
         })
       })

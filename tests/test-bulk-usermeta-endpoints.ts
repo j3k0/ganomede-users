@@ -54,7 +54,7 @@ function publicAccount(id) {
 }
 
 const BY_TAGS = Object.values(accounts).reduce((acc, value) => {
-    return { 
+    return {
         [value.aliases.tag]: publicAccount(value.id),
         ...acc
     };
@@ -157,7 +157,7 @@ const serverTools = () => {
         return `http://localhost:${server.address().port}/${PREFIX}${path}`;
     }
 
-    return { prepareServer, endpoint, closeServer, getTest: () => test};
+    return { prepareServer, endpoint, closeServer, getTest: () => test };
 }
 
 describe('GET /auth/:authToken/multi/metadata/:keys', () => {
@@ -281,10 +281,10 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.body).to.eql([
-                    {username: 'alice', key: 'username', value: 'alice'},
-                    {username: 'alice', key: 'name', value: 'alice-name'},
-                    {username: 'bob', key: 'username', value: 'bob'},
-                    {username: 'bob', key: 'name', value: 'bob-name'}
+                    { username: 'alice', key: 'username', value: 'alice' },
+                    { username: 'alice', key: 'name', value: 'alice-name' },
+                    { username: 'bob', key: 'username', value: 'bob' },
+                    { username: 'bob', key: 'name', value: 'bob-name' }
                 ]);
                 done();
             });
@@ -306,8 +306,8 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.body).to.eql([
-                    {username: 'alice', key: 'username', value: 'alice'},
-                    {username: 'bob', key: 'username', value: 'bob'},
+                    { username: 'alice', key: 'username', value: 'alice' },
+                    { username: 'bob', key: 'username', value: 'bob' },
                 ]);
                 td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 0 });
                 done();
@@ -320,10 +320,10 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.body).to.eql([
-                    {username: 'alice', key: 'name', value: 'alice-name'},
-                    {username: 'alice', key: 'tag', value: 'alice-tag'},
-                    {username: 'bob', key: 'name', value: 'bob-name'},
-                    {username: 'bob', key: 'tag', value: 'bob-tag'},
+                    { username: 'alice', key: 'name', value: 'alice-name' },
+                    { username: 'alice', key: 'tag', value: 'alice-tag' },
+                    { username: 'bob', key: 'name', value: 'bob-name' },
+                    { username: 'bob', key: 'tag', value: 'bob-tag' },
                 ]);
                 // 1 request for alice, 1 request for bob.
                 td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 2 });
@@ -338,29 +338,29 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                 expect(err, 'request error').to.be.null;
                 expect(sTools.getTest().centralUsermetaClient.callCounts.getBulk).to.equal(1);
                 expect(res?.body).to.eql([
-                    {username: 'alice', key: 'country', value: 'alice-country'},
-                    {username: 'alice', key: 'yearofbirth', value: 'alice-yearofbirth'},
-                    {username: 'bob', key: 'country', value: 'bob-country'},
-                    {username: 'bob', key: 'yearofbirth', value: 'bob-yearofbirth'},
+                    { username: 'alice', key: 'country', value: 'alice-country' },
+                    { username: 'alice', key: 'yearofbirth', value: 'alice-yearofbirth' },
+                    { username: 'bob', key: 'country', value: 'bob-country' },
+                    { username: 'bob', key: 'yearofbirth', value: 'bob-yearofbirth' },
                 ]);
                 done();
             });
     });
-    
+
     it('fetches data from the local usermeta module in a single request', done => {
         superagent
-        .get(sTools.endpoint('/multi/metadata/alice,bob/key1,key2'))
-        .end((err, res) => {
-            expect(err, 'request error').to.be.null;
-            expect(sTools.getTest().localUsermetaClient.callCounts.getBulk).to.equal(1);
-            expect(res?.body).to.eql([
-                {username: 'alice', key: 'key1', value: 'alice-key1'},
-                {username: 'alice', key: 'key2', value: 'alice-key2'},
-                {username: 'bob', key: 'key1', value: 'bob-key1'},
-                {username: 'bob', key: 'key2', value: 'bob-key2'},
-            ]);
-            done();
-        });
+            .get(sTools.endpoint('/multi/metadata/alice,bob/key1,key2'))
+            .end((err, res) => {
+                expect(err, 'request error').to.be.null;
+                expect(sTools.getTest().localUsermetaClient.callCounts.getBulk).to.equal(1);
+                expect(res?.body).to.eql([
+                    { username: 'alice', key: 'key1', value: 'alice-key1' },
+                    { username: 'alice', key: 'key2', value: 'alice-key2' },
+                    { username: 'bob', key: 'key1', value: 'bob-key1' },
+                    { username: 'bob', key: 'key2', value: 'bob-key2' },
+                ]);
+                done();
+            });
     });
 
     it('handles mixed types of metadata', done => {
@@ -369,9 +369,9 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             .thenCallback(new Error('notfound'), null);
 
         superagent
-        .get(sTools.endpoint('/multi/metadata/alice,bob,nobody/name,username,country,tag,key1,yearofbirth,key2'))
-        .end((err, res) => {
-            expect(err, 'request error').to.be.null;
+            .get(sTools.endpoint('/multi/metadata/alice,bob,nobody/name,username,country,tag,key1,yearofbirth,key2'))
+            .end((err, res) => {
+                expect(err, 'request error').to.be.null;
 
                 td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 3 });
                 expect(sTools.getTest().centralUsermetaClient.callCounts.getBulk).to.equal(1);
