@@ -28,7 +28,6 @@ const alice_publicAccount = {
     }
 };
 
-
 const bob_publicAccount = {
     id: "bob",
     aliases: {
@@ -129,19 +128,17 @@ const serverTools = () => {
         return `http://localhost:${server.address().port}/${PREFIX}${path}`;
     }
 
-
-
     return { prepareServer, endpoint, closeServer };
 }
 
-describe('get-multi-metadata-keys', () => {
+describe('GET /auth/:authToken/multi/metadata/:keys', () => {
 
     const sTools = serverTools();
 
     beforeEach(sTools.prepareServer);
     afterEach(sTools.closeServer);
 
-    it('check if endpoint `/users/v1/auth/:authToken/multi/metadata/:keys [GET]` exists', () => {
+    it('checks if endpoint `/users/v1/auth/:authToken/multi/metadata/:keys [GET]` exists', () => {
         const server = fakeRestify.createServer();
         userApis.addRoutes(PREFIX, server as unknown as restify.Server);
         expect(server.routes.get[`/${PREFIX}/auth/:authToken/multi/metadata/:keys`], 'get /users/v1/auth/:authToken/multi/metadata/:keys route').to.be.ok;
@@ -157,7 +154,7 @@ describe('get-multi-metadata-keys', () => {
             });
     });
 
-    it('fail when token is not provided', (done) => {
+    it('fails when token is not provided', (done) => {
         superagent
             .get(sTools.endpoint('/auth/multi/metadata/username,email'))
             .end((err, res) => {
@@ -175,13 +172,14 @@ describe('get-multi-metadata-keys', () => {
                 done();
             });
     });
-    it('return array of key-value pairs', (done) => {
+
+    it('returns array of key-value pairs', (done) => {
         superagent
             .get(sTools.endpoint('/auth/valid-token/multi/metadata/username,email'))
             .end((err, res) => {
                 expect(res?.status, 'response status').to.equal(200);
-                expect(res?.body[0], 'respone body').to.have.property('key');
-                expect(res?.body[0], 'respone body').to.have.property('value');
+                expect(res?.body[0], 'response body').to.have.property('key');
+                expect(res?.body[0], 'response body').to.have.property('value');
                 done();
             });
     });
@@ -189,14 +187,14 @@ describe('get-multi-metadata-keys', () => {
 });
 
 
-describe('post-multi-metadata-keys', () => {
+describe('POST /auth/:authToken/multi/metadata', () => {
 
     const sTools = serverTools();
 
     beforeEach(sTools.prepareServer);
     afterEach(sTools.closeServer);
 
-    it('check if endpoint `/users/v1/auth/:authToken/multi/metadata [POST]` exists', () => {
+    it('checks if endpoint `/users/v1/auth/:authToken/multi/metadata [POST]` exists', () => {
         const server = fakeRestify.createServer();
         userApis.addRoutes(PREFIX, server as unknown as restify.Server);
         expect(server.routes.post[`/${PREFIX}/auth/:authToken/multi/metadata`], 'get /users/v1/auth/:authToken/multi/metadata route').to.be.ok;
@@ -213,7 +211,7 @@ describe('post-multi-metadata-keys', () => {
             });
     });
 
-    it('return unauthorized when token is not valid', (done) => {
+    it('returns unauthorized when token is not valid', (done) => {
         superagent
             .post(sTools.endpoint('/auth/00000/multi/metadata'))
             .send(dataForPost)
@@ -225,14 +223,14 @@ describe('post-multi-metadata-keys', () => {
 });
 
 
-describe('get-multi-user-metadata-keys', () => {
+describe('GET /multi/metadata/:userIds/:keys', () => {
 
     const sTools = serverTools();
 
     beforeEach(sTools.prepareServer);
     afterEach(sTools.closeServer);
 
-    it('check if endpoint `/users/v1/multi/metadata/:userIds/:keys [GET]` exists', () => {
+    it('checks if endpoint `/users/v1/multi/metadata/:userIds/:keys [GET]` exists', () => {
         const server = fakeRestify.createServer();
         userApis.addRoutes(PREFIX, server as unknown as restify.Server);
         expect(server.routes.get[`/${PREFIX}/multi/metadata/:userIds/:keys`], 'get /users/v1/multi/metadata/:userIds/:keys route').to.be.ok;
@@ -248,7 +246,7 @@ describe('get-multi-user-metadata-keys', () => {
             });
     });
 
-    it('return array of key-value-username pairs', (done) => {
+    it('returns array of key-value-username pairs', (done) => {
         superagent
             .get(sTools.endpoint('/multi/metadata/alice,bob/username,name'))
             .end((err, res) => {
@@ -259,12 +257,13 @@ describe('get-multi-user-metadata-keys', () => {
                 done();
             });
     });
-    it('return array that matches the requested users+keys', (done) => {
+
+    it('returns array that matches the requested users+keys', (done) => {
         superagent
             .get(sTools.endpoint('/multi/metadata/alice,bob/username,name'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
-                expect(res?.body.length, 'respone body length').to.equal(4);
+                expect(res?.body.length, 'response body length').to.equal(4);
                 done();
             });
     });
