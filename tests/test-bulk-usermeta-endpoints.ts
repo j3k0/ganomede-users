@@ -16,33 +16,55 @@ import { UnauthorizedError } from "restify-errors";
 
 const PREFIX = "users/v1";
 
-const TAGS = {
-    "charies-tag": "charles",
-};
-
-const alice_publicAccount = {
-    id: "alice",
-    aliases: {
-        name: "alice-name",
-        tag: "alice-tag"
+const accounts = {
+    alice: {
+        id: "alice",
+        aliases: {
+            name: "alice-name",
+            tag: "alice-tag"
+        }
+    },
+    bob: {
+        id: "bob",
+        aliases: {
+            name: "bob-name",
+            tag: "bob-tag"
+        }
+    },
+    charles: {
+        id: "charles",
+        aliases: {
+            name: "charles-name",
+            tag: "charles-tag"
+        }
     }
 };
 
-const bob_publicAccount = {
-    id: "bob",
-    aliases: {
-        name: "bob-name",
-        tag: "bob-tag"
-    }
-};
+function publicAccount(id) {
+    const acc = accounts[id];
+    return {
+        id: acc.id,
+        aliases: {
+            name: acc.aliases.name,
+            tag: acc.aliases.tag,
+        }
+    };
+}
+
+const BY_TAGS = Object.values(accounts).reduce((acc, value) => {
+    return { 
+        [value.aliases.tag]: publicAccount(value.id),
+        ...acc
+    };
+}, {});
 
 const dataForPost = [{
-    "key": "name",
-    "value": "alice1"
+    key: "name",
+    value: "alice1"
 }, {
-    "key": "email",
-    "value": "test@test.com"
-}]
+    key: "email",
+    value: "test@test.com"
+}];
 
 class Test {
 
@@ -62,18 +84,17 @@ class Test {
             td.matchers.contains({ type: "tag" }),
             td.matchers.isA(Function)))
             .thenDo((alias, cb) => {
-                cb(null, TAGS[alias.value] ? { id: TAGS[alias.value] } : null);
+                cb(null, BY_TAGS[alias.value] || null);
             });
 
         td.when(this.directoryClient.editAccount(
             td.matchers.anything(), td.callback))
             .thenCallback(null, null);
 
-        td.when(this.directoryClient.byId(td.matchers.contains({ id: "alice" }), td.callback))
-            .thenCallback(null, alice_publicAccount);
-
-        td.when(this.directoryClient.byId(td.matchers.contains({ id: "bob" }), td.callback))
-            .thenCallback(null, bob_publicAccount);
+        Object.keys(accounts).forEach(id => {
+            td.when(this.directoryClient.byId(td.matchers.contains({ id }), td.callback))
+                .thenCallback(null, publicAccount(id));
+        });
 
         this.log = logMod;
         this.log = td.object(['info', 'warn', 'error', 'debug']) as Logger;
@@ -128,7 +149,7 @@ const serverTools = () => {
         return `http://localhost:${server.address().port}/${PREFIX}${path}`;
     }
 
-    return { prepareServer, endpoint, closeServer };
+    return { prepareServer, endpoint, closeServer, getTest: () => test};
 }
 
 describe('GET /auth/:authToken/multi/metadata/:keys', () => {
@@ -251,9 +272,12 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             .get(sTools.endpoint('/multi/metadata/alice,bob/username,name'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
-                expect(res?.body[0], 'respone body').to.have.property('username');
-                expect(res?.body[0], 'respone body').to.have.property('key');
-                expect(res?.body[0], 'respone body').to.have.property('value');
+                expect(res?.body).to.eql([
+                    {username: 'alice', key: 'username', value: 'alice'},
+                    {username: 'alice', key: 'name', value: 'alice-name'},
+                    {username: 'bob', key: 'username', value: 'bob'},
+                    {username: 'bob', key: 'name', value: 'bob-name'}
+                ]);
                 done();
             });
     });
