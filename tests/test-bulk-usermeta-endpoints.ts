@@ -300,7 +300,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             });
     });
 
-    it.skip('fetches the username somehow', done => {
+    it('fetches the username without make a request', done => {
         superagent
             .get(sTools.endpoint('/multi/metadata/alice,bob/username'))
             .end((err, res) => {
@@ -309,22 +309,19 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                     {username: 'alice', key: 'username', value: 'alice'},
                     {username: 'bob', key: 'username', value: 'bob'},
                 ]);
-                // 1 request for alice, 1 request for bob.
-                td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 2 });
+                td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 0 });
                 done();
             });
     });
 
     it.skip('fetches data from the public directory in the minimal number of requests', done => {
         superagent
-            .get(sTools.endpoint('/multi/metadata/alice,bob/username,name,tag'))
+            .get(sTools.endpoint('/multi/metadata/alice,bob/name,tag'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.body).to.eql([
-                    {username: 'alice', key: 'username', value: 'alice'},
                     {username: 'alice', key: 'name', value: 'alice-name'},
                     {username: 'alice', key: 'tag', value: 'alice-tag'},
-                    {username: 'bob', key: 'username', value: 'bob'},
                     {username: 'bob', key: 'name', value: 'bob-name'},
                     {username: 'bob', key: 'tag', value: 'bob-tag'},
                 ]);
@@ -339,11 +336,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             .get(sTools.endpoint('/multi/metadata/alice,bob/country,yearofbirth'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
-
-                td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 0 });
                 expect(sTools.getTest().centralUsermetaClient.callCounts.getBulk).to.equal(1);
-                expect(sTools.getTest().centralUsermetaClient.callCounts.get).to.equal(0);
-
                 expect(res?.body).to.eql([
                     {username: 'alice', key: 'country', value: 'alice-country'},
                     {username: 'alice', key: 'yearofbirth', value: 'alice-yearofbirth'},
@@ -359,13 +352,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
         .get(sTools.endpoint('/multi/metadata/alice,bob/key1,key2'))
         .end((err, res) => {
             expect(err, 'request error').to.be.null;
-
-            td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 0 });
-            expect(sTools.getTest().centralUsermetaClient.callCounts.getBulk).to.equal(0);
-            expect(sTools.getTest().centralUsermetaClient.callCounts.get).to.equal(0);
             expect(sTools.getTest().localUsermetaClient.callCounts.getBulk).to.equal(1);
-            expect(sTools.getTest().localUsermetaClient.callCounts.get).to.equal(0);
-
             expect(res?.body).to.eql([
                 {username: 'alice', key: 'key1', value: 'alice-key1'},
                 {username: 'alice', key: 'key2', value: 'alice-key2'},

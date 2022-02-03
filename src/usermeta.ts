@@ -410,6 +410,8 @@ class DirectoryAliasesPublic extends BulkedUsermetaClient implements SimpleUserm
     }
     params = parseParams(params);
     if (params[key]) {
+      // return a response without making a outgoing request if we already
+      // have the data in the incoming request.
       return cb(null, params[key]);
     }
     const account = {
