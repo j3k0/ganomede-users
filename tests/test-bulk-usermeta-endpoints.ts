@@ -149,7 +149,7 @@ describe('get-multi-metadata-keys', () => {
 
     it('should respond', (done) => {
         superagent
-            .get(sTools.endpoint('/auth/valid-token/multi/metadata/username,email?secret=' + process.env.API_SECRET))
+            .get(sTools.endpoint('/auth/valid-token/multi/metadata/username,email'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.status, 'response status').to.equal(200);
@@ -159,15 +159,16 @@ describe('get-multi-metadata-keys', () => {
 
     it('fail when token is not provided', (done) => {
         superagent
-            .get(sTools.endpoint('/auth/multi/metadata/username,email?secret=' + process.env.API_SECRET))
+            .get(sTools.endpoint('/auth/multi/metadata/username,email'))
             .end((err, res) => {
                 expect(res?.status, 'response status').to.equal(401);
                 done();
             });
     });
+
     it('returns empty array when no keys provided', (done) => {
         superagent
-            .get(sTools.endpoint('/auth/valid-token/multi/metadata/?secret=' + process.env.API_SECRET))
+            .get(sTools.endpoint('/auth/valid-token/multi/metadata/'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.body, 'response body').to.be.eql([]);
@@ -176,7 +177,7 @@ describe('get-multi-metadata-keys', () => {
     });
     it('return array of key-value pairs', (done) => {
         superagent
-            .get(sTools.endpoint('/auth/valid-token/multi/metadata/username,email?secret=' + process.env.API_SECRET))
+            .get(sTools.endpoint('/auth/valid-token/multi/metadata/username,email'))
             .end((err, res) => {
                 expect(res?.status, 'response status').to.equal(200);
                 expect(res?.body[0], 'respone body').to.have.property('key');
@@ -239,7 +240,7 @@ describe('get-multi-user-metadata-keys', () => {
 
     it('should respond', (done) => {
         superagent
-            .get(sTools.endpoint('/multi/metadata/alice,bob/username,email?secret=' + process.env.API_SECRET))
+            .get(sTools.endpoint('/multi/metadata/alice,bob/username,email'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.status, 'response status').to.equal(200);
@@ -249,7 +250,7 @@ describe('get-multi-user-metadata-keys', () => {
 
     it('return array of key-value-username pairs', (done) => {
         superagent
-            .get(sTools.endpoint('/multi/metadata/alice,bob/username,name?secret=' + process.env.API_SECRET))
+            .get(sTools.endpoint('/multi/metadata/alice,bob/username,name'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.body[0], 'respone body').to.have.property('username');
@@ -260,7 +261,7 @@ describe('get-multi-user-metadata-keys', () => {
     });
     it('return array that matches the requested users+keys', (done) => {
         superagent
-            .get(sTools.endpoint('/multi/metadata/alice,bob/username,name?secret=' + process.env.API_SECRET))
+            .get(sTools.endpoint('/multi/metadata/alice,bob/username,name'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.body.length, 'respone body length').to.equal(4);
