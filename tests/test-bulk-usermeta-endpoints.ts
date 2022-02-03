@@ -11,8 +11,10 @@ import { UsermetaClient } from "../src/usermeta";
 import { BackendInitializer, BackendOptions } from "../src/backend/directory";
 import Logger from "bunyan";
 import logMod from '../src/log';
-import fakeUsermeta from './fake-usermeta';
+import fakeUsermeta, { FakeUsermetaClient } from './fake-usermeta';
 import { UnauthorizedError } from "restify-errors";
+
+const anything = td.matchers.anything;
 
 const PREFIX = "users/v1";
 
@@ -70,8 +72,8 @@ class Test {
 
     directoryClient: DirectoryClient;
     log: Logger;
-    localUsermetaClient: UsermetaClient;
-    centralUsermetaClient: UsermetaClient;
+    localUsermetaClient: FakeUsermetaClient;
+    centralUsermetaClient: FakeUsermetaClient;
     backend: DoubledObjectWithKey<string>;
     createBackend: (options: BackendOptions) => BackendInitializer;
     authdbClient: AuthdbClient;
@@ -100,6 +102,12 @@ class Test {
         this.log = td.object(['info', 'warn', 'error', 'debug']) as Logger;
         this.localUsermetaClient = fakeUsermeta.createClient();
         this.centralUsermetaClient = fakeUsermeta.createClient();
+        Object.keys(accounts).forEach(username => {
+            this.localUsermetaClient.store[`${username}:key1`] = `${username}-key1`;
+            this.localUsermetaClient.store[`${username}:key2`] = `${username}-key2`;
+            this.centralUsermetaClient.store[`${username}:country`] = `${username}-country`;
+            this.centralUsermetaClient.store[`${username}:yearofbirth`] = `${username}-yearofbirth`;
+        });
         this.backend = td.object(['initialize']);
         this.createBackend = td.function('createBackend') as (options: BackendOptions) => BackendInitializer;
 
@@ -290,6 +298,104 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                 expect(res?.body.length, 'response body length').to.equal(4);
                 done();
             });
+    });
+
+    it.skip('fetches the username somehow', done => {
+        superagent
+            .get(sTools.endpoint('/multi/metadata/alice,bob/username'))
+            .end((err, res) => {
+                expect(err, 'request error').to.be.null;
+                expect(res?.body).to.eql([
+                    {username: 'alice', key: 'username', value: 'alice'},
+                    {username: 'bob', key: 'username', value: 'bob'},
+                ]);
+                // 1 request for alice, 1 request for bob.
+                td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 2 });
+                done();
+            });
+    });
+
+    it.skip('fetches data from the public directory in the minimal number of requests', done => {
+        superagent
+            .get(sTools.endpoint('/multi/metadata/alice,bob/username,name,tag'))
+            .end((err, res) => {
+                expect(err, 'request error').to.be.null;
+                expect(res?.body).to.eql([
+                    {username: 'alice', key: 'username', value: 'alice'},
+                    {username: 'alice', key: 'name', value: 'alice-name'},
+                    {username: 'alice', key: 'tag', value: 'alice-tag'},
+                    {username: 'bob', key: 'username', value: 'bob'},
+                    {username: 'bob', key: 'name', value: 'bob-name'},
+                    {username: 'bob', key: 'tag', value: 'bob-tag'},
+                ]);
+                // 1 request for alice, 1 request for bob.
+                td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 2 });
+                done();
+            });
+    });
+
+    it('fetches data from the central usermeta module in a single request', done => {
+        superagent
+            .get(sTools.endpoint('/multi/metadata/alice,bob/country,yearofbirth'))
+            .end((err, res) => {
+                expect(err, 'request error').to.be.null;
+
+                td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 0 });
+                expect(sTools.getTest().centralUsermetaClient.callCounts.getBulk).to.equal(1);
+                expect(sTools.getTest().centralUsermetaClient.callCounts.get).to.equal(0);
+
+                expect(res?.body).to.eql([
+                    {username: 'alice', key: 'country', value: 'alice-country'},
+                    {username: 'alice', key: 'yearofbirth', value: 'alice-yearofbirth'},
+                    {username: 'bob', key: 'country', value: 'bob-country'},
+                    {username: 'bob', key: 'yearofbirth', value: 'bob-yearofbirth'},
+                ]);
+                done();
+            });
+    });
+    
+    it('fetches data from the local usermeta module in a single request', done => {
+        superagent
+        .get(sTools.endpoint('/multi/metadata/alice,bob/key1,key2'))
+        .end((err, res) => {
+            expect(err, 'request error').to.be.null;
+
+            td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 0 });
+            expect(sTools.getTest().centralUsermetaClient.callCounts.getBulk).to.equal(0);
+            expect(sTools.getTest().centralUsermetaClient.callCounts.get).to.equal(0);
+            expect(sTools.getTest().localUsermetaClient.callCounts.getBulk).to.equal(1);
+            expect(sTools.getTest().localUsermetaClient.callCounts.get).to.equal(0);
+
+            expect(res?.body).to.eql([
+                {username: 'alice', key: 'key1', value: 'alice-key1'},
+                {username: 'alice', key: 'key2', value: 'alice-key2'},
+                {username: 'bob', key: 'key1', value: 'bob-key1'},
+                {username: 'bob', key: 'key2', value: 'bob-key2'},
+            ]);
+            done();
+        });
+    });
+    
+    it.skip('handles mixed types of metadata', done => {
+        superagent
+        .get(sTools.endpoint('/multi/metadata/alice,bob,nobody/name,username,country,tag,key1,yearofbirth,key2'))
+        .end((err, res) => {
+            expect(err, 'request error').to.be.null;
+
+            td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 3 });
+            expect(sTools.getTest().centralUsermetaClient.callCounts.getBulk).to.equal(1);
+            expect(sTools.getTest().centralUsermetaClient.callCounts.get).to.equal(0);
+            expect(sTools.getTest().localUsermetaClient.callCounts.getBulk).to.equal(1);
+            expect(sTools.getTest().localUsermetaClient.callCounts.get).to.equal(0);
+
+            expect(res?.body).to.eql([
+                {username: 'alice', key: 'key1', value: 'alice-key1'},
+                {username: 'alice', key: 'key2', value: 'alice-key2'},
+                {username: 'bob', key: 'key1', value: 'bob-key1'},
+                {username: 'bob', key: 'key2', value: 'bob-key2'},
+            ]);
+            done();
+        });
     });
 
 });

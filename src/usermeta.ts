@@ -636,8 +636,8 @@ class GanomedeUsermeta extends BulkedUsermetaClient implements SimpleUsermetaCli
 }
 
 interface UsermetaRouterOptions {
-  directoryPublic: any,
-  directoryProtected: any,
+  directoryPublic: UsermetaClient,
+  directoryProtected: UsermetaClient,
   ganomedeCentral: UsermetaClient,
   ganomedeLocal: UsermetaClient
 };
@@ -656,8 +656,8 @@ interface UsermetaRouterOptions {
 class UsermetaRouter extends BulkedUsermetaClient implements SimpleUsermetaClient {
 
   type: string;
-  directoryPublic: any;
-  directoryProtected: any;
+  directoryPublic: UsermetaClient;
+  directoryProtected: UsermetaClient;
   ganomedeCentral: UsermetaClient;
   ganomedeLocal: UsermetaClient;
   routes: any;

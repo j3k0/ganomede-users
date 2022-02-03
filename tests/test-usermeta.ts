@@ -242,6 +242,13 @@ describe("usermeta", function() {
           td.callback));
       });
 
+      it("delegates to the jsonClient", function () {
+        usermetaClient.getBulk({ usernames: ["username1", "username2"] }, ["age", "country"], td.function('callback'));
+        return td.verify(jsonClient.get(
+          td.matchers.contains({ path: '/usermeta/v1/username1%2Cusername2/age%2Ccountry' }),
+          td.callback));
+      });
+
       it("uses apiSecret if defined", function() {
         usermetaClient.getBulk({
           usernames: ["username1", "username2"], apiSecret: "1234", authToken: "token"
