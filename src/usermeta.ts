@@ -561,13 +561,13 @@ const authPath = function (params: UsermetaClientSingleOptions): string {
 // ganomede-usermeta server will take care of key validation
 class GanomedeUsermeta extends BulkedUsermetaClient implements SimpleUsermetaClient {
 
-  jsonClient: any;
+  jsonClient: any; // restify-clients.JsonClient
   type: string;
 
   constructor(jsonClient) {
     super();
     this.jsonClient = jsonClient;
-    this.type = "GanomedeUsermeta";
+    this.type = "GanomedeUsermeta@" + this.jsonClient.url;
   }
 
   set(pparams: string | UsermetaClientSingleOptions, key: string, value: string, cb: UsermetaClientCallback) {
