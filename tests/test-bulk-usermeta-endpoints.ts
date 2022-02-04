@@ -376,7 +376,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                 td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 3 });
                 expect(sTools.getTest().centralUsermetaClient.callCounts.getBulk).to.equal(1);
                 expect(sTools.getTest().centralUsermetaClient.callCounts.get).to.equal(0);
-                expect(sTools.getTest().localUsermetaClient.callCounts.getBulk).to.equal(0);
+                expect(sTools.getTest().localUsermetaClient.callCounts.getBulk).to.equal(1);
                 expect(sTools.getTest().localUsermetaClient.callCounts.get).to.equal(0);
 
                 expect(res?.body).to.eql([
@@ -386,17 +386,17 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                     { username: 'bob', key: 'name', value: 'bob-name' },
                     { username: 'bob', key: 'username', value: 'bob' },
                     { username: 'bob', key: 'tag', value: 'bob-tag' },
-                    { username: 'nobody', key: 'name', value: '' },
+                    { username: 'nobody', key: 'name', value: 'nobody' },
                     { username: 'nobody', key: 'username', value: 'nobody' },
-                    { username: 'nobody', key: 'tag', value: '' },
+                    { username: 'nobody', key: 'tag', value: 'nobody' },
                     { username: 'alice', key: 'country', value: 'alice-country' },
-                    { username: 'alice', key: 'key1' },
+                    { username: 'alice', key: 'key1', value: 'alice-key1' },
                     { username: 'alice', key: 'yearofbirth', value: 'alice-yearofbirth' },
-                    { username: 'alice', key: 'key2' },
+                    { username: 'alice', key: 'key2', value: 'alice-key2' },
                     { username: 'bob', key: 'country', value: 'bob-country' },
-                    { username: 'bob', key: 'key1' },
+                    { username: 'bob', key: 'key1', value: 'alice-key1' },
                     { username: 'bob', key: 'yearofbirth', value: 'bob-yearofbirth' },
-                    { username: 'bob', key: 'key2' },
+                    { username: 'bob', key: 'key2', value: 'alice-key2' },
                     { username: 'nobody', key: 'country' },
                     { username: 'nobody', key: 'key1' },
                     { username: 'nobody', key: 'yearofbirth' },
