@@ -2,7 +2,7 @@ import fakeRestify from "./fake-restify";
 import restify, { Server } from "restify";
 import { expect } from 'chai';
 import superagent from 'superagent';
-import td, { DoubledObjectWithKey } from 'testdouble';
+import td, { DoubledObject, DoubledObjectWithKey } from 'testdouble';
 import userApis from '../src/users-api';
 import { AuthdbClient } from "../src/authentication";
 import fakeAuthdb from "./fake-authdb";
@@ -12,6 +12,7 @@ import Logger from "bunyan";
 import logMod from '../src/log';
 import fakeUsermeta, { FakeUsermetaClient } from './fake-usermeta';
 import { RestError } from "restify-errors";
+import { UsermetaClient, UsernameKeyValue } from "../src/usermeta";
 
 const PREFIX = "users/v1";
 
@@ -59,12 +60,18 @@ const BY_TAGS = Object.values(accounts).reduce((acc, value) => {
     };
 }, {});
 
+const ukv = (username, key) => ({
+    username,
+    key,
+    value: username !== 'n0b0dy' ? `${username}-${key}` : undefined
+});
+
 class Test {
 
     directoryClient: DirectoryClient;
     log: Logger;
-    localUsermetaClient: FakeUsermetaClient;
-    centralUsermetaClient: FakeUsermetaClient;
+    localUsermetaClient: DoubledObject<UsermetaClient>;
+    centralUsermetaClient: DoubledObject<UsermetaClient>;
     backend: DoubledObjectWithKey<string>;
     createBackend: (options: BackendOptions) => BackendInitializer;
     authdbClient: AuthdbClient;
@@ -98,14 +105,13 @@ class Test {
 
         this.log = logMod;
         this.log = td.object(['info', 'warn', 'error', 'debug']) as Logger;
-        this.localUsermetaClient = fakeUsermeta.createClient();
-        this.centralUsermetaClient = fakeUsermeta.createClient();
-        Object.keys(accounts).forEach(username => {
-            this.localUsermetaClient.store[`${username}:key1`] = `${username}-key1`;
-            this.localUsermetaClient.store[`${username}:key2`] = `${username}-key2`;
-            this.centralUsermetaClient.store[`${username}:country`] = `${username}-country`;
-            this.centralUsermetaClient.store[`${username}:yearofbirth`] = `${username}-yearofbirth`;
-        });
+        this.localUsermetaClient = td.object<UsermetaClient>();
+        this.centralUsermetaClient = td.object<UsermetaClient>();
+        // this.localUsermetaClient = fakeUsermeta.createClient();
+        // this.centralUsermetaClient = fakeUsermeta.createClient();
+        // Object.keys(accounts).forEach(username => {
+        // });
+
         this.backend = td.object(['initialize']);
         this.createBackend = td.function('createBackend') as (options: BackendOptions) => BackendInitializer;
 
@@ -127,6 +133,15 @@ class Test {
             userApis.addRoutes(PREFIX, server as unknown as restify.Server);
             server.listen(port++, done);
         }, this);
+    }
+
+    mockBulkResponse(usernames: string[], keys: string[], type: 'local' | 'central') {
+        const client = type === 'local' ? this.localUsermetaClient : this.centralUsermetaClient;
+        const response: UsernameKeyValue[] = usernames.reduce((acc: UsernameKeyValue[], username: string) => {
+            return [...acc, ...keys.map(key => ukv(username, key))];
+        }, []);
+        td.when(client.getBulk(td.matchers.contains({usernames}), keys, td.callback))
+            .thenCallback(null, response);
     }
 }
 
@@ -228,6 +243,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
     });
 
     it('should respond', (done) => {
+        sTools.getTest().mockBulkResponse(['alice','bob'], ['public'], 'local');
         superagent
             .get(sTools.endpoint('/multi/metadata/alice,bob/public'))
             .end((err, res) => {
@@ -294,11 +310,14 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
     });
 
     it('fetches data from the central usermeta module in a single request', done => {
+        sTools.getTest().mockBulkResponse(['alice','bob'], ['country','yearofbirth'], 'central');
         superagent
             .get(sTools.endpoint('/multi/metadata/alice,bob/country,yearofbirth'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
-                expect(sTools.getTest().centralUsermetaClient.callCounts.getBulk).to.equal(1);
+                td.verify(sTools.getTest().centralUsermetaClient.getBulk(
+                    td.matchers.contains({usernames: ['alice', 'bob']}), ['country', 'yearofbirth'], td.matchers.anything()),
+                    { times: 1 });
                 expect(res?.body).to.eql([
                     { username: 'alice', key: 'country', value: 'alice-country' },
                     { username: 'alice', key: 'yearofbirth', value: 'alice-yearofbirth' },
@@ -310,11 +329,16 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
     });
 
     it('fetches data from the local usermeta module in a single request', done => {
+        sTools.getTest().mockBulkResponse(['alice','bob'], ['key1','key2'], 'local');
         superagent
             .get(sTools.endpoint('/multi/metadata/alice,bob/key1,key2'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
-                expect(sTools.getTest().localUsermetaClient.callCounts.getBulk).to.equal(1);
+                td.verify(sTools.getTest().localUsermetaClient.getBulk(
+                    td.matchers.contains({usernames: ['alice', 'bob']}),
+                    ['key1', 'key2'],
+                    td.matchers.anything()),
+                    { times: 1 });
                 expect(res?.body).to.eql([
                     { username: 'alice', key: 'key1', value: 'alice-key1' },
                     { username: 'alice', key: 'key2', value: 'alice-key2' },
@@ -352,6 +376,8 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
     });
 
     it('should not fetch protected metadata from ganomede-usermeta', done => {
+        td.when(sTools.getTest().localUsermetaClient.getBulk(td.matchers.contains({usernames:['alice']}), ['protected'], td.callback))
+            .thenCallback(null, { username: 'alice', key: 'protected' });
         superagent
             .get(sTools.endpoint('/multi/metadata/alice/protected'))
             .end((err, res) => {
@@ -359,11 +385,18 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                 expect(res?.body).to.eql([
                     { username: 'alice', key: 'protected' },
                 ]);
+                // important: the api secret was not provided!
+                td.verify(sTools.getTest().localUsermetaClient.getBulk(td.matchers.contains({usernames:['alice'], apiSecret: process.env.API_SECRET}), td.matchers.anything(), td.callback), { times: 0});
                 done();
             });
     });
 
     it('can fetch protected metadata when the secret key is provided', done => {
+        td.when(sTools.getTest().localUsermetaClient.getBulk(td.matchers.contains({
+            usernames:['alice'],
+            apiSecret: process.env.API_SECRET,
+        }), ['protected'], td.callback))
+            .thenCallback(null, { username: 'alice', key: 'protected', value: 'my-secret' });
         superagent
             .get(sTools.endpoint('/multi/metadata/alice/email,protected?secret=' + process.env.API_SECRET))
             .end((err, res) => {
@@ -378,16 +411,28 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
 
     it('handles mixed types of metadata', done => {
 
+        sTools.getTest().mockBulkResponse(['alice','bob','n0b0dy'], ['key1','key2'], 'local');
+        sTools.getTest().mockBulkResponse(['alice','bob','n0b0dy'], ['country','yearofbirth'], 'central');
+
         superagent
             .get(sTools.endpoint('/multi/metadata/alice,bob,n0b0dy/name,username,country,tag,key1,yearofbirth,key2'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
 
                 td.verify(sTools.getTest().directoryClient.byId(td.matchers.anything(), td.matchers.anything()), { times: 3 });
-                expect(sTools.getTest().centralUsermetaClient.callCounts.getBulk).to.equal(1);
-                expect(sTools.getTest().centralUsermetaClient.callCounts.get).to.equal(0);
-                expect(sTools.getTest().localUsermetaClient.callCounts.getBulk).to.equal(1);
-                expect(sTools.getTest().localUsermetaClient.callCounts.get).to.equal(0);
+
+                td.verify(sTools.getTest().localUsermetaClient.getBulk(
+                    {usernames: ['alice', 'bob']}, ['key1', 'key2'], td.matchers.anything()),
+                    { times: 1 });
+                td.verify(sTools.getTest().centralUsermetaClient.getBulk(
+                    {usernames: ['alice', 'bob']}, ['country', 'yearofbirth'], td.matchers.anything()),
+                    { times: 1 });
+                td.verify(sTools.getTest().localUsermetaClient.get(
+                    td.matchers.anything(), td.matchers.anything(), td.matchers.anything()),
+                    { times: 0 });
+                td.verify(sTools.getTest().centralUsermetaClient.get(
+                    td.matchers.anything(), td.matchers.anything(), td.matchers.anything()),
+                    { times: 0 });
 
                 expect(res?.body).to.eql([
                     { username: 'alice', key: 'name', value: 'alice-name' },
