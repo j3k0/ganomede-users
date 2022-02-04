@@ -1,5 +1,4 @@
-import { UsermetaClientOptions, UsermetaClientCallback, SimpleUsermetaClient, UsermetaClientBulkOptions, UsermetaClientBulkCallback, KeyValue, BulkedUsermetaClient } from "../src/usermeta";
-import async from 'async';
+import { UsermetaClientSingleOptions, UsermetaClientCallback, SimpleUsermetaClient, UsermetaClientBulkOptions, BulkedUsermetaClient, UsermetaClientGetBulkCallback, KeyValue } from "../src/usermeta";
 
 const DEFAULT_MAX_LENGTH = 200;
 export class FakeUsermetaClient extends BulkedUsermetaClient implements SimpleUsermetaClient {
@@ -14,7 +13,7 @@ export class FakeUsermetaClient extends BulkedUsermetaClient implements SimpleUs
     this.callCounts = { get: 0, set: 0, getBulk: 0, setBulk: 0 };
   }
 
-  set(params:UsermetaClientOptions|string, key:string, value:string, cb:UsermetaClientCallback, maxLength?:number): void {
+  set(params:UsermetaClientSingleOptions|string, key:string, value:string, cb:UsermetaClientCallback, maxLength?:number): void {
     if (maxLength == null) { maxLength = DEFAULT_MAX_LENGTH; }
     const username = typeof params === 'string' ? params : params.username; 
     const token = `${username}:${key}`;
@@ -23,14 +22,14 @@ export class FakeUsermetaClient extends BulkedUsermetaClient implements SimpleUs
     cb(null);
   }
 
-  get(params:UsermetaClientOptions|string, key:string, cb:UsermetaClientCallback): void {
+  get(params:UsermetaClientSingleOptions|string, key:string, cb:UsermetaClientCallback): void {
     const username = typeof params === 'string' ? params : params.username; 
     const token = `${username}:${key}`;
     this.callCounts['get'] = (this.callCounts['get'] || 0) + 1;
     cb(null, this.store[token] ?? null);
   }
 
-  getBulk(pparams: string | UsermetaClientBulkOptions, keys: string[], cb: UsermetaClientBulkCallback): void {
+  getBulk(pparams: string | UsermetaClientBulkOptions, keys: string[], cb: UsermetaClientGetBulkCallback): void {
     this.callCounts['getBulk'] = (this.callCounts['getBulk'] || 0) + 1;
     let usernames:string[] = [];
     if (typeof pparams === 'string') {
@@ -45,11 +44,6 @@ export class FakeUsermetaClient extends BulkedUsermetaClient implements SimpleUs
       return tokens.concat(newTokens);
     }, []);
     cb(null, tokens.map(t => ({ username: t.username, key: t.key, value: this.store[t.token] })));
-  }
-
-  setBulk(pparams: string | UsermetaClientBulkOptions, keyValues: KeyValue[], cb: UsermetaClientBulkCallback): void {
-    this.callCounts['setBulk'] = (this.callCounts['setBulk'] || 0) + 1;
-    super.setBulk(pparams, keyValues, cb);
   }
 }
 

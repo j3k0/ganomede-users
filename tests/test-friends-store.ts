@@ -33,9 +33,9 @@ describe("friends", function() {
       getBulk(username, keys, cb) {
         return cb(null, null); //TODO
       },
-      setBulk(username, keyValues, cb) {
+      getBulkForUser(params, keys, cb) {
         return cb(null, null); //TODO
-      }
+      },
     };
     friendsClient = friendsStore.createClient({
       usermetaClient: fakeUsermetaClient,

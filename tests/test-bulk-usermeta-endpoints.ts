@@ -7,14 +7,10 @@ import userApis from '../src/users-api';
 import { AuthdbClient } from "../src/authentication";
 import fakeAuthdb from "./fake-authdb";
 import { DirectoryClient } from "../src/directory-client";
-import { UsermetaClient } from "../src/usermeta";
 import { BackendInitializer, BackendOptions } from "../src/backend/directory";
 import Logger from "bunyan";
 import logMod from '../src/log';
 import fakeUsermeta, { FakeUsermetaClient } from './fake-usermeta';
-import { UnauthorizedError } from "restify-errors";
-
-const anything = td.matchers.anything;
 
 const PREFIX = "users/v1";
 
@@ -23,14 +19,16 @@ const accounts = {
         id: "alice",
         aliases: {
             name: "alice-name",
-            tag: "alice-tag"
+            tag: "alice-tag",
+            email: "alice@fovea.cc"
         }
     },
     bob: {
         id: "bob",
         aliases: {
             name: "bob-name",
-            tag: "bob-tag"
+            tag: "bob-tag",
+            email: "bob@fovea.cc"
         }
     },
     charles: {
@@ -59,14 +57,6 @@ const BY_TAGS = Object.values(accounts).reduce((acc, value) => {
         ...acc
     };
 }, {});
-
-const dataForPost = [{
-    key: "name",
-    value: "alice1"
-}, {
-    key: "email",
-    value: "test@test.com"
-}];
 
 class Test {
 
@@ -219,42 +209,6 @@ describe('GET /auth/:authToken/multi/metadata/:keys', () => {
 });
 
 
-describe('POST /auth/:authToken/multi/metadata', () => {
-
-    const sTools = serverTools();
-
-    beforeEach(sTools.prepareServer);
-    afterEach(sTools.closeServer);
-
-    it('checks if endpoint `/users/v1/auth/:authToken/multi/metadata [POST]` exists', () => {
-        const server = fakeRestify.createServer();
-        userApis.addRoutes(PREFIX, server as unknown as restify.Server);
-        expect(server.routes.post[`/${PREFIX}/auth/:authToken/multi/metadata`], 'get /users/v1/auth/:authToken/multi/metadata route').to.be.ok;
-    });
-
-    it('should respond', (done) => {
-        superagent
-            .post(sTools.endpoint('/auth/valid-token/multi/metadata'))
-            .send(dataForPost)
-            .end(function (err, res) {
-                expect(err, 'request error').to.be.null;
-                expect(res?.status, 'response status').to.equal(200);
-                done();
-            });
-    });
-
-    it('returns unauthorized when token is not valid', (done) => {
-        superagent
-            .post(sTools.endpoint('/auth/00000/multi/metadata'))
-            .send(dataForPost)
-            .end(function (err, res) {
-                expect(res?.status, 'response status').to.equal(401);
-                done();
-            });
-    });
-});
-
-
 describe('GET /multi/metadata/:userIds/:keys', () => {
 
     const sTools = serverTools();
@@ -270,7 +224,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
 
     it('should respond', (done) => {
         superagent
-            .get(sTools.endpoint('/multi/metadata/alice,bob/username,email'))
+            .get(sTools.endpoint('/multi/metadata/alice,bob/public'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.status, 'response status').to.equal(200);
@@ -389,6 +343,44 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                     { username: 'n0b0dy', key: 'name', value: 'n0b0dy' },
                     { username: 'n0b0dy', key: 'username', value: 'n0b0dy' },
                     { username: 'n0b0dy', key: 'tag', value: 'nobody' },
+                ]);
+                done();
+            });
+    });
+
+    it('should not fetch protected metadata from the directory', done => {
+        superagent
+            .get(sTools.endpoint('/multi/metadata/alice/email'))
+            .end((err, res) => {
+                expect(err, 'request error').to.be.null;
+                expect(res?.body).to.eql([
+                    { username: 'alice', key: 'email' },
+                    { username: 'alice', key: 'protected', value: null },
+                ]);
+                done();
+            });
+    });
+
+    it('should not fetch protected metadata from ganomede-usermeta', done => {
+        superagent
+            .get(sTools.endpoint('/multi/metadata/alice/protected'))
+            .end((err, res) => {
+                expect(err, 'request error').to.be.null;
+                expect(res?.body).to.eql([
+                    { username: 'alice', key: 'protected', value: null },
+                ]);
+                done();
+            });
+    });
+
+    it('can fetch protected metadata when the secret key is provided', done => {
+        superagent
+            .get(sTools.endpoint('/multi/metadata/alice/email,protected?secret=' + process.env.API_SECRET))
+            .end((err, res) => {
+                expect(err, 'request error').to.be.null;
+                expect(res?.body).to.eql([
+                    { username: 'alice', key: 'email', value: "alice@fovea.cc" },
+                    { username: 'alice', key: 'protected', value: "my-secret" },
                 ]);
                 done();
             });

@@ -15,7 +15,7 @@ import { sendError } from '../utils/send-error';
 import checkBan from '../middlewares/mw-check-ban';
 import { Bans } from '../bans';
 import { AuthdbClient, Authenticator } from '../authentication';
-import { UsermetaClient, UsermetaClientOptions } from '../usermeta';
+import { UsermetaClient, UsermetaClientSingleOptions } from '../usermeta';
 import facebookFriends, { FacebookFriends } from '../facebook-friends';
 import { AliasesClient } from '../aliases';
 import { FriendsClient } from '../friends-store';
@@ -99,7 +99,7 @@ export function addRoutes(options: ApiMeOptions) {
     function getAccountMetadata(req, res, next) {
         // console.log 'getAccountMetadata'
         const { account } = req.params._store;
-        const params: UsermetaClientOptions = {
+        const params: UsermetaClientSingleOptions = {
             req_id: req.id(),
             authToken: req.params.authToken,
             username: account.username

@@ -2,7 +2,7 @@ import log from "./log";
 import restifyErrors from "restify-errors";
 import restify from "restify";
 import { FriendsClient } from "./friends-store";
-import { UsermetaClientOptions } from "./usermeta";
+import { UsermetaClientSingleOptions } from "./usermeta";
 
 export class FriendsApi {
 
@@ -31,7 +31,7 @@ export class FriendsApi {
   get(req:restify.Request, res:restify.Response, next:restify.Next) {
 
     const username = req.params.user != null ? req.params.user.username : undefined;
-    const params:UsermetaClientOptions = {
+    const params:UsermetaClientSingleOptions = {
       log: req.log,
       req_id: req.id(),
       username,
@@ -68,7 +68,7 @@ export class FriendsApi {
     if (!username || !target) {
       return next(new restifyErrors.BadRequestError("No username or no target to remove from friends"));
     }
-    const params:UsermetaClientOptions = {
+    const params:UsermetaClientSingleOptions = {
       log: req.log,
       req_id: req.id(),
       username,
@@ -101,7 +101,7 @@ export class FriendsApi {
       return next(err);
     }
 
-    const params:UsermetaClientOptions = {
+    const params:UsermetaClientSingleOptions = {
       log: req.log,
       req_id: req.id(),
       username,

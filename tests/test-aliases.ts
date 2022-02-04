@@ -14,18 +14,18 @@ describe("aliases", function() {
       meta: {},
       isValid(key) { return true; },
       get(username, key, cb) {
-        return cb(null, this.meta[`${username}:${key}`]);
+        cb(null, this.meta[`${username}:${key}`]);
       },
       set(username, key, value, cb) {
         this.meta[`${username}:${key}`] = value;
-        return cb(null);
+        cb(null);
       },
       getBulk(username, keys, cb) {
-        return cb(null, null); //TODO
+        cb(null, null); //TODO
       },
-      setBulk(username, keyValues, cb) {
-        return cb(null, null); //TODO
-      }
+      getBulkForUser(params, keys, cb) {
+        cb(null, null); // TODO
+      },
     };
     aliasesClient = aliases.createClient({
       usermetaClient: fakeUsermetaClient});
