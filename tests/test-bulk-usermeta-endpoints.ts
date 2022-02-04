@@ -11,6 +11,7 @@ import { BackendInitializer, BackendOptions } from "../src/backend/directory";
 import Logger from "bunyan";
 import logMod from '../src/log';
 import fakeUsermeta, { FakeUsermetaClient } from './fake-usermeta';
+import { RestError } from "restify-errors";
 
 const PREFIX = "users/v1";
 
@@ -89,7 +90,11 @@ class Test {
         });
 
         td.when(this.directoryClient.byId(td.matchers.contains({ id: 'n0b0dy' }), td.callback))
-            .thenCallback(new Error('notfound'), null);
+            .thenCallback(new RestError({
+                restCode: 'UserNotFoundError',
+                statusCode: 404,
+                message: 'User not found: n0b0dy'
+            }), null);
 
         this.log = logMod;
         this.log = td.object(['info', 'warn', 'error', 'debug']) as Logger;
@@ -334,28 +339,13 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             });
     });
 
-    it('handles non existing users with default values in the directory', done => {
-        superagent
-            .get(sTools.endpoint('/multi/metadata/n0b0dy/name,username,tag'))
-            .end((err, res) => {
-                expect(err, 'request error').to.be.null;
-                expect(res?.body).to.eql([
-                    { username: 'n0b0dy', key: 'name', value: 'n0b0dy' },
-                    { username: 'n0b0dy', key: 'username', value: 'n0b0dy' },
-                    { username: 'n0b0dy', key: 'tag', value: 'nobody' },
-                ]);
-                done();
-            });
-    });
-
     it('should not fetch protected metadata from the directory', done => {
         superagent
             .get(sTools.endpoint('/multi/metadata/alice/email'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.body).to.eql([
-                    { username: 'alice', key: 'email' },
-                    { username: 'alice', key: 'protected', value: null },
+                    { username: 'alice', key: 'email' }
                 ]);
                 done();
             });
@@ -367,7 +357,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.body).to.eql([
-                    { username: 'alice', key: 'protected', value: null },
+                    { username: 'alice', key: 'protected' },
                 ]);
                 done();
             });

@@ -70,9 +70,10 @@ export abstract class BulkedUsermetaClient {
   getBulkForUser(pparams: UsermetaClientSingleOptions, keys: string[], cb: UsermetaClientGetBulkCallback) {
     const tasks: AsyncFunction<UsernameKeyValue, Error | null>[] =
       keys.map((key) => cb2 => this.get(pparams, key, (err: Error | null, reply?: string | null) => {
-
         if (err) {
-          return cb2(err, { username: pparams.username, key, value: '' });
+          // in bulk mode, errors are just logged
+          log.warn({ req_id: pparams.req_id }, 'Failed to fetch protected metadata ' + key);
+          return cb2(null, { username: pparams.username, key });
         }
         cb2(err, {
           username: pparams.username,
