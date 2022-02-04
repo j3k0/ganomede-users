@@ -98,6 +98,9 @@ class Test {
                 .thenCallback(null, publicAccount(id));
         });
 
+        td.when(this.directoryClient.byId(td.matchers.contains({ id: 'n0b0dy' }), td.callback))
+            .thenCallback(new Error('notfound'), null);
+
         this.log = logMod;
         this.log = td.object(['info', 'warn', 'error', 'debug']) as Logger;
         this.localUsermetaClient = fakeUsermeta.createClient();
@@ -363,13 +366,38 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             });
     });
 
+    it('handles non existing users with default values in the directory', done => {
+        superagent
+            .get(sTools.endpoint('/multi/metadata/n0b0dy/name,username,tag'))
+            .end((err, res) => {
+                expect(err, 'request error').to.be.null;
+                expect(res?.body).to.eql([
+                    { username: 'n0b0dy', key: 'name', value: 'n0b0dy' },
+                    { username: 'n0b0dy', key: 'username', value: 'n0b0dy' },
+                    { username: 'n0b0dy', key: 'tag', value: 'nobody' },
+                ]);
+                done();
+            });
+    });
+
+    it('handles non existing users with default values in the directory', done => {
+        superagent
+            .get(sTools.endpoint('/multi/metadata/n0b0dy/name,username,tag'))
+            .end((err, res) => {
+                expect(err, 'request error').to.be.null;
+                expect(res?.body).to.eql([
+                    { username: 'n0b0dy', key: 'name', value: 'n0b0dy' },
+                    { username: 'n0b0dy', key: 'username', value: 'n0b0dy' },
+                    { username: 'n0b0dy', key: 'tag', value: 'nobody' },
+                ]);
+                done();
+            });
+    });
+
     it('handles mixed types of metadata', done => {
 
-        td.when(sTools.getTest().directoryClient.byId(td.matchers.contains({ id: 'nobody' }), td.callback))
-            .thenCallback(new Error('notfound'), null);
-
         superagent
-            .get(sTools.endpoint('/multi/metadata/alice,bob,nobody/name,username,country,tag,key1,yearofbirth,key2'))
+            .get(sTools.endpoint('/multi/metadata/alice,bob,n0b0dy/name,username,country,tag,key1,yearofbirth,key2'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
 
@@ -386,9 +414,9 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                     { username: 'bob', key: 'name', value: 'bob-name' },
                     { username: 'bob', key: 'username', value: 'bob' },
                     { username: 'bob', key: 'tag', value: 'bob-tag' },
-                    { username: 'nobody', key: 'name', value: 'nobody' },
-                    { username: 'nobody', key: 'username', value: 'nobody' },
-                    { username: 'nobody', key: 'tag', value: 'nobody' },
+                    { username: 'n0b0dy', key: 'name', value: 'n0b0dy' },
+                    { username: 'n0b0dy', key: 'username', value: 'n0b0dy' },
+                    { username: 'n0b0dy', key: 'tag', value: 'nobody' },
                     { username: 'alice', key: 'country', value: 'alice-country' },
                     { username: 'alice', key: 'key1', value: 'alice-key1' },
                     { username: 'alice', key: 'yearofbirth', value: 'alice-yearofbirth' },
@@ -397,10 +425,10 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                     { username: 'bob', key: 'key1', value: 'alice-key1' },
                     { username: 'bob', key: 'yearofbirth', value: 'bob-yearofbirth' },
                     { username: 'bob', key: 'key2', value: 'alice-key2' },
-                    { username: 'nobody', key: 'country' },
-                    { username: 'nobody', key: 'key1' },
-                    { username: 'nobody', key: 'yearofbirth' },
-                    { username: 'nobody', key: 'key2' }
+                    { username: 'n0b0dy', key: 'country' },
+                    { username: 'n0b0dy', key: 'key1' },
+                    { username: 'n0b0dy', key: 'yearofbirth' },
+                    { username: 'n0b0dy', key: 'key2' }
                 ]);
                 done();
             });
