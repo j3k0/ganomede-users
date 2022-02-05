@@ -143,7 +143,15 @@ class Test {
         const response: UsernameKeyValue[] = usernames.reduce((acc: UsernameKeyValue[], username: string) => {
             return [...acc, ...keys.map(key => ukv(username, key))];
         }, []);
-        td.when(client.getBulk(td.matchers.contains({usernames}), keys, td.callback))
+        td.when(client.getBulk(td.matchers.contains({ usernames }), keys, td.callback))
+            .thenCallback(null, response);
+    }
+    mockBulkForUserResponse(username: string, keys: string[], type: 'local' | 'central') {
+        const client = type === 'local' ? this.localUsermetaClient : this.centralUsermetaClient;
+        const response: UsernameKeyValue[] = [username].reduce((acc: UsernameKeyValue[], username: string) => {
+            return [...acc, ...keys.map(key => ukv(username, key))];
+        }, []);
+        td.when(client.getBulkForUser(td.matchers.contains({ username }), keys, td.callback))
             .thenCallback(null, response);
     }
 }
@@ -222,10 +230,14 @@ describe('GET /auth/:authToken/multi/metadata/:keys', () => {
             .get(sTools.endpoint('/auth/valid-token/multi/metadata/username,email,tag'))
             .end((err, res) => {
                 expect(res?.status, 'response status').to.equal(200);
-                expect(res?.body, 'response body').to.equal([{
+                expect(res?.body, 'response body').to.eql([{
                     username: 'alice',
                     key: 'username',
                     value: 'alice'
+                }, {
+                    username: 'alice',
+                    key: 'tag',
+                    value: 'alice-tag'
                 }, {
                     username: 'alice',
                     key: 'email',
@@ -240,19 +252,102 @@ describe('GET /auth/:authToken/multi/metadata/:keys', () => {
             .get(sTools.endpoint('/auth/valid-token/multi/metadata/username,email,tag'))
             .end((err, res) => {
                 expect(res?.status, 'response status').to.equal(200);
-                expect(res?.body, 'response body').to.equal([{
+                expect(res?.body, 'response body').to.eql([{
                     username: 'alice',
                     key: 'username',
                     value: 'alice'
                 }, {
                     username: 'alice',
-                    key: 'email',
-                    value: 'alice@fovea.cc'
-                }, {
-                    username: 'alice',
                     key: 'tag',
                     value: 'alice-tag'
+                }, {
+                    username: 'alice',
+                    key: 'email',
+                    value: 'alice@fovea.cc'
                 }]);
+
+                td.verify(sTools.getTest().directoryClient.byId(anything(), anything()), { times: 1 });
+                done();
+            });
+    });
+
+    it('fetches the username without making a request', done => {
+        superagent
+            .get(sTools.endpoint('/auth/valid-token/multi/metadata/username'))
+            .end((err, res) => {
+                expect(err, 'request error').to.be.null;
+                expect(res?.body).to.eql([
+                    { username: 'alice', key: 'username', value: 'alice' },
+                ]);
+                const directoryClient = sTools.getTest().directoryClient;
+                td.verify(directoryClient.byId(anything(), anything()), { times: 0 });
+                done();
+            });
+    });
+
+    it('fetches data from the central usermeta module in a single request', done => {
+        sTools.getTest().mockBulkForUserResponse('alice', ['country', 'yearofbirth'], 'central');
+        superagent
+            .get(sTools.endpoint('/auth/valid-token/multi/metadata/country,yearofbirth'))
+            .end((err, res) => {
+                expect(err, 'request error').to.be.null;
+                td.verify(sTools.getTest().centralUsermetaClient.getBulkForUser(
+                    td.matchers.contains({ username: 'alice' }), ['country', 'yearofbirth'], td.matchers.anything()),
+                    { times: 1 });
+                expect(res?.body).to.eql([
+                    { username: 'alice', key: 'country', value: 'alice-country' },
+                    { username: 'alice', key: 'yearofbirth', value: 'alice-yearofbirth' },
+                ]);
+                done();
+            });
+    });
+
+    it('fetches data from the local usermeta module in a single request', done => {
+        sTools.getTest().mockBulkForUserResponse('alice', ['key1', 'key2'], 'local');
+        superagent
+            .get(sTools.endpoint('/auth/valid-token/multi/metadata/key1,key2'))
+            .end((err, res) => {
+                expect(err, 'request error').to.be.null;
+                td.verify(sTools.getTest().localUsermetaClient.getBulkForUser(
+                    td.matchers.contains({ username: 'alice' }),
+                    ['key1', 'key2'],
+                    td.matchers.anything()),
+                    { times: 1 });
+                expect(res?.body).to.eql([
+                    { username: 'alice', key: 'key1', value: 'alice-key1' },
+                    { username: 'alice', key: 'key2', value: 'alice-key2' }
+                ]);
+                done();
+            });
+    });
+
+    it('handles mixed types of metadata', done => {
+
+        const test = sTools.getTest();
+        test.mockBulkForUserResponse('alice', ['key1', 'key2'], 'local');
+        test.mockBulkForUserResponse('alice', ['country', 'yearofbirth'], 'central');
+
+        superagent
+            .get(sTools.endpoint('/auth/valid-token/multi/metadata/name,username,country,tag,key1,yearofbirth,key2'))
+            .end((err, res) => {
+                expect(err, 'request error').to.be.null;
+
+                td.verify(test.directoryClient.byId(anything(), anything()), { times: 1 });
+
+                td.verify(test.localUsermetaClient.getBulkForUser(anything(), anything(), anything()), { times: 1 });
+                td.verify(test.centralUsermetaClient.getBulkForUser(anything(), anything(), anything()), { times: 1 });
+                td.verify(test.localUsermetaClient.getBulk(anything(), anything(), anything()), { times: 0 });
+                td.verify(test.centralUsermetaClient.getBulk(anything(), anything(), anything()), { times: 0 });
+
+                expect(res?.body).to.eql([
+                    { username: 'alice', key: 'name', value: 'alice-name' },
+                    { username: 'alice', key: 'username', value: 'alice' },
+                    { username: 'alice', key: 'tag', value: 'alice-tag' },
+                    { username: 'alice', key: 'country', value: 'alice-country' },
+                    { username: 'alice', key: 'yearofbirth', value: 'alice-yearofbirth' },
+                    { username: 'alice', key: 'key1', value: 'alice-key1' },
+                    { username: 'alice', key: 'key2', value: 'alice-key2' }
+                ]);
                 done();
             });
     });
