@@ -442,8 +442,9 @@ class DirectoryAliasesPublic extends BulkedUsermetaClient implements SimpleUserm
       id: username,
       req_id: pparams.req_id
     };
+
     //first we get the values of existing keys.
-    const mappedKeyValues = keys.map((key) => {
+    const mappedKeyValues = keys.map((key): UsernameKeyValue => {
       const value = this.checkAccountParams(pparams, key);
       if (value instanceof (Error))
         return { username, key, value: '' };
@@ -451,31 +452,31 @@ class DirectoryAliasesPublic extends BulkedUsermetaClient implements SimpleUserm
         return { username, key, value };
       return { username, key };
     });
+
     //check if there are undefined values.
     //if no undefined values, then we will callback, cause we have now all the values needed.
-    const undefinedValues = mappedKeyValues.filter(item => item.value === undefined);
-    if (undefinedValues.length === 0) {
+    const hasUndefinedValues = mappedKeyValues.find(item => (item.value === undefined || item.value === null));
+    if (!hasUndefinedValues) {
       return cb(null, mappedKeyValues);
     }
 
     //if there is undefined keys, then we need to getById from directory
     return this.directoryClient.byId(account, (byIdError, byIdBody) => {
       const params = parseParams(pparams);
-      //for each undefined value, we need to get the value of the key from the account of the user.
-      //we already have the account in body object.
-      undefinedValues.forEach((item) => {
-        directory.handleResponse(this.authdbClient, params, item.key, (err2, reply2) => {
+      // for each undefined value, we need to get the value of the key from the account of the user.
+      // we already have the account in body object.
+      keys.forEach((key) => {
+        directory.handleResponse(this.authdbClient, params, key, (err2, reply2) => {
           if (err2) {
             reply2 = '';
             log.warn({
               req_id: params.req_id,
-              err2, account, key: item.key
+              err2, account, key: key
             });
           }
-          if (!reply2)
-            reply2 = '';
           //update the value in the mappedkeyValues array.
-          mappedKeyValues.find((elem) => elem.key === item.key)!.value = reply2;
+          const elementInResult = mappedKeyValues.find((elem) => elem.key === key);
+          if (elementInResult && (reply2 || !elementInResult.value)) elementInResult.value = reply2 || '';
         })(byIdError, byIdBody);
       });
       //callback the full mappedkeyvalues.
