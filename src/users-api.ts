@@ -9,7 +9,7 @@ import async from "async";
 import authentication, { AuthdbClient, Authenticator } from "./authentication";
 import restifyClients from "restify-clients";
 import restifyErrors from "restify-errors";
-import restify from "restify";
+import restify, { Next, Request, Response } from "restify";
 import logMod from "./log";
 let log = logMod.child({ module: "users-api" });
 import helpers from "ganomede-helpers";
@@ -292,8 +292,9 @@ const getMetadata = function (req, res, next) {
 
 
 // Get multi metadata
-const getMultiMetadata = function (req, res, next) {
+const getMultiMetadata = function (req:Request, res:Response, next:Next) {
   const params: UsermetaClientBulkOptions = {
+    apiSecret: req.query?.secret,
     req_id: req.id(),
     usernames: (req.params?.userIds?.split(',')?.filter(x => x)) || [],
   };

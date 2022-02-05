@@ -350,6 +350,10 @@ class DirectoryAliasesProtected extends BulkedUsermetaClient implements Protecte
     }
     const params = parseParams(pparams);
     // protected metadata require an authToken for reading
+    if (params.apiSecret && params.username) {
+      return this.directoryClient.byId({ id: params.username, secret: params.apiSecret }, 
+        directory.handleResponse(this.authdbClient, params, key, cb));
+    }
     if (!params.authToken) {
       return cb(new restifyErrors.NotAuthorizedError({
         message: "Protected meta",
