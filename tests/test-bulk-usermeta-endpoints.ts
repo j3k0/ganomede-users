@@ -68,6 +68,8 @@ const ukv = (username, key) => ({
     value: username !== 'n0b0dy' ? `${username}-${key}` : undefined
 });
 
+let nextPort = 31009;
+
 class Test {
 
     directoryClient: DirectoryClient;
@@ -125,14 +127,14 @@ class Test {
         this.authdbClient = fakeAuthdb.createClient();
         this.authdbClient.addAccount("valid-token", {
             username: "alice",
-            email: 'alice@test.com'
+            email: accounts.alice.aliases.email
         });
     }
 
-    initialize(server, port, done) {
+    initialize(server, done) {
         userApis.initialize(() => {
             userApis.addRoutes(PREFIX, server as unknown as restify.Server);
-            server.listen(port++, done);
+            server.listen(nextPort++, done);
         }, this);
     }
 
@@ -149,7 +151,6 @@ class Test {
 const serverTools = () => {
     let server: Server;
 
-    let port = 31009;
     let test: Test;
 
 
@@ -159,7 +160,7 @@ const serverTools = () => {
         server.use(restify.plugins.queryParser());
 
         test = new Test();
-        test.initialize(server, port, done);
+        test.initialize(server, done);
     }
 
     function closeServer(done) {
