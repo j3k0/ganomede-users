@@ -146,6 +146,7 @@ class Test {
         td.when(client.getBulk(td.matchers.contains({ usernames }), keys, td.callback))
             .thenCallback(null, response);
     }
+
     mockBulkForUserResponse(username: string, keys: string[], type: 'local' | 'central') {
         const client = type === 'local' ? this.localUsermetaClient : this.centralUsermetaClient;
         const response: UsernameKeyValue[] = [username].reduce((acc: UsernameKeyValue[], username: string) => {
@@ -202,6 +203,15 @@ describe('GET /auth/:authToken/multi/metadata/:keys', () => {
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.status, 'response status').to.equal(200);
+                done();
+            });
+    });
+
+    it('fails when token is invalid', (done) => {
+        superagent
+            .get(sTools.endpoint('/auth/invalid-token/multi/metadata/username,email'))
+            .end((err, res) => {
+                expect(res?.status, 'response status').to.equal(401);
                 done();
             });
     });

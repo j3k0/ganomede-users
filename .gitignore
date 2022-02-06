@@ -6,3 +6,4 @@ build/
 
 # We keep test docker-compose, but this one is sever-specific.
 docker-compose.yml
+.vscode/*.log
