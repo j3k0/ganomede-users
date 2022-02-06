@@ -652,7 +652,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             server.get('/usermeta/v1/:usernames/:keys', (req, res, next) => {
                 expect(req.params.usernames).to.equal('user1');
                 expect(req.params.keys).to.equal('key1,key2');
-                req.log.info("GET from usermeta");
+                // req.log.info("GET from usermeta");
                 res.json({
                     user1: {
                         key1: "1x1",
@@ -682,9 +682,9 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
         it('does not fail with multiple users - issue #76', done => {
             // Fake usermeta response
             server.get('/usermeta/v1/:usernames/:keys', (req, res, next) => {
-                // expect(req.params.usernames).to.equal('user1,user2');
-                // expect(req.params.keys).to.equal('key1,key2');
-                req.log.info("GET from usermeta");
+                expect(req.params.usernames).to.equal('user1,user2');
+                expect(req.params.keys).to.equal('key1,key2');
+                // req.log.info("GET from usermeta");
                 res.json({
                     user1: {
                         key1: "1x1",
@@ -698,7 +698,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                 next();
             });
             superagent
-                .get(endpoint('/users/v1/multi/metadata/user1/key1,key2'))
+                .get(endpoint('/users/v1/multi/metadata/user1,user2/key1,key2'))
                 .end((err, res) => {
                     expect(err, 'response error').to.be.null;
                     expect(res?.status, 'response status').to.equal(200);
