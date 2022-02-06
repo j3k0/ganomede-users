@@ -45,7 +45,17 @@ const data = {
   tokens: [{
     createAccountKey: 'valid',
     token: VALID_AUTH_TOKEN
-  }]
+  }],
+  accounts: {
+    jeko: {
+      id: "jeko",
+      aliases: {
+        name: "jeko-name",
+        tag: "jeko-tag",
+        email: "jeko@fovea.cc"
+      }
+    }
+  }
 };
 const apiSecret = process.env.API_SECRET;
 
@@ -80,7 +90,11 @@ const baseTest = function() {
   td.when(directoryClient.byAlias(
     td.matchers.contains({type: "tag"}),
     td.matchers.isA(Function)))
-      .thenDo((alias, cb) => cb(null, {id: alias.value}));
+    .thenDo((alias, cb) => cb(null, { id: alias.value }));
+
+  td.when(directoryClient.byId(
+    td.matchers.contains({ id: data.accounts.jeko.id }), td.callback))
+    .thenCallback(null, data.accounts.jeko);
 
   const callback = td.function('callback');
   const authdbClient = fakeAuthdb.createClient();
@@ -218,10 +232,15 @@ describe('users-api', function() {
           expect(res.body).to.eql({
             username,
             metadata: {
+              '$blocked': null,
+              location: null,
+              singleplayerstats: null,
+              name: "jeko-name",
               country: null,
               yearofbirth: null,
               '$chatdisabled': null,
-            }});
+            }
+          });
           return done();
       });
     }));

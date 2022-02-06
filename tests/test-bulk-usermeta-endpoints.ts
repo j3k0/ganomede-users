@@ -65,7 +65,7 @@ const BY_TAGS = Object.values(accounts).reduce((acc, value) => {
 const ukv = (username, key) => ({
     username,
     key,
-    value: username !== 'n0b0dy' ? `${username}-${key}` : undefined
+    value: username !== 'n0b0dy' ? `${username}-${key}` : null
 });
 
 let nextPort = 31009;
@@ -516,7 +516,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.body).to.eql([
-                    { username: 'alice', key: 'email' }
+                    { username: 'alice', key: 'email', value: null }
                 ]);
                 done();
             });
@@ -594,14 +594,14 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                     { username: 'alice', key: 'yearofbirth', value: 'alice-yearofbirth' },
                     { username: 'bob', key: 'country', value: 'bob-country' },
                     { username: 'bob', key: 'yearofbirth', value: 'bob-yearofbirth' },
-                    { username: 'n0b0dy', key: 'country' },
-                    { username: 'n0b0dy', key: 'yearofbirth' },
+                    { username: 'n0b0dy', key: 'country', value: null },
+                    { username: 'n0b0dy', key: 'yearofbirth', value: null },
                     { username: 'alice', key: 'key1', value: 'alice-key1' },
                     { username: 'alice', key: 'key2', value: 'alice-key2' },
                     { username: 'bob', key: 'key1', value: 'bob-key1' },
                     { username: 'bob', key: 'key2', value: 'bob-key2' },
-                    { username: 'n0b0dy', key: 'key1' },
-                    { username: 'n0b0dy', key: 'key2' }
+                    { username: 'n0b0dy', key: 'key1', value: null},
+                    { username: 'n0b0dy', key: 'key2', value: null }
                 ]);
                 done();
             });

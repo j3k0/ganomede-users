@@ -45,7 +45,7 @@ export type KeyValue = {
 export type UsernameKeyValue = {
   username: string,
   key: string,
-  value?: string,
+  value: string | null,
 };
 
 export type BuildTask = AsyncFunction<UsernameKeyValue[], Error | null>;
@@ -73,12 +73,12 @@ export abstract class BulkedUsermetaClient {
         if (err) {
           // in bulk mode, errors are just logged
           log.warn({ req_id: pparams.req_id }, 'Failed to fetch protected metadata ' + key);
-          return cb2(null, { username: pparams.username, key });
+          return cb2(null, { username: pparams.username, key, value: null });
         }
         cb2(err, {
           username: pparams.username,
           key,
-          value: typeof reply === 'string' ? reply : undefined
+          value: typeof reply === 'string' ? reply : null
         });
       }));
 
@@ -450,7 +450,7 @@ class DirectoryAliasesPublic extends BulkedUsermetaClient implements SimpleUserm
         return { username, key, value: '' };
       if (typeof value === "string")
         return { username, key, value };
-      return { username, key };
+      return { username, key, value: null };
     });
 
     //check if there are undefined values.
