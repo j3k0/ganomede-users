@@ -25,19 +25,27 @@ export const createReportedUsersProcessor = (log: Logger, bans: Bans) => (secret
         let event = events[i];
         if (event.type === REPORTED && event.data !== null) {
             let eventData: BlockedUserEvent = event.data as BlockedUserEvent;
-            groupedUserReported[eventData.target] = (groupedUserReported[eventData.target] || 0) + 1;
+            var key = eventData.target + '|' + eventData.username;
+            groupedUserReported[key] = 1; //(groupedUserReported[key] || 0) + 1;
         }
     }
-    // or we do this
-    // groupedUserReported = events.filter((event) => event.type === REPORTED)
-    //     .map((event) => event.data as BlockedUserEvent)
-    //     .reduce((result, currentValue: BlockedUserEvent) => {
-    //         result[currentValue.target] = (result[currentValue.target] || 0) + 1;
-    //         return result;
-    //     }, {});
 
-    //mapping the object to array of { target: string, total: number } for easy sorting.
-    var reportedUsersArray: UserReports[] = Object.keys(groupedUserReported).map((key) => { return { target: key, total: groupedUserReported[key] }; });
+    //mapping the object to array of { target: string, total: 1 } and then reduce the array to calculate the
+    //sum for each user, and for easy sorting.
+    var reportedUsersArray: UserReports[] = Object.keys(groupedUserReported).map((key) => { return { target: key.split('|')[0], total: groupedUserReported[key] }; });
+
+    //reportedUsersArray is similar to [ { target: 'user2', total: 1 }, { target: 'user2', total: 1 } ]
+    //so the below code will reduce the array and calculate the sum for each user.
+    var result: UserReports[] = [];
+    reportedUsersArray.reduce(function (res, value) {
+        if (!res[value.target]) {
+            res[value.target] = { target: value.target, total: 0 };
+            result.push(res[value.target])
+        }
+        res[value.target].total += value.total;
+        return res;
+    }, {});
+    reportedUsersArray = result;
     
     //sorting the array descending by the total reports.
     //we have now a sorted array [{username, totalReports}]
