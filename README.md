@@ -258,6 +258,13 @@ Returns `BanInfo` object describing account standing of `:tag`.
 
 ## Ban user `/users/v1/banned-users/ [POST]`
 
+Ban a user from using the game.
+
+Create an event that indicates that the user has been banned in the "blocked-users" channel.
+
+ * Type: `"USER_REVIEW"`
+ * The action taken: `data.action = "BAN"`
+
 ### body (application/json)
 
 ``` json
@@ -525,9 +532,8 @@ If the key doesn't exist or cannot be accessed, it will be omitted from the resu
 
 Create an event that indicates that the user has been reviewed in the "blocked-users" channel.
 
-- Type: "USER_REVIEW"
-- The action taken: `data.action = "CLEAN"`
-
+ * Type: `"USER_REVIEW"`
+ * The action taken: `data.action = "CLEAN"`
 
 ### body (application/json)
 
@@ -536,5 +542,6 @@ Create an event that indicates that the user has been reviewed in the "blocked-u
     }
 
 ### response [200] OK
+
 ---
  
