@@ -84,7 +84,7 @@ services:
     depends_on:
       - directorysync
     environment:
-     - "COUCH_DIRECTORY_PORT_5984_TCP_ADDR=directorycouch"
+     - "COUCH_DIRECTORY_PORT_5984_TCP_ADDR=myuser:mypass@directorycouch"
      - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
      - "API_SECRET=1234"
      - "COUCH_DIRECTORY_SYNC="
@@ -95,13 +95,13 @@ services:
 
   # will just sync the database
   directorysync:
-    image: ganomede/directory:v0.3.1
+    image: ganomede/directory:v1.2.0
     command: sh -c "/wait-for-it -t 0 authredis:6379 && /wait-for-it -t 0 directorycouch:5984 && node index.js"
     depends_on:
      - directorycouch
      - authredis
     environment:
-     - "COUCH_DIRECTORY_PORT_5984_TCP_ADDR=directorycouch"
+     - "COUCH_DIRECTORY_PORT_5984_TCP_ADDR=myuser:mypass@directorycouch"
      - "REDIS_AUTH_PORT_6379_TCP_ADDR=authredis"
      - "API_SECRET=1234"
      - "COUCH_DIRECTORY_SYNC=1"
@@ -124,7 +124,10 @@ services:
      - ./tests/wait-for-it:/wait-for-it
 
   directorycouch:
-    image: couchdb:1.6.1
+    image: couchdb:3.2.0
+    environment:
+      - "COUCHDB_PASSWORD=mypass"
+      - "COUCHDB_USER=myuser"
   authredis:
     image: redis:alpine
   centralusermetaredis:
