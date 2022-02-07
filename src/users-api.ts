@@ -44,6 +44,7 @@ import eventLatest, { LatestEvents } from './latest-events';
 import reportedUsersApi from './reported-users/api';
 import { createReportedUsersProcessor, ProcessReportedUsers } from './reported-users/events-processor';
 import getBlocksApi from './blocked-users/get-blocks-api';
+import postUserReviews from './blocked-users/reviews-api';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -503,7 +504,7 @@ const validateSecret = function (req, res, next) {
   }
 };
 
-const banAdd = function (req, res, next) {
+const banAdd = function (req: Request, res: Response, next: Next) {
   const params = {
     username: req.body.username,
     apiSecret: req.body.apiSecret
@@ -513,6 +514,8 @@ const banAdd = function (req, res, next) {
       log.error('banAdd() failed', { err, username: params.username });
       return next(err);
     }
+
+    postUserReviews.sendDataReview(deferredEvents.sendEvent, req, req.body.username, "BAN");
 
     res.send(200);
     return next();
@@ -586,6 +589,7 @@ const addRoutes = function (prefix: string, server: restify.Server): void {
 
   getBlocksApi.addRoutes(prefix, server);
   reportedUsersApi.addRoutes(prefix, eventsLatest, processReportedUsers, server);
+  postUserReviews.addRoutes(prefix, server, deferredEvents.sendEvent);
 
   server.post(`/${prefix}/banned-users`,
     jsonBody, validateSecret, bodyTag, banAdd);
