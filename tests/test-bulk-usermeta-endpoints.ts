@@ -12,6 +12,7 @@ import Logger from "bunyan";
 import logMod from '../src/log';
 import { RestError } from "restify-errors";
 import { UsermetaClient, UsernameKeyValue } from "../src/usermeta";
+import { UsersApiOptions } from '../src/users-api';
 
 // shortcuts for readability
 const { anything, contains } = td.matchers;
@@ -68,7 +69,7 @@ const ukv = (username, key) => ({
     value: username !== 'n0b0dy' ? `${username}-${key}` : undefined
 });
 
-let nextPort = 31009;
+let nextPort = 31109;
 
 class Test {
 
@@ -605,6 +606,122 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                 ]);
                 done();
             });
+    });
+
+    describe('integrated tests', () => {
+
+        let server = restify.createServer();
+        let port = 12911;
+
+        function endpoint(path: string): string {
+            return `http://localhost:${server.address().port}${path}`;
+        }
+
+        beforeEach(function(done) {
+            ++port;
+            server = restify.createServer();
+            server.use(restify.plugins.bodyParser());
+            server.use(restify.plugins.queryParser());
+            const options: UsersApiOptions = {
+                log: td.object<Logger>(),
+                directoryClient: td.object<DirectoryClient>(),
+
+            };
+            Object.assign(process.env, {
+                CENTRAL_USERMETA_PORT_8000_TCP_ADDR: 'localhost',
+                CENTRAL_USERMETA_PORT_8000_TCP_PORT: '' + port,
+                LOCAL_USERMETA_PORT_8000_TCP_ADDR: 'localhost',
+                LOCAL_USERMETA_PORT_8000_TCP_PORT: '' + port,
+                FACEBOOK_APP_ID: '0'
+            });
+            userApis.initialize(() => {
+                userApis.addRoutes('users/v1', server);
+                server.listen(port, () => {
+                    done();
+                });
+            }, options);
+        });
+
+        afterEach(done => {
+            server.close();
+            done();
+        });
+
+        it('does works with a single user - issue #76', done => {
+            // Fake usermeta response
+            server.get('/usermeta/v1/:usernames/:keys', (req, res, next) => {
+                expect(req.params.usernames).to.equal('user1');
+                expect(req.params.keys).to.equal('key1,key2');
+                // req.log.info("GET from usermeta");
+                res.json({
+                    user1: {
+                        key1: "1x1",
+                        key2: "1x2"
+                    }
+                });
+                next();
+            });
+            superagent
+                .get(endpoint('/users/v1/multi/metadata/user1/key1,key2'))
+                .end((err, res) => {
+                    expect(err, 'response error').to.be.null;
+                    expect(res?.status, 'response status').to.equal(200);
+                    expect(res?.body, 'response').to.eql([{
+                        username: 'user1',
+                        key: 'key1',
+                        value: '1x1'
+                    }, {
+                        username: 'user1',
+                        key: 'key2',
+                        value: '1x2'
+                    }]);
+                    done();
+                });
+        });
+
+        it('does not fail with multiple users - issue #76', done => {
+            // Fake usermeta response
+            server.get('/usermeta/v1/:usernames/:keys', (req, res, next) => {
+                expect(req.params.usernames).to.equal('user1,user2');
+                expect(req.params.keys).to.equal('key1,key2');
+                // req.log.info("GET from usermeta");
+                res.json({
+                    user1: {
+                        key1: "1x1",
+                        key2: "1x2"
+                    },
+                    user2: {
+                        key1: "2x1",
+                        key2: "2x2"
+                    }
+                });
+                next();
+            });
+            superagent
+                .get(endpoint('/users/v1/multi/metadata/user1,user2/key1,key2'))
+                .end((err, res) => {
+                    expect(err, 'response error').to.be.null;
+                    expect(res?.status, 'response status').to.equal(200);
+                    expect(res?.body, 'response').to.eql([{
+                        username: 'user1',
+                        key: 'key1',
+                        value: '1x1'
+                    }, {
+                        username: 'user1',
+                        key: 'key2',
+                        value: '1x2'
+                    }, {
+                        username: 'user2',
+                        key: 'key1',
+                        value: '2x1'
+                    }, {
+                        username: 'user2',
+                        key: 'key2',
+                        value: '2x2'
+                    }]);
+                    done();
+                });
+        });
     });
 
 });
