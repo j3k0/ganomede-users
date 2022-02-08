@@ -570,10 +570,10 @@ class GanomedeUsermeta extends BulkedUsermetaClient implements SimpleUsermetaCli
   jsonClient: any; // restify-clients.JsonClient
   type: string;
 
-  constructor(jsonClient) {
+  constructor(jsonClient, userMetaType) {
     super();
     this.jsonClient = jsonClient;
-    this.type = "GanomedeUsermeta@" + this.jsonClient.url;
+    this.type = "GanomedeUsermeta@" + userMetaType;
   }
 
   set(pparams: string | UsermetaClientSingleOptions, key: string, value: string, cb: UsermetaClientCallback) {
@@ -637,6 +637,10 @@ class GanomedeUsermeta extends BulkedUsermetaClient implements SimpleUsermetaCli
     );
   }
 
+  getBulkForUser(pparams: UsermetaClientSingleOptions, keys: string[], cb: UsermetaClientGetBulkCallback) {
+    this.getBulk({ ...pparams, usernames: [pparams.username] }, keys, cb);
+  }
+
   getBulk(pparams: UsermetaClientBulkOptions, keys: string[], cb: UsermetaClientGetBulkCallback) {
     const singleParams = { ...pparams, username: pparams.usernames.join(',') };
     const { params, url, options } = this.prepareGet(singleParams, keys);
@@ -653,7 +657,7 @@ class GanomedeUsermeta extends BulkedUsermetaClient implements SimpleUsermetaCli
           let result: Metadata[] = [];
           usernames.forEach((name) => {
             const metadata: Metadata = {
-              ...(body?.[params.username] || {}),
+              ...(body?.[name] || {}),
               username: name
             };
             keys.forEach((k) => {
@@ -808,7 +812,7 @@ export default {
 
     // Linked with a ganomede-usermeta jsonClient
     if (config.ganomedeClient) {
-      return new GanomedeUsermeta(config.ganomedeClient);
+      return new GanomedeUsermeta(config.ganomedeClient, config.ganomedeEnv);
     }
     if (config.ganomedeConfig) {
       return new GanomedeUsermeta(restifyClients.createJsonClient({
@@ -818,8 +822,7 @@ export default {
           port: config.ganomedeConfig.port,
           pathname: config.ganomedeConfig.pathname || 'usermeta/v1'
         })
-      })
-      );
+      }), config.ganomedeEnv);
     }
 
     // Linked with redis
