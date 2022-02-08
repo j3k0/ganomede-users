@@ -5,14 +5,16 @@ export const CHANNEL = config.api + '/blocked-users';
 export const BLOCKED = 'BLOCKED';
 export const UNBLOCKED = 'UNBLOCKED';
 export const REPORTED = 'REPORTED';
+export const USER_REVIEW = 'USER_REVIEW';
 
-export type BlockedUserEventType = 'BLOCKED' | 'UNBLOCKED' | 'REPORTED';
+export type BlockedUserEventType = 'BLOCKED' | 'UNBLOCKED' | 'REPORTED' | 'USER_REVIEW';
 
 export interface BlockedUserEvent {
     req_id: string;
     // type: BlockedUserEventType; (already part of base event data)
     username: string;
     target: string;
+    action?: string;
     // blocked: string[]; (removed to make the event list lighter)
 }
 

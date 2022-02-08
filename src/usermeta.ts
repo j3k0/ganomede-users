@@ -653,7 +653,7 @@ class GanomedeUsermeta extends BulkedUsermetaClient implements SimpleUsermetaCli
           let result: Metadata[] = [];
           usernames.forEach((name) => {
             const metadata: Metadata = {
-              ...(body?.[params.username] || {}),
+              ...(body?.[name] || {}),
               username: name
             };
             keys.forEach((k) => {

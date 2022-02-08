@@ -494,29 +494,13 @@ Users' protected custom data. `:keys` is a comma separated list of keys to retri
     }]
 
 
-## Bulk Usermeta /users/v1/auth/:token/multi/metadata [POST]
-
-Change multiple users' custom data.
-
-### body (application/json)
-
-    [{
-        "key": "my-key",
-        "value": "..."
-    }, {
-        "key": "my-other-key",
-        "value": "..."
-    }]
-
-### response [200] OK
-
 ## Bulk Usermeta /users/v1/multi/metadata/:userIds/:keys [GET]
 
 Retrieve multiple users' custom data, using the users `userId`.
 
 Retrieve publicly available metadata. Both, `:userIds` and `:keys` are comma-separated list. Attach secret query string param to retrieve fields up to internal.
 
-Missing or unknown keys, and those you are not allowed to read will be omitted (as opposed to being HTTP error).
+Missing or unknown keys, and those you are not allowed to read will be omitted (as opposed to returning an HTTP error).
 
 ### body (application/json)
 
@@ -534,5 +518,23 @@ Missing or unknown keys, and those you are not allowed to read will be omitted (
 
 If the key doesn't exist or cannot be accessed, it will be omitted from the result.
 
+---
+
+
+## POST /users/v1/admin/user-reviews
+
+Create an event that indicates that the user has been reviewed in the "blocked-users" channel.
+
+- Type: "USER_REVIEW"
+- The action taken: `data.action = "CLEAN"`
+
+
+### body (application/json)
+
+    { 
+        "username": "user1"
+    }
+
+### response [200] OK
 ---
  
