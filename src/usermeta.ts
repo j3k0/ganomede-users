@@ -45,7 +45,7 @@ export type KeyValue = {
 export type UsernameKeyValue = {
   username: string,
   key: string,
-  value?: string,
+  value: string | null,
 };
 
 export type BuildTask = AsyncFunction<UsernameKeyValue[], Error | null>;
@@ -73,12 +73,12 @@ export abstract class BulkedUsermetaClient {
         if (err) {
           // in bulk mode, errors are just logged
           log.warn({ req_id: pparams.req_id }, 'Failed to fetch protected metadata ' + key);
-          return cb2(null, { username: pparams.username, key });
+          return cb2(null, { username: pparams.username, key, value: null });
         }
         cb2(err, {
           username: pparams.username,
           key,
-          value: typeof reply === 'string' ? reply : undefined
+          value: typeof reply === 'string' ? reply : null
         });
       }));
 
@@ -450,7 +450,7 @@ class DirectoryAliasesPublic extends BulkedUsermetaClient implements SimpleUserm
         return { username, key, value: '' };
       if (typeof value === "string")
         return { username, key, value };
-      return { username, key };
+      return { username, key, value: null };
     });
 
     //check if there are undefined values.
@@ -570,10 +570,10 @@ class GanomedeUsermeta extends BulkedUsermetaClient implements SimpleUsermetaCli
   jsonClient: any; // restify-clients.JsonClient
   type: string;
 
-  constructor(jsonClient) {
+  constructor(jsonClient, userMetaType) {
     super();
     this.jsonClient = jsonClient;
-    this.type = "GanomedeUsermeta@" + this.jsonClient.url;
+    this.type = "GanomedeUsermeta@" + userMetaType;
   }
 
   set(pparams: string | UsermetaClientSingleOptions, key: string, value: string, cb: UsermetaClientCallback) {
@@ -635,6 +635,10 @@ class GanomedeUsermeta extends BulkedUsermetaClient implements SimpleUsermetaCli
         }
       }
     );
+  }
+
+  getBulkForUser(pparams: UsermetaClientSingleOptions, keys: string[], cb: UsermetaClientGetBulkCallback) {
+    this.getBulk({ ...pparams, usernames: [pparams.username] }, keys, cb);
   }
 
   getBulk(pparams: UsermetaClientBulkOptions, keys: string[], cb: UsermetaClientGetBulkCallback) {
@@ -808,7 +812,7 @@ export default {
 
     // Linked with a ganomede-usermeta jsonClient
     if (config.ganomedeClient) {
-      return new GanomedeUsermeta(config.ganomedeClient);
+      return new GanomedeUsermeta(config.ganomedeClient, config.ganomedeEnv);
     }
     if (config.ganomedeConfig) {
       return new GanomedeUsermeta(restifyClients.createJsonClient({
@@ -818,8 +822,7 @@ export default {
           port: config.ganomedeConfig.port,
           pathname: config.ganomedeConfig.pathname || 'usermeta/v1'
         })
-      })
-      );
+      }), config.ganomedeEnv);
     }
 
     // Linked with redis

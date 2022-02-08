@@ -380,7 +380,7 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
       return options[name];
     } else if (ganomedeConfig.exists) {
       log.info({ ganomedeConfig }, `usermeta[${name}]`);
-      return usermeta.create({ ganomedeConfig });
+      return usermeta.create({ ganomedeConfig, ganomedeEnv });
     } else {
       log.warn(`cant create usermeta client, no ${ganomedeEnv} config`);
       return null;

@@ -29,6 +29,10 @@ export class FakeUsermetaClient extends BulkedUsermetaClient implements SimpleUs
     cb(null, this.store[token] ?? null);
   }
 
+  getBulkForUser(pparams: UsermetaClientSingleOptions, keys: string[], cb: UsermetaClientGetBulkCallback): void {
+    this.getBulk({ ...pparams, usernames: [pparams.username] }, keys, cb);
+  }
+
   getBulk(pparams: string | UsermetaClientBulkOptions, keys: string[], cb: UsermetaClientGetBulkCallback): void {
     this.callCounts['getBulk'] = (this.callCounts['getBulk'] || 0) + 1;
     let usernames:string[] = [];
@@ -43,7 +47,7 @@ export class FakeUsermetaClient extends BulkedUsermetaClient implements SimpleUs
       const newTokens = keys.map(key => ({ username, key, token: `${username}:${key}` }));
       return tokens.concat(newTokens);
     }, []);
-    cb(null, tokens.map(t => ({ username: t.username, key: t.key, value: this.store[t.token] })));
+    cb(null, tokens.map(t => ({ username: t.username, key: t.key, value: this.store[t.token] ? this.store[t.token] : null })));
   }
 }
 
