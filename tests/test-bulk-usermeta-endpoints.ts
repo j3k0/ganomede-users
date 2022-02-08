@@ -750,11 +750,11 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                     expect(err, 'response error').to.be.null;
                     expect(res?.status, 'response status').to.equal(200);
                     expect(res?.body, 'response').to.eql([{
-                        username: 'user1',
+                        username: 'alice',
                         key: 'key1',
                         value: '1x1'
                     }, {
-                        username: 'user1',
+                        username: 'alice',
                         key: 'key2',
                         value: '1x2'
                     }]);
