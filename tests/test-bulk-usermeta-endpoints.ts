@@ -11,7 +11,8 @@ import { BackendInitializer, BackendOptions } from "../src/backend/directory";
 import Logger from "bunyan";
 import logMod from '../src/log';
 import { RestError } from "restify-errors";
-import { UsermetaClient, UsernameKeyValue } from "../src/usermeta";
+import { GanomedeSubscriptionClient, UsermetaClient, 
+    UsermetaClientSingleOptions, UsernameKeyValue } from "../src/usermeta";
 import { UsersApiOptions } from '../src/users-api';
 
 // shortcuts for readability
@@ -77,6 +78,7 @@ class Test {
     log: Logger;
     localUsermetaClient: DoubledObject<UsermetaClient>;
     centralUsermetaClient: DoubledObject<UsermetaClient>;
+    ganomedeSubscriptionClient: DoubledObject<GanomedeSubscriptionClient>;
     backend: DoubledObjectWithKey<string>;
     createBackend: (options: BackendOptions) => BackendInitializer;
     authdbClient: AuthdbClient;
@@ -115,6 +117,7 @@ class Test {
         this.localUsermetaClient.type = 'GanomedeUsermeta@local';
         this.centralUsermetaClient = td.object<UsermetaClient>();
         this.centralUsermetaClient.type = 'GanomedeUsermeta@central';
+        this.ganomedeSubscriptionClient = td.object<GanomedeSubscriptionClient>();
 
         this.backend = td.object(['initialize']);
         this.createBackend = td.function('createBackend') as (options: BackendOptions) => BackendInitializer;
@@ -148,8 +151,8 @@ class Test {
             .thenCallback(null, response);
     }
 
-    mockBulkForUserResponse(username: string, keys: string[], type: 'local' | 'central') {
-        const client = type === 'local' ? this.localUsermetaClient : this.centralUsermetaClient;
+    mockBulkForUserResponse(username: string, keys: string[], type: 'local' | 'central' | 'purchases') {
+        const client = type === 'purchases' ? this.ganomedeSubscriptionClient : type === 'local' ? this.localUsermetaClient : this.centralUsermetaClient;
         const response: UsernameKeyValue[] = [username].reduce((acc: UsernameKeyValue[], username: string) => {
             return [...acc, ...keys.map(key => ukv(username, key))];
         }, []);
@@ -372,6 +375,55 @@ describe('GET /auth/:authToken/multi/metadata/:keys', () => {
                 done();
             });
     });
+
+
+    describe('Subscription Virtual meta', () => {
+
+        it('create a subscription client', () => {
+            const subscriptionClient: GanomedeSubscriptionClient | null = GanomedeSubscriptionClient.createClient({ purchasesClient: {} });
+            expect(subscriptionClient).to.be.not.null;
+
+            const subscriptionClient2: GanomedeSubscriptionClient | null =
+                GanomedeSubscriptionClient.createClient({
+                    purchasesConfig: {
+                        protocol: 0,
+                        host: '',
+                        port: 111
+                    }
+                });
+            expect(subscriptionClient2).to.be.not.null;
+        });
+
+        it('requires an authtoken', (done) => {
+            const subscriptionClient: GanomedeSubscriptionClient | null = GanomedeSubscriptionClient.createClient({ purchasesClient: {} });
+            subscriptionClient?.getBulkForUser({ username: 'alice' } as UsermetaClientSingleOptions, [], (err, res) => {
+                expect(err, 'error').to.be.not.null;
+                expect(err?.message, 'error').to.be.eql('Forbidden');
+                done();
+            });
+        });
+
+        it('fetches virtual metadata from the purchases', (done) => {
+            sTools.getTest().mockBulkForUserResponse('alice', ['productId', 'platform', 'purchaseId'], 'purchases');
+            superagent
+                .get(sTools.endpoint('/auth/valid-token/multi/metadata/productId,platform,purchaseId'))
+                .end((err, res) => {
+                    expect(res?.status, 'response status').to.equal(200);
+                    expect(res?.body, 'response body').to.eql([
+                        { username: 'alice', key: 'productId', value: 'alice-productId' },
+                        { username: 'alice', key: 'platform', value: 'alice-platform' },
+                        { username: 'alice', key: 'purchaseId', value: 'alice-purchaseId' }
+                    ]);
+
+                    td.verify(sTools.getTest().ganomedeSubscriptionClient.getBulkForUser(anything(), anything(), anything()), { times: 1 });
+                    done();
+                });
+        });
+
+
+    });
+
+
 
 });
 
