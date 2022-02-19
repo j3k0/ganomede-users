@@ -9,11 +9,11 @@ import fakeAuthdb from "./fake-authdb";
 import fakeUsermeta from "./fake-usermeta";
 import restify from 'restify';
 import restifyErrors from 'restify-errors';
-import api from '../src/users-api';
+import userApis, { UsersApiOptions } from '../src/users-api';
 import { expect } from 'chai';
 import { Bans, BanInfo } from '../src/bans';
 import td from 'testdouble';
-import { UsermetaClient } from "../src/usermeta";
+import { UsermetaClient, UsernameKeyValue } from "../src/usermeta";
 import { BackendOptions, BackendInitializer } from "../src/backend/directory";
 import Logger from "bunyan";
 import { DirectoryClient } from "../src/directory-client";
@@ -45,15 +45,35 @@ const data = {
   tokens: [{
     createAccountKey: 'valid',
     token: VALID_AUTH_TOKEN
-  }]
+  }],
+  accounts: {
+    jeko: {
+      id: "jeko",
+      aliases: {
+        name: "jeko-name",
+        tag: "jeko-tag",
+        email: "jeko@fovea.cc"
+      }
+    }
+  }
 };
 const apiSecret = process.env.API_SECRET;
 
-const baseTest = function() {
+
+const ukv = (username, key) => ({
+  username,
+  key,
+  value: username !== 'n0b0dy' ? `${username}-${key}` : null
+});
+
+
+const baseTest = function () {
   //log = require '../src/log'
-  const log = td.object([ 'info', 'warn', 'error' ]) as Logger;
-  const localUsermetaClient = td.object([ 'get', 'set' ]) as UsermetaClient;
-  const centralUsermetaClient = td.object([ 'get', 'set' ]) as UsermetaClient;
+  const log = td.object(['info', 'warn', 'error']) as Logger;
+  const localUsermetaClient = td.object<UsermetaClient>();
+  localUsermetaClient.type = 'GanomedeUsermeta@local';
+  const centralUsermetaClient = td.object<UsermetaClient>();
+  centralUsermetaClient.type = 'GanomedeUsermeta@central';
 
   const backend = td.object([
     'initialize',
@@ -80,15 +100,23 @@ const baseTest = function() {
   td.when(directoryClient.byAlias(
     td.matchers.contains({type: "tag"}),
     td.matchers.isA(Function)))
-      .thenDo((alias, cb) => cb(null, {id: alias.value}));
+    .thenDo((alias, cb) => cb(null, { id: alias.value }));
+
+  td.when(directoryClient.byId(
+    td.matchers.contains({ id: data.accounts.jeko.id }), td.callback))
+    .thenCallback(null, data.accounts.jeko);
 
   const callback = td.function('callback');
   const authdbClient = fakeAuthdb.createClient();
-  const options = { log, localUsermetaClient, centralUsermetaClient,
-    createBackend, authdbClient, authenticator, directoryClient };
-  return { callback, options,
+  const options = {
+    log, localUsermetaClient, centralUsermetaClient,
+    createBackend, authdbClient, authenticator, directoryClient
+  };
+  return {
+    callback, options,
     createBackend, backend, localUsermetaClient, centralUsermetaClient,
-    authdbClient, directoryClient };
+    authdbClient, directoryClient
+  };
 };
 
 // @ts-ignore
@@ -112,8 +140,8 @@ const restTest = function(done) {
 
   i += 1;
   var server = restify.createServer();
-  const localUsermeta = fakeUsermeta.createClient();
-  const centralUsermeta = fakeUsermeta.createClient();
+  //const localUsermeta = fakeUsermeta.createClient();
+  //const centralUsermeta = fakeUsermeta.createClient();
   ret.bans = td.object(Bans.prototype);
 
   data.tokens.forEach(info => ret.authdbClient.addAccount(info.token, {
@@ -128,23 +156,32 @@ const restTest = function(done) {
   ret.start = function(cb) {
     const options = {
       // log: td.object [ 'info', 'warn', 'error' ]
-      localUsermetaClient: localUsermeta,
-      centralUsermetaClient: centralUsermeta,
+      localUsermetaClient: ret.localUsermetaClient,
+      centralUsermetaClient: ret.centralUsermetaClient,
       authdbClient: ret.authdbClient,
       createBackend: ret.createBackend,
       directoryClient: ret.directoryClient,
       bans: ret.bans
     };
-    return api.initialize(function(err) {
+    return userApis.initialize(function (err) {
       if (err) {
         throw err;
       }
       server.use(restify.plugins.bodyParser());
-      api.addRoutes(PREFIX, server);
+      userApis.addRoutes(PREFIX, server);
       return server.listen(1337, cb);
     }
-    , options);
+      , options);
   };
+
+  ret.mockBulkForUserResponse = (username: string, keys: string[], type: 'local' | 'central') => {
+    const client = type === 'local' ? ret.localUsermetaClient : ret.centralUsermetaClient;
+    const response: UsernameKeyValue[] = [username].reduce((acc: UsernameKeyValue[], username: string) => {
+      return [...acc, ...keys.map(key => ukv(username, key))];
+    }, []);
+    td.when(client.getBulkForUser(td.matchers.contains({ username }), keys, td.callback))
+      .thenCallback(null, response);
+  }
 
   return ret;
 };
@@ -156,7 +193,7 @@ describe('users-api', function() {
     it('callbacks when done', function() {
       const { callback, options, backend } = baseTest();
       td.when(backend.initialize()).thenCallback(null, null);
-      api.initialize(callback, options);
+      userApis.initialize(callback, options);
       return td.verify(callback());
     });
 
@@ -164,12 +201,12 @@ describe('users-api', function() {
       const err = new Error("failed");
       const { callback, options, backend } = baseTest();
       td.when(backend.initialize()).thenCallback(err, null);
-      api.initialize(callback, options);
+      userApis.initialize(callback, options);
       return td.verify(callback(err));
     });
   });
 
-  return describe('REST API', function() {
+  describe('REST API', function () {
 
     let test: any = null;
     let endpoint: any = null;
@@ -204,29 +241,91 @@ describe('users-api', function() {
       });
     }));
 
-    describe('/auth/:token/me [GET] - Retrieve user data', () => it("responds with user data", function(done) {
-      const {
-        username
-      } = data.createAccount.valid;
-      td.when(test.bans.get({username,apiSecret}))
-        .thenCallback(null, new BanInfo(username, 0));
-      superagent
-        .get(endpoint(VALID_AUTH_TOKEN, "/me"))
-        .end(function(err, res) {
-          noError(err);
-          assert.strictEqual(200, res.status);
-          expect(res.body).to.eql({
-            username,
-            metadata: {
-              country: null,
-              yearofbirth: null,
-              '$chatdisabled': null,
-            }});
-          return done();
-      });
-    }));
+    describe('/auth/:token/me [GET] - Retrieve user data', () => {
+      it("responds with user data", (done) => {
 
-    describe('/passwordResetEmail [POST] - Reset password', () => it("should send an email", function(done) {
+        test.mockBulkForUserResponse('jeko', ['country', 'yearofbirth'], 'central');
+        test.mockBulkForUserResponse('jeko', ['$chatdisabled', '$blocked', 'location',
+          'singleplayerstats'], 'local');
+
+        const {
+          username
+        } = data.createAccount.valid;
+        td.when(test.bans.get({ username, apiSecret }))
+          .thenCallback(null, new BanInfo(username, 0));
+        superagent
+          .get(endpoint(VALID_AUTH_TOKEN, "/me"))
+          .end(function (err, res) {
+            noError(err);
+            assert.strictEqual(200, res.status);
+            expect(res.body).to.eql({
+              username,
+              metadata: {
+                "$blocked": "jeko-$blocked",
+                "$chatdisabled": "jeko-$chatdisabled",
+                country: "jeko-country",
+                location: "jeko-location",
+                singleplayerstats: "jeko-singleplayerstats",
+                yearofbirth: "jeko-yearofbirth"
+              }
+            });
+            done();
+          });
+      });
+
+      it("checks that meta-values are correclty read from the usermeta module", (done) => {
+        const {
+          username
+        } = data.createAccount.valid;
+        td.when(test.bans.get({ username, apiSecret }))
+          .thenCallback(null, new BanInfo(username, 0));
+
+        test.mockBulkForUserResponse('jeko', ['country', 'yearofbirth'], 'central');
+        test.mockBulkForUserResponse('jeko', ['$chatdisabled', '$blocked', 'location',
+          'singleplayerstats'], 'local');
+
+        superagent
+          .get(endpoint(VALID_AUTH_TOKEN, "/me"))
+          .end(function (err, res) {
+            noError(err);
+            assert.strictEqual(200, res.status);
+
+            td.verify(test.centralUsermetaClient.getBulkForUser(
+              td.matchers.contains({ username: 'jeko' }), ['country', 'yearofbirth'], td.matchers.anything()),
+              { times: 1 });
+
+            td.verify(test.localUsermetaClient.getBulkForUser(
+              td.matchers.contains({ username: 'jeko' }), ['$chatdisabled', '$blocked', 'location',
+              'singleplayerstats'], td.matchers.anything()),
+              { times: 1 });
+
+            td.verify(test.centralUsermetaClient.get(
+              td.matchers.contains({ username: 'jeko' }), td.matchers.anything(), td.matchers.anything()),
+              { times: 0 });
+
+            td.verify(test.localUsermetaClient.get(
+              td.matchers.contains({ username: 'jeko' }), td.matchers.anything(), td.matchers.anything()),
+              { times: 0 });
+
+            expect(res.body).to.eql({
+              username,
+              metadata: {
+                "$blocked": "jeko-$blocked",
+                "$chatdisabled": "jeko-$chatdisabled",
+                country: "jeko-country",
+                location: "jeko-location",
+                singleplayerstats: "jeko-singleplayerstats",
+                yearofbirth: "jeko-yearofbirth"
+              }
+            });
+            done();
+          });
+      });
+
+    });
+
+
+    describe('/passwordResetEmail [POST] - Reset password', () => it("should send an email", function (done) {
       const { backend } = test;
       td.when(backend.sendPasswordResetEmail(
         contains({email:data.passwordReset.email})))
@@ -426,6 +525,176 @@ tries to access any :authToken endpoint`, function(done) {
         });
       });
     });
+  });
+
+  describe('integrated tests', () => {
+
+    let server = restify.createServer();
+    let ganomedeUserMetaLocalServer = restify.createServer();
+    let ganomedeUserMetaCentralServer = restify.createServer();
+    let port = 12911;
+    let portLocal = 15911;
+    let portCentral = 15311;
+
+    function endpoint(token, path) {
+      if (!path) {
+        path = token;
+        token = null;
+      }
+      const host = `http://localhost:${server.address().port}`;
+      if (token) {
+        return `${host}/${PREFIX}/auth/${token}${path}`;
+      } else {
+        return `${host}/${PREFIX}${path}`;
+      }
+    };
+
+    beforeEach(function (done) {
+      ++port;
+      ++portLocal;
+      ++portCentral;
+      server = restify.createServer();
+      ganomedeUserMetaLocalServer = restify.createServer();
+      ganomedeUserMetaCentralServer = restify.createServer();
+      [server, ganomedeUserMetaLocalServer, ganomedeUserMetaCentralServer].forEach((s) => {
+        s.use(restify.plugins.bodyParser());
+        s.use(restify.plugins.queryParser());
+      });
+
+      const backend = td.object([
+        'initialize',
+        'loginAccount',
+        'createAccount',
+        'sendPasswordResetEmail'
+      ]);
+      const createBackend = td.function('createBackend') as (options: BackendOptions) => BackendInitializer;
+      td.when(createBackend(td.matchers.isA(Object)))
+        .thenReturn(backend);
+      const missAuthenticator = ({ authenticator }) => !authenticator;
+      td.when(createBackend(td.matchers.argThat(missAuthenticator)))
+        .thenThrow(new Error());
+
+
+      td.when(backend.loginAccount(td.matchers.anything()))
+        // @ts-ignore
+        .thenCallback(new restifyErrors.InvalidCredentialsError());
+      td.when(backend.loginAccount(data.validLogin))
+        .thenCallback(null, { token: VALID_AUTH_TOKEN });
+
+      const directoryClient = td.object(['editAccount', 'byId', 'byToken', 'byAlias']) as DirectoryClient;
+      td.when(directoryClient.byAlias(
+        td.matchers.contains({ type: "tag" }),
+        td.matchers.isA(Function)))
+        .thenDo((alias, cb) => cb(null, { id: alias.value }));
+
+      td.when(directoryClient.byId(
+        td.matchers.contains({ id: data.accounts.jeko.id }), td.callback))
+        .thenCallback(null, data.accounts.jeko);
+
+      td.when(backend.initialize()).thenCallback(null, backend);
+      const authdbClient = fakeAuthdb.createClient();
+      const bans = td.object(Bans.prototype);
+
+      td.when(bans.get(td.matchers.anything(), td.callback))
+        .thenCallback(null, new BanInfo('jeko', 0));
+
+      data.tokens.forEach(info => authdbClient.addAccount(info.token, {
+        username: data.createAccount[info.createAccountKey].username
+      }));
+
+      const options: UsersApiOptions = {
+        log: td.object<Logger>(),
+        createBackend,
+        authdbClient,
+        directoryClient,
+        bans
+      };
+
+      Object.assign(process.env, {
+        CENTRAL_USERMETA_PORT_8000_TCP_ADDR: 'localhost',
+        CENTRAL_USERMETA_PORT_8000_TCP_PORT: '' + portCentral,
+        LOCAL_USERMETA_PORT_8000_TCP_ADDR: 'localhost',
+        LOCAL_USERMETA_PORT_8000_TCP_PORT: '' + portLocal,
+        FACEBOOK_APP_ID: '0'
+      });
+      userApis.initialize(() => {
+        userApis.addRoutes('users/v1', server);
+        server.listen(port, () => {
+          done();
+        });
+      }, options);
+
+      ganomedeUserMetaLocalServer.listen(portLocal);
+      ganomedeUserMetaCentralServer.listen(portCentral);
+    });
+
+    afterEach(done => {
+      [server, ganomedeUserMetaLocalServer, ganomedeUserMetaCentralServer].forEach((s) => {
+        s.close();
+      });
+      done();
+    });
+
+    it('checks that protected meta-values are correclty read from the usermeta module', done => {
+
+      const {
+        username
+      } = data.createAccount.valid;
+
+      // Fake usermeta local response
+      ganomedeUserMetaLocalServer.get('/usermeta/v1/auth/:authToken/:keys', (req, res, next) => {
+        expect(req.params.authToken).to.equal(VALID_AUTH_TOKEN);
+        expect(req.params.keys).to.equal('$chatdisabled,$blocked,location,singleplayerstats');
+        // req.log.info("GET from usermeta");
+        const keyValues = {};
+        req.params.keys.split(',').forEach(k => {
+          const kv = ukv(username, k);
+          keyValues[kv.key] = kv.value
+        });
+
+        res.json({
+          [username]: keyValues
+        });
+        next();
+      });
+
+      // Fake usermeta central response
+      ganomedeUserMetaCentralServer.get('/usermeta/v1/auth/:authToken/:keys', (req, res, next) => {
+        expect(req.params.authToken).to.equal(VALID_AUTH_TOKEN);
+        expect(req.params.keys).to.equal('country,yearofbirth');
+        // req.log.info("GET from usermeta");
+        const keyValues = {};
+        req.params.keys.split(',').forEach(k => {
+          const kv = ukv(username, k);
+          keyValues[kv.key] = kv.value
+        });
+
+        res.json({
+          [username]: keyValues
+        });
+        next();
+      });
+
+      superagent
+        .get(endpoint(VALID_AUTH_TOKEN, "/me"))
+        .end((err, res) => {
+          expect(err, 'response error').to.be.null;
+          expect(res?.status, 'response status').to.equal(200);
+          expect(res?.body, 'response').to.eql({
+            username,
+            metadata: {
+              "$blocked": "jeko-$blocked",
+              "$chatdisabled": "jeko-$chatdisabled",
+              country: "jeko-country",
+              location: "jeko-location",
+              singleplayerstats: "jeko-singleplayerstats",
+              yearofbirth: "jeko-yearofbirth"
+            }
+          });
+          done();
+        });
+    });
+
   });
 });
 

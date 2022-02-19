@@ -111,16 +111,18 @@ export function addRoutes(options: ApiMeOptions) {
             params.name = account.name;
             params.email = account.email;
         }
-        async.mapValues<1, string | null>({
-            'country': 1,
-            'yearofbirth': 1,
-            '$chatdisabled': 1,
-        }, function(_one, key, callback) {
-            options.rootUsermetaClient.get(params, key, callback);
-        }, function(err, results) {
-            if (err) {
-                req.log.warn({err}, 'Failed to fetch metadata');
+        const keys: string[] = ['country', 'yearofbirth', '$chatdisabled', '$blocked', 'location',
+            'singleplayerstats'];
+        options.rootUsermetaClient.getBulkForUser(params, keys, (err2, reply2) => {
+            if (err2) {
+                req.log.warn({ err2 }, 'Failed to fetch metadata');
             }
+            const results = reply2?.reduce((acc, usemeta) => {
+                return {
+                    [usemeta.key]: usemeta.value,
+                    ...acc
+                };
+            }, {});
             req.params._store.account.metadata = results;
             return next();
         });
