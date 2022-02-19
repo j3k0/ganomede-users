@@ -541,12 +541,12 @@ class RedisUsermeta extends BulkedUsermetaClient implements RestrictedUsermetaCl
 }
 
 const endpoint = (subpath: string) => `/usermeta/v1${subpath}`;
-const jsonOptions = function ({ path, req_id }) {
+const jsonOptions = function ({ path, req_id }, anotherEndpoint?: (t: string) => string) {
   const options: {
     path: string;
     headers?: any;
   } = {
-    path: endpoint(path)
+    path: anotherEndpoint ? anotherEndpoint(path) : endpoint(path)
   };
   if (req_id) {
     options.headers =
@@ -722,6 +722,8 @@ export class GanomedeSubscriptionClient extends BulkedUsermetaClient implements 
       ...jsonOptions({
         path: authPath({ authToken: params.authToken, username: '' }) + '/subscription',
         req_id: params.req_id
+      }, (subPath) => {
+        return this.jsonClient.url.path + subPath;
       }),
       log: log.child({ req_id: params.req_id, url })
     };
@@ -731,7 +733,6 @@ export class GanomedeSubscriptionClient extends BulkedUsermetaClient implements 
   getSubscription(pparams: GanomedeSubscriptionParams, cb: GetSubscriptionCallback) {
 
     const { params, url, options } = this.prepareGet(pparams);
-
     if (params.authToken === undefined || params.authToken === null || params.authToken === '')
       return cb(new Error('Forbidden'));
 

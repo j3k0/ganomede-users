@@ -111,7 +111,19 @@ API
 ### response [200] OK
 
     {
-        "username": "tk421"
+        "username": "tk421",
+        "metadata": {
+            "$blocked": "blocked-value",
+            "$chatdisabled": "disabled-value",
+            country: "country-value",
+            location: "location-value",
+            singleplayerstats: "singleplayerstats-value",
+            yearofbirth: "yearofbirth-value",
+            expirationDate: "expirationDate-value",
+            productId: "productId-value",
+            purchaseDate: "purchaseDate-value",
+            purchaseId: "purchaseId-value",
+        }
     }
 
 ## /users/v1/login [POST]

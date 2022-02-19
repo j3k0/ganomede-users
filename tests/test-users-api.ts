@@ -13,7 +13,7 @@ import userApis, { UsersApiOptions } from '../src/users-api';
 import { expect } from 'chai';
 import { Bans, BanInfo } from '../src/bans';
 import td from 'testdouble';
-import { UsermetaClient, UsernameKeyValue } from "../src/usermeta";
+import { GanomedeSubscriptionClient, UsermetaClient, UsernameKeyValue } from "../src/usermeta";
 import { BackendOptions, BackendInitializer } from "../src/backend/directory";
 import Logger from "bunyan";
 import { DirectoryClient } from "../src/directory-client";
@@ -74,6 +74,8 @@ const baseTest = function () {
   localUsermetaClient.type = 'GanomedeUsermeta@local';
   const centralUsermetaClient = td.object<UsermetaClient>();
   centralUsermetaClient.type = 'GanomedeUsermeta@central';
+  const ganomedeSubscriptionClient = td.object<GanomedeSubscriptionClient>();
+  ganomedeSubscriptionClient.type = 'GanomedeSubscriptionClient';
 
   const backend = td.object([
     'initialize',
@@ -110,12 +112,12 @@ const baseTest = function () {
   const authdbClient = fakeAuthdb.createClient();
   const options = {
     log, localUsermetaClient, centralUsermetaClient,
-    createBackend, authdbClient, authenticator, directoryClient
+    createBackend, authdbClient, authenticator, directoryClient, ganomedeSubscriptionClient
   };
   return {
     callback, options,
     createBackend, backend, localUsermetaClient, centralUsermetaClient,
-    authdbClient, directoryClient
+    authdbClient, directoryClient, ganomedeSubscriptionClient
   };
 };
 
@@ -161,6 +163,7 @@ const restTest = function(done) {
       authdbClient: ret.authdbClient,
       createBackend: ret.createBackend,
       directoryClient: ret.directoryClient,
+      ganomedeSubscriptionClient: ret.ganomedeSubscriptionClient,
       bans: ret.bans
     };
     return userApis.initialize(function (err) {
@@ -174,8 +177,8 @@ const restTest = function(done) {
       , options);
   };
 
-  ret.mockBulkForUserResponse = (username: string, keys: string[], type: 'local' | 'central') => {
-    const client = type === 'local' ? ret.localUsermetaClient : ret.centralUsermetaClient;
+  ret.mockBulkForUserResponse = (username: string, keys: string[], type: 'local' | 'central' | 'purchases') => {
+    const client = type === 'purchases' ? ret.ganomedeSubscriptionClient : type === 'local' ? ret.localUsermetaClient : ret.centralUsermetaClient;
     const response: UsernameKeyValue[] = [username].reduce((acc: UsernameKeyValue[], username: string) => {
       return [...acc, ...keys.map(key => ukv(username, key))];
     }, []);
@@ -248,6 +251,7 @@ describe('users-api', function() {
         test.mockBulkForUserResponse('jeko', ['$chatdisabled', '$blocked', 'location',
           'singleplayerstats'], 'local');
 
+        test.mockBulkForUserResponse('jeko', ['productId', 'purchaseId', 'purchaseDate', 'expirationDate'], 'purchases');
         const {
           username
         } = data.createAccount.valid;
@@ -266,7 +270,11 @@ describe('users-api', function() {
                 country: "jeko-country",
                 location: "jeko-location",
                 singleplayerstats: "jeko-singleplayerstats",
-                yearofbirth: "jeko-yearofbirth"
+                yearofbirth: "jeko-yearofbirth",
+                expirationDate: "jeko-expirationDate",
+                productId: "jeko-productId",
+                purchaseDate: "jeko-purchaseDate",
+                purchaseId: "jeko-purchaseId"
               }
             });
             done();
@@ -284,6 +292,8 @@ describe('users-api', function() {
         test.mockBulkForUserResponse('jeko', ['$chatdisabled', '$blocked', 'location',
           'singleplayerstats'], 'local');
 
+        test.mockBulkForUserResponse('jeko', ['productId', 'purchaseId', 'purchaseDate', 'expirationDate'], 'purchases');
+
         superagent
           .get(endpoint(VALID_AUTH_TOKEN, "/me"))
           .end(function (err, res) {
@@ -297,6 +307,11 @@ describe('users-api', function() {
             td.verify(test.localUsermetaClient.getBulkForUser(
               td.matchers.contains({ username: 'jeko' }), ['$chatdisabled', '$blocked', 'location',
               'singleplayerstats'], td.matchers.anything()),
+              { times: 1 });
+
+            td.verify(test.ganomedeSubscriptionClient.getBulkForUser(
+              td.matchers.contains({ username: 'jeko' }), ['productId', 'purchaseId',
+              'purchaseDate', 'expirationDate'], td.matchers.anything()),
               { times: 1 });
 
             td.verify(test.centralUsermetaClient.get(
@@ -315,7 +330,11 @@ describe('users-api', function() {
                 country: "jeko-country",
                 location: "jeko-location",
                 singleplayerstats: "jeko-singleplayerstats",
-                yearofbirth: "jeko-yearofbirth"
+                yearofbirth: "jeko-yearofbirth",
+                expirationDate: "jeko-expirationDate",
+                productId: "jeko-productId",
+                purchaseDate: "jeko-purchaseDate",
+                purchaseId: "jeko-purchaseId"
               }
             });
             done();
@@ -532,9 +551,11 @@ tries to access any :authToken endpoint`, function(done) {
     let server = restify.createServer();
     let ganomedeUserMetaLocalServer = restify.createServer();
     let ganomedeUserMetaCentralServer = restify.createServer();
+    let ganomedePurchasesServer = restify.createServer();
     let port = 12911;
     let portLocal = 15911;
     let portCentral = 15311;
+    let portPurchases = 18311;
 
     function endpoint(token, path) {
       if (!path) {
@@ -553,10 +574,12 @@ tries to access any :authToken endpoint`, function(done) {
       ++port;
       ++portLocal;
       ++portCentral;
+      ++portPurchases;
       server = restify.createServer();
       ganomedeUserMetaLocalServer = restify.createServer();
       ganomedeUserMetaCentralServer = restify.createServer();
-      [server, ganomedeUserMetaLocalServer, ganomedeUserMetaCentralServer].forEach((s) => {
+      ganomedePurchasesServer = restify.createServer();
+      [server, ganomedeUserMetaLocalServer, ganomedeUserMetaCentralServer, ganomedePurchasesServer].forEach((s) => {
         s.use(restify.plugins.bodyParser());
         s.use(restify.plugins.queryParser());
       });
@@ -615,6 +638,8 @@ tries to access any :authToken endpoint`, function(done) {
         CENTRAL_USERMETA_PORT_8000_TCP_PORT: '' + portCentral,
         LOCAL_USERMETA_PORT_8000_TCP_ADDR: 'localhost',
         LOCAL_USERMETA_PORT_8000_TCP_PORT: '' + portLocal,
+        GANOMEDE_PURCHASES_PORT_8000_TCP_ADDR: 'localhost',
+        GANOMEDE_PURCHASES_PORT_8000_TCP_PORT: '' + portPurchases,
         FACEBOOK_APP_ID: '0'
       });
       userApis.initialize(() => {
@@ -626,10 +651,11 @@ tries to access any :authToken endpoint`, function(done) {
 
       ganomedeUserMetaLocalServer.listen(portLocal);
       ganomedeUserMetaCentralServer.listen(portCentral);
+      ganomedePurchasesServer.listen(portPurchases);
     });
 
     afterEach(done => {
-      [server, ganomedeUserMetaLocalServer, ganomedeUserMetaCentralServer].forEach((s) => {
+      [server, ganomedeUserMetaLocalServer, ganomedeUserMetaCentralServer, ganomedePurchasesServer].forEach((s) => {
         s.close();
       });
       done();
@@ -675,6 +701,20 @@ tries to access any :authToken endpoint`, function(done) {
         next();
       });
 
+      // Fake ganomede purchases response
+      ganomedePurchasesServer.get('/purchases/v1/auth/:authToken/subscription', (req, res, next) => {
+        expect(req.params.authToken).to.equal(VALID_AUTH_TOKEN);
+        const keys = ['productId', 'purchaseId', 'purchaseDate', 'expirationDate'];
+        // req.log.info("GET from usermeta");
+        const keyValues = {};
+        keys.forEach(k => {
+          const kv = ukv(username, k);
+          keyValues[kv.key] = kv.value
+        });
+        res.json(keyValues);
+        next();
+      });
+
       superagent
         .get(endpoint(VALID_AUTH_TOKEN, "/me"))
         .end((err, res) => {
@@ -688,7 +728,11 @@ tries to access any :authToken endpoint`, function(done) {
               country: "jeko-country",
               location: "jeko-location",
               singleplayerstats: "jeko-singleplayerstats",
-              yearofbirth: "jeko-yearofbirth"
+              yearofbirth: "jeko-yearofbirth",
+              expirationDate: "jeko-expirationDate",
+              productId: "jeko-productId",
+              purchaseDate: "jeko-purchaseDate",
+              purchaseId: "jeko-purchaseId",
             }
           });
           done();

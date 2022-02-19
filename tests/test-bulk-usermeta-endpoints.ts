@@ -399,7 +399,7 @@ describe('GET /auth/:authToken/multi/metadata/:keys', () => {
         });
 
         it('requires an authtoken', (done) => {
-            const subscriptionClient: GanomedeSubscriptionClient | null = GanomedeSubscriptionClient.createClient({ purchasesClient: {} });
+            const subscriptionClient: GanomedeSubscriptionClient | null = GanomedeSubscriptionClient.createClient({ purchasesClient: { url: { path:'purchases/v1'}} });
             subscriptionClient?.getBulkForUser({ username: 'alice' } as UsermetaClientSingleOptions, [], (err, res) => {
                 expect(err, 'error').to.be.not.null;
                 expect(err?.message, 'error').to.be.eql('Forbidden');

@@ -112,7 +112,7 @@ export function addRoutes(options: ApiMeOptions) {
             params.email = account.email;
         }
         const keys: string[] = ['country', 'yearofbirth', '$chatdisabled', '$blocked', 'location',
-            'singleplayerstats'];
+            'singleplayerstats', 'productId', 'purchaseId', 'purchaseDate', 'expirationDate'];
         options.rootUsermetaClient.getBulkForUser(params, keys, (err2, reply2) => {
             if (err2) {
                 req.log.warn({ err2 }, 'Failed to fetch metadata');
