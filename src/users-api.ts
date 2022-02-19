@@ -15,7 +15,7 @@ let log = logMod.child({ module: "users-api" });
 import helpers from "ganomede-helpers";
 import ganomedeDirectory from "ganomede-directory";
 const serviceConfig = helpers.links.ServiceEnv.config;
-import usermeta, { UsermetaClientBulkOptions, UsermetaClientSingleOptions } from "./usermeta";
+import usermeta, { GanomedeSubscriptionClient, UsermetaClientBulkOptions, UsermetaClientSingleOptions } from "./usermeta";
 import { UsermetaClient } from "./usermeta";
 import aliases, { AliasesClient } from "./aliases";
 import fullnames from "./fullnames";
@@ -67,6 +67,7 @@ export interface UsersApiOptions {
   // storeFacebookFriends: (options: any) => void | null;
   // sendEvent: EventSender|null;
   createBackend?: (options: BackendOptions) => BackendInitializer;
+  ganomedeSubscriptionClient?: GanomedeSubscriptionClient;
 };
 
 const stats = statsdWrapper.createClient();
@@ -96,6 +97,7 @@ let storeFacebookFriends: (options: any) => void | null;
 let sendEvent: EventSender | null = null;
 let eventsLatest: LatestEvents | null = null;
 let processReportedUsers: ProcessReportedUsers | null = null;
+let ganomedeSubscriptionClient: GanomedeSubscriptionClient | null = null;
 
 // backend, once initialized
 let backend: any = null;
@@ -374,6 +376,8 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
     jsonClient: directoryJsonClient, log, apiSecret
   });
 
+  ganomedeSubscriptionClient = options.ganomedeSubscriptionClient || GanomedeSubscriptionClient.createClient({});
+
   const createGanomedeUsermetaClient = function (name, ganomedeEnv) {
     const ganomedeConfig = serviceConfig(ganomedeEnv, 8000);
     if (options[name]) {
@@ -400,12 +404,15 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
         directoryClient, authdbClient
       }),
       ganomedeLocal: localUsermetaClient,
-      ganomedeCentral: centralUsermetaClient
+      ganomedeCentral: centralUsermetaClient,
+      ganomedeSubscription: ganomedeSubscriptionClient
     }
   });
 
   bans = options.bans ?? new Bans({ usermetaClient: centralUsermetaClient });
   processReportedUsers = createReportedUsersProcessor(log, bans);
+
+  ganomedeSubscriptionClient = options.ganomedeSubscriptionClient ?? GanomedeSubscriptionClient.createClient({});
 
   // Aliases
   aliasesClient = aliases.createClient({
@@ -582,6 +589,7 @@ const addRoutes = function (prefix: string, server: restify.Server): void {
     friendsClient: friendsClient!,
     rootUsermetaClient: rootUsermetaClient!,
     facebookClient,
+    subscriptionClient: ganomedeSubscriptionClient as GanomedeSubscriptionClient
   };
 
   apiLogin.addRoutes(apiOptions);

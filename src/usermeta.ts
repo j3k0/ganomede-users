@@ -19,6 +19,8 @@ import { Request, Response } from "restify";
 import { jsonClientRetry } from "./json-client-retry";
 import Logger from "bunyan";
 import async, { AsyncFunction } from 'async';
+import helpers from "ganomede-helpers";
+const serviceConfig = helpers.links.ServiceEnv.config;
 
 export interface UsermetaClientBaseOptions {
   req_id?: string;
@@ -681,11 +683,142 @@ class GanomedeUsermeta extends BulkedUsermetaClient implements SimpleUsermetaCli
   }
 }
 
+
+export type GanomedeSubscriptionParams = {
+  authToken: string;
+  req_id?: string;
+  log?: Logger;
+}
+
+export type SubscriptionStatus = {
+  productId: string;
+  platform: string;
+  purchaseId: string;
+  purchaseDate: string;
+  expirationDate: string;
+}
+
+export type GetSubscriptionCallback = (err: Error | null, status?: SubscriptionStatus) => void;
+
+export class GanomedeSubscriptionClient extends BulkedUsermetaClient implements SimpleUsermetaClient {
+
+  jsonClient: any; // restify-clients.JsonClient
+  type: string;
+
+  constructor(jsonClient) {
+    super();
+    this.jsonClient = jsonClient;
+    this.type = "GanomedeSubscriptionClient";
+  }
+  static buildRoutes(client: GanomedeSubscriptionClient) {
+    const keys = ['productId', 'platform', 'purchaseId', 'purchaseDate', 'expirationDate'];
+    return keys.map((k) => { return { key: k, value: client } }).
+      reduce((obj, item) => (obj[item.key] = item.value, obj), {});
+  }
+
+  prepareGet(params: GanomedeSubscriptionParams) {
+    const url = this.jsonClient.url;
+    const options = {
+      ...jsonOptions({
+        path: authPath({ authToken: params.authToken, username: '' }) + '/subscription',
+        req_id: params.req_id
+      }),
+      log: log.child({ req_id: params.req_id, url })
+    };
+    return { params, url, options };
+  }
+
+  getSubscription(pparams: GanomedeSubscriptionParams, cb: GetSubscriptionCallback) {
+
+    const { params, url, options } = this.prepareGet(pparams);
+
+    if (params.authToken === undefined || params.authToken === null || params.authToken === '')
+      return cb(new Error('Forbidden'));
+
+    jsonClientRetry(this.jsonClient).get(
+      options,
+      (err: HttpError | null, _req: Request, _res: Response, body?: object | null) => {
+        if (err) {
+          log.error({ err, url, options, body, req_id: params.req_id }, "GanomedeSubscriptionClient.get failed");
+          return cb(err);
+        }
+        const status = body ? body : {};
+        cb(err, status as SubscriptionStatus);
+      }
+    );
+  }
+
+  get(params: string | UsermetaClientSingleOptions, key: string, cb: UsermetaClientCallback): void {
+    this.getSubscription(params as GanomedeSubscriptionParams, (err, status) => {
+      if (err)
+        return cb(err);
+      cb(null, status![key]);
+    });
+  }
+  set(params: string | UsermetaClientSingleOptions, key: string, value: string, callback: UsermetaClientCallback, maxLength?: number): void {
+    throw new Error("Method not implemented.");
+  }
+
+  getBulkForUser(pparams: UsermetaClientSingleOptions, keys: string[], cb: UsermetaClientGetBulkCallback) {
+    const { username } = pparams;
+    const mappedKeyValues: UsernameKeyValue[] = keys.map((key) => { return { username, key, value: '' } });
+
+    this.getSubscription(pparams as GanomedeSubscriptionParams, (err, status) => {
+
+      if (err)
+        return cb(err);
+
+      keys.forEach((key) => {
+        const elementInResult = mappedKeyValues.find((elem) => elem.key === key);
+        if (elementInResult && status![key]) elementInResult.value = status![key] || '';
+      });
+
+      cb(null, mappedKeyValues);
+    });
+  }
+
+  static createClient(options): GanomedeSubscriptionClient | null {
+    const pathName = 'purchases/v1';
+
+    if (options.purchasesClient)
+      return new GanomedeSubscriptionClient(options.purchasesClient);
+
+    if (options.purchasesConfig)
+      return new GanomedeSubscriptionClient(restifyClients.createJsonClient({
+        url: urllib.format({
+          protocol: options.purchasesConfig.protocol || 'http',
+          hostname: options.purchasesConfig.host,
+          port: options.purchasesConfig.port,
+          pathname: options.purchasesConfig.pathname || pathName
+        })
+      }));
+
+    const ganomedeEnv = 'GANOMEDE_PURCHASES';
+    const ganomedeConfig = serviceConfig(ganomedeEnv, 8000);
+    if (!ganomedeConfig.exists) {
+      log.warn(`cant create subsciption client, no ${ganomedeEnv} config`);
+      return null;
+    }
+
+    log.info({ ganomedeConfig }, `purchases`);
+
+    return new GanomedeSubscriptionClient(restifyClients.createJsonClient({
+      url: urllib.format({
+        protocol: ganomedeConfig.protocol || 'http',
+        hostname: ganomedeConfig.host,
+        port: ganomedeConfig.port,
+        pathname: ganomedeConfig.pathname || pathName
+      })
+    }));
+  }
+}
+
 interface UsermetaRouterOptions {
   directoryPublic: UsermetaClient,
   directoryProtected: UsermetaClient,
   ganomedeCentral: UsermetaClient,
-  ganomedeLocal: UsermetaClient
+  ganomedeLocal: UsermetaClient,
+  ganomedeSubscription: GanomedeSubscriptionClient
 };
 
 // Routes metadata to one of its children
@@ -706,19 +839,22 @@ class UsermetaRouter extends BulkedUsermetaClient implements SimpleUsermetaClien
   directoryProtected: UsermetaClient;
   ganomedeCentral: UsermetaClient;
   ganomedeLocal: UsermetaClient;
+  ganomedeSubscription: GanomedeSubscriptionClient;
   routes: any;
 
   constructor({
     directoryPublic,
     directoryProtected,
     ganomedeCentral,
-    ganomedeLocal
+    ganomedeLocal,
+    ganomedeSubscription
   }: UsermetaRouterOptions) {
     super();
     this.directoryPublic = directoryPublic;
     this.directoryProtected = directoryProtected;
     this.ganomedeCentral = ganomedeCentral;
     this.ganomedeLocal = ganomedeLocal;
+    this.ganomedeSubscription = ganomedeSubscription;
     this.type = "UsermetaRouter";
     this.routes = {
       username: this.directoryPublic || this.directoryProtected,
@@ -729,6 +865,7 @@ class UsermetaRouter extends BulkedUsermetaClient implements SimpleUsermetaClien
       country: this.ganomedeCentral,
       yearofbirth: this.ganomedeCentral
     };
+    this.routes = { ...this.routes, ...GanomedeSubscriptionClient.buildRoutes(this.ganomedeSubscription) };
   }
 
   set(params: UsermetaClientSingleOptions | string, key: string, value: string, cb: UsermetaClientCallback) {
@@ -846,6 +983,10 @@ export default {
     if (config.directoryClient) {
       return new DirectoryAliasesProtected(
         config.directoryClient, config.authdbClient);
+    }
+
+    if (config.purchasesConfig || config.purchasesClient) {
+      return GanomedeSubscriptionClient.createClient(config) as UsermetaClient;
     }
 
     // Create a usermeta router
