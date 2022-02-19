@@ -731,6 +731,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
 
         it('does not use multiple get request with single user', done => {
             // Fake usermeta response
+            let timesGetCall = 0;
             server.get('/usermeta/v1/auth/:authToken/:keys', (req, res, next) => {
                 console.log(req.params.authToken, req.params.keys);
                 expect(req.params.authToken).to.equal('valid-token');
@@ -742,6 +743,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                         key2: "1x2"
                     }
                 });
+                timesGetCall++;
                 next();
             });
             superagent
@@ -758,6 +760,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                         key: 'key2',
                         value: '1x2'
                     }]);
+                    expect(timesGetCall).to.be.eql(1);
                     done();
                 });
         });
