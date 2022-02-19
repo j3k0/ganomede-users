@@ -392,6 +392,10 @@ describe('GET /auth/:authToken/multi/metadata/:keys', () => {
                     }
                 });
             expect(subscriptionClient2).to.be.not.null;
+
+            const subscriptionClient3: GanomedeSubscriptionClient | null = GanomedeSubscriptionClient.createClient({});
+            expect(subscriptionClient3).to.be.null;
+
         });
 
         it('requires an authtoken', (done) => {
