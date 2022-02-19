@@ -637,6 +637,10 @@ class GanomedeUsermeta extends BulkedUsermetaClient implements SimpleUsermetaCli
     );
   }
 
+  getBulkForUser(pparams: UsermetaClientSingleOptions, keys: string[], cb: UsermetaClientGetBulkCallback) {
+    this.getBulk({ ...pparams, usernames: [pparams.username] }, keys, cb);
+  }
+
   getBulk(pparams: UsermetaClientBulkOptions, keys: string[], cb: UsermetaClientGetBulkCallback) {
     const singleParams = { ...pparams, username: pparams.usernames.join(',') };
     const { params, url, options } = this.prepareGet(singleParams, keys);

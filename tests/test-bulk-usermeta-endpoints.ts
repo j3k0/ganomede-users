@@ -3,7 +3,7 @@ import restify, { Server } from "restify";
 import { expect } from 'chai';
 import superagent from 'superagent';
 import td, { DoubledObject, DoubledObjectWithKey } from 'testdouble';
-import userApis from '../src/users-api';
+import userApis, { UsersApiOptions } from '../src/users-api';
 import { AuthdbClient } from "../src/authentication";
 import fakeAuthdb from "./fake-authdb";
 import { DirectoryClient } from "../src/directory-client";
@@ -12,7 +12,6 @@ import Logger from "bunyan";
 import logMod from '../src/log';
 import { RestError } from "restify-errors";
 import { UsermetaClient, UsernameKeyValue } from "../src/usermeta";
-import { UsersApiOptions } from '../src/users-api';
 
 // shortcuts for readability
 const { anything, contains } = td.matchers;
@@ -390,7 +389,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
     });
 
     it('should respond', (done) => {
-        sTools.getTest().mockBulkResponse(['alice','bob'], ['public'], 'local');
+        sTools.getTest().mockBulkResponse(['alice', 'bob'], ['public'], 'local');
         superagent
             .get(sTools.endpoint('/multi/metadata/alice,bob/public'))
             .end((err, res) => {
@@ -458,13 +457,13 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
     });
 
     it('fetches data from the central usermeta module in a single request', done => {
-        sTools.getTest().mockBulkResponse(['alice','bob'], ['country','yearofbirth'], 'central');
+        sTools.getTest().mockBulkResponse(['alice', 'bob'], ['country', 'yearofbirth'], 'central');
         superagent
             .get(sTools.endpoint('/multi/metadata/alice,bob/country,yearofbirth'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 td.verify(sTools.getTest().centralUsermetaClient.getBulk(
-                    td.matchers.contains({usernames: ['alice', 'bob']}), ['country', 'yearofbirth'], td.matchers.anything()),
+                    td.matchers.contains({ usernames: ['alice', 'bob'] }), ['country', 'yearofbirth'], td.matchers.anything()),
                     { times: 1 });
                 expect(res?.body).to.eql([
                     { username: 'alice', key: 'country', value: 'alice-country' },
@@ -477,13 +476,13 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
     });
 
     it('fetches data from the local usermeta module in a single request', done => {
-        sTools.getTest().mockBulkResponse(['alice','bob'], ['key1','key2'], 'local');
+        sTools.getTest().mockBulkResponse(['alice', 'bob'], ['key1', 'key2'], 'local');
         superagent
             .get(sTools.endpoint('/multi/metadata/alice,bob/key1,key2'))
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 td.verify(sTools.getTest().localUsermetaClient.getBulk(
-                    td.matchers.contains({usernames: ['alice', 'bob']}),
+                    td.matchers.contains({ usernames: ['alice', 'bob'] }),
                     ['key1', 'key2'],
                     td.matchers.anything()),
                     { times: 1 });
@@ -526,7 +525,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
     it('should not fetch protected metadata from ganomede-usermeta', done => {
         const { localUsermetaClient } = sTools.getTest();
         td.when(localUsermetaClient.getBulk(
-            contains({usernames:['alice']}), ['protected'], td.callback))
+            contains({ usernames: ['alice'] }), ['protected'], td.callback))
             .thenCallback(null, { username: 'alice', key: 'protected' });
         superagent
             .get(sTools.endpoint('/multi/metadata/alice/protected'))
@@ -537,7 +536,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                 ]);
                 // important: the api secret was not provided!
                 td.verify(localUsermetaClient.getBulk(
-                    contains({usernames:['alice'], apiSecret: process.env.API_SECRET}), anything(), td.callback),
+                    contains({ usernames: ['alice'], apiSecret: process.env.API_SECRET }), anything(), td.callback),
                     { times: 0 });
                 done();
             });
@@ -545,9 +544,9 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
 
     it('can fetch protected metadata when the secret key is provided', done => {
         const { localUsermetaClient, directoryClient } = sTools.getTest();
-        td.when(localUsermetaClient.getBulk(contains({ usernames:['alice'] }), ['protected'], td.callback))
+        td.when(localUsermetaClient.getBulk(contains({ usernames: ['alice'] }), ['protected'], td.callback))
             .thenCallback(null, { username: 'alice', key: 'protected' });
-        td.when(localUsermetaClient.getBulk(contains({ usernames:['alice'], apiSecret: process.env.API_SECRET }), ['protected'], td.callback))
+        td.when(localUsermetaClient.getBulk(contains({ usernames: ['alice'], apiSecret: process.env.API_SECRET }), ['protected'], td.callback))
             .thenCallback(null, { username: 'alice', key: 'protected', value: 'my-secret' });
         superagent
             .get(sTools.endpoint('/multi/metadata/alice/email,protected?secret=' + process.env.API_SECRET))
@@ -566,8 +565,8 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
     it('handles mixed types of metadata', done => {
 
         const test = sTools.getTest();
-        test.mockBulkResponse(['alice','bob','n0b0dy'], ['key1','key2'], 'local');
-        test.mockBulkResponse(['alice','bob','n0b0dy'], ['country','yearofbirth'], 'central');
+        test.mockBulkResponse(['alice', 'bob', 'n0b0dy'], ['key1', 'key2'], 'local');
+        test.mockBulkResponse(['alice', 'bob', 'n0b0dy'], ['country', 'yearofbirth'], 'central');
 
         superagent
             .get(sTools.endpoint('/multi/metadata/alice,bob,n0b0dy/name,username,country,tag,key1,yearofbirth,key2'))
@@ -617,15 +616,22 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             return `http://localhost:${server.address().port}${path}`;
         }
 
-        beforeEach(function(done) {
+        beforeEach(function (done) {
             ++port;
             server = restify.createServer();
             server.use(restify.plugins.bodyParser());
             server.use(restify.plugins.queryParser());
+
+            const authdbClient = fakeAuthdb.createClient();
+            authdbClient.addAccount("valid-token", {
+                username: "alice",
+                email: accounts.alice.aliases.email
+            });
+
             const options: UsersApiOptions = {
                 log: td.object<Logger>(),
                 directoryClient: td.object<DirectoryClient>(),
-
+                authdbClient
             };
             Object.assign(process.env, {
                 CENTRAL_USERMETA_PORT_8000_TCP_ADDR: 'localhost',
@@ -719,6 +725,42 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                         key: 'key2',
                         value: '2x2'
                     }]);
+                    done();
+                });
+        });
+
+        it('does not use multiple get request with single user', done => {
+            // Fake usermeta response
+            let timesGetCall = 0;
+            server.get('/usermeta/v1/auth/:authToken/:keys', (req, res, next) => {
+                console.log(req.params.authToken, req.params.keys);
+                expect(req.params.authToken).to.equal('valid-token');
+                expect(req.params.keys).to.equal('key1,key2');
+                // req.log.info("GET from usermeta");
+                res.json({
+                    alice: {
+                        key1: "1x1",
+                        key2: "1x2"
+                    }
+                });
+                timesGetCall++;
+                next();
+            });
+            superagent
+                .get(endpoint('/users/v1/auth/valid-token/multi/metadata/key1,key2'))
+                .end((err, res) => {
+                    expect(err, 'response error').to.be.null;
+                    expect(res?.status, 'response status').to.equal(200);
+                    expect(res?.body, 'response').to.eql([{
+                        username: 'alice',
+                        key: 'key1',
+                        value: '1x1'
+                    }, {
+                        username: 'alice',
+                        key: 'key2',
+                        value: '1x2'
+                    }]);
+                    expect(timesGetCall).to.be.eql(1);
                     done();
                 });
         });
