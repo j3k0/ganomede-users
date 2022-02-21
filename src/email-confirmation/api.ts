@@ -11,16 +11,20 @@ import { UsermetaClient, UsermetaClientSingleOptions } from "../usermeta";
 import { sendError } from "../utils/send-error";
 import restifyErrors from "restify-errors";
 import totp from './totp';
+import { CreatedMailerTransportResult } from "../mailer";
+import { RenderTemplate } from "../mail-template";
+import logMod from "../log";
+const log = logMod.child({ module: "api-confirm" });
 
 export const CONFIRMED_META_KEY = 'ConfirmedOn';
 
 export class EmailConfirmation {
 
     usermetaClient: UsermetaClient;
-    mailerTransport?: any;
-    confirmEmailTemplate?: any;
+    mailerTransport?: CreatedMailerTransportResult;
+    confirmEmailTemplate?: RenderTemplate;
 
-    constructor(usermetaClient: UsermetaClient, mailerTransport: any, confirmEmailTemplate: any) {
+    constructor(usermetaClient: UsermetaClient, mailerTransport: CreatedMailerTransportResult, confirmEmailTemplate: RenderTemplate) {
         this.usermetaClient = usermetaClient;
         this.mailerTransport = mailerTransport;
         this.confirmEmailTemplate = confirmEmailTemplate;
@@ -37,10 +41,10 @@ export class EmailConfirmation {
             const token = totp.generate(email);
 
             const templateValues = { username, email, token };
-            const content = this.confirmEmailTemplate.render(templateValues);
+            const content = this.confirmEmailTemplate?.render(templateValues) as Record<string, any>;
             content.to = email;
             content.req_id = params.req_id;
-            this.mailerTransport.sendMail(content, () => { });
+            this.mailerTransport?.sendMail(content, () => { });
         };
 
         //if without confirmation, means its a new account registration
@@ -54,12 +58,11 @@ export class EmailConfirmation {
                 try {
                     const confirmations = JSON.parse(reply);
                     const thisEmailConfirmation = confirmations[email];
-                    if (thisEmailConfirmation === null || thisEmailConfirmation === undefined
-                        || thisEmailConfirmation === '') {
+                    if (!thisEmailConfirmation) {
                         return sendMail();
                     }
                 } catch (ex) {
-
+                    log.warn({ req_id: params.req_id, ex }, "error when processing send email confirmation");
                 }
             }//no value found, so send email confirmation with a token.
             else {
@@ -84,7 +87,7 @@ export class EmailConfirmation {
         //token is mandatory, if not found send an error.
         if (!accessCode) {
             return sendError(req, new restifyErrors.InvalidContentError({
-                code: 'InvalidContentError',
+                code: 'MissingAccessCode',
                 message: "token is not provided"
             }), next);
         }
@@ -92,7 +95,7 @@ export class EmailConfirmation {
         //prepare usermeta params for the set method.
         const params: UsermetaClientSingleOptions = {
             username: req.params.user.username,
-            authToken: req.params.authToken || (req as any).context.authToken,
+            //authToken: req.params.authToken || (req as any).context.authToken,
             apiSecret: req.params.apiSecret,
             req_id: req.id()
         };
@@ -116,6 +119,7 @@ export class EmailConfirmation {
                     try {
                         confirmations = JSON.parse(reply);
                     } catch (ex) {
+                        log.warn({ req_id: params.req_id, ex }, `error when parsing usermeta ${CONFIRMED_META_KEY}`);
                     }
                 }
                 confirmations[email] = (+new Date());
@@ -138,7 +142,7 @@ export class EmailConfirmation {
 
         //if the verification was not successful, then send an error.
         return sendError(req, new restifyErrors.InvalidContentError({
-            code: 'InvalidContentError',
+            code: 'InvalidAccessCode',
             message: "Failed to validate the token"
         }), next);
     }

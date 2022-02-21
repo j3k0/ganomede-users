@@ -13,6 +13,18 @@ export interface MailerModule {
   createTransport(transport?: SMTPTransport | SMTPTransport.Options | string, defaults?: SMTPTransport.Options): Transporter;
 }
 
+export type CreatedMailerTransportResult = {
+  defaults: {
+    from: string | undefined;
+    subject: string | undefined;
+    text: string | undefined;
+    html: string | undefined;
+  };
+  sendMail(options: any, cb: any): void;
+}
+
+export type CreateMailerTransport = (obj?: MailerOptions) => CreatedMailerTransportResult;
+
 export interface MailerOptions {
   nodemailer?: MailerModule;
   from?: string;
@@ -35,7 +47,7 @@ export interface MailerOptions {
 };
 
 // create reusable transporter object using the SMTP transport
-const createTransport = function(obj:MailerOptions = {}) {
+const createTransport: CreateMailerTransport = function (obj: MailerOptions = {}) {
 
   const nodemailer = obj.nodemailer || nodemailerMod;
   const from = obj.from ?? process.env.MAILER_SEND_FROM;

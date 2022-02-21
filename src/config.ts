@@ -40,9 +40,9 @@ export const blockedIndexerConfig = {
 };
 
 export const totpConfig = {
-  digits: 6,
-  secretKey: 'WY3DPEYR298XVHPK3P',
-  period: 300 //in seconds.
+  digits: +(process.env.TOTP_DIGITS || 6),
+  secretKey: process.env.TOTP_SECRET_KEY,
+  period: +(process.env.TOTP_PERIOD_SECONDS || 600) //in seconds//default=10min.
 };
 
 export default {

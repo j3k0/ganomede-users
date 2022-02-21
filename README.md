@@ -193,6 +193,12 @@ Change users' custom data.
 (limited to 200 bytes)
 
 ### response [200] OK
+In the response we need to check for "needEmailConfirmation", the user will be receiving an email confirmation. So the account-email must be confirmed.
+``` 
+{
+    "needEmailConfirmation": true or false
+}
+```
 
 ## /users/v1/:tag/metadata/:key [GET]
 

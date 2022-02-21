@@ -263,16 +263,17 @@ const postMetadata = function (req, res, next) {
     value
   } = req.body;
   return rootUsermetaClient!.set(params, key, value, function (err, reply) {
+    let needEmailConfirmation = false;
     if (err) {
       log.error({
         err,
         reply
       });
-    } else if (key === 'email' && req.params.user.email &&
-      !emails.isGuestEmail(value) && !emails.isNoEmail(value)) {
+    } else if (key === 'email' && req.params.user.email && !emails.isGuestEmail(value) && !emails.isNoEmail(value)) {
+      needEmailConfirmation = true;
       emailConfirmation?.sendEmailConfirmation(params, params.username, value, true);
     }
-    res.send({ ok: !err });
+    res.send({ ok: !err, needEmailConfirmation });
     return next();
   });
 };
