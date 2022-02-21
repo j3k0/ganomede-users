@@ -2,7 +2,7 @@ import fakeRestify from "./fake-restify";
 import restify, { Server } from "restify";
 import { expect } from 'chai';
 import superagent from 'superagent';
-import td, { DoubledObjectWithKey } from 'testdouble';
+import td, { DoubledObjectWithKey, TestDouble } from 'testdouble';
 const { verify, matchers } = td;
 const { contains } = matchers;
 import userApis from '../src/users-api';
@@ -10,7 +10,7 @@ import { AuthdbClient } from "../src/authentication";
 import fakeAuthdb from "./fake-authdb";
 import { DirectoryClient } from "../src/directory-client";
 import { UsermetaClient } from "../src/usermeta";
-import { BackendInitializer, BackendOptions } from "../src/backend/directory";
+import { Backend, BackendInitializer, BackendOptions } from "../src/backend/directory";
 import Logger from "bunyan";
 import logMod from '../src/log';
 import fakeUsermeta from './fake-usermeta';
@@ -107,7 +107,8 @@ class Test {
     log: Logger;
     localUsermetaClient: UsermetaClient;
     centralUsermetaClient: UsermetaClient;
-    backend: DoubledObjectWithKey<string>;
+    backend: TestDouble<Backend>// DoubledObjectWithKey<string>;
+    backendInitializer: TestDouble<BackendInitializer>// DoubledObjectWithKey<string>;
     createBackend: (options: BackendOptions) => BackendInitializer;
     authdbClient: AuthdbClient;
     mailer: any;
@@ -118,7 +119,7 @@ class Test {
         process.env.MAILER_SEND_TEXT = '';
         process.env.MAILER_SEND_HTML = '';
         // Some mocks so we can initialize the `users` module.
-        this.directoryClient = td.object(['editAccount', 'byId', 'byToken', 'byAlias']) as DirectoryClient;
+        this.directoryClient = td.object<DirectoryClient>();
 
         td.when(this.directoryClient.byAlias(
             td.matchers.contains({ type: "tag" }),
@@ -138,17 +139,18 @@ class Test {
             .thenCallback(null, bob_publicAccount);
 
         this.log = logMod;
-        this.log = td.object(['info', 'warn', 'error', 'debug']) as Logger;
+        this.log = td.object<Logger>();
         this.localUsermetaClient = fakeUsermeta.createClient();
         this.centralUsermetaClient = fakeUsermeta.createClient();
-        this.backend = td.object(['initialize', 'createAccount']);
+        this.backendInitializer = td.object<BackendInitializer>();
+        this.backend = td.object<Backend>();
         this.createBackend = td.function('createBackend') as (options: BackendOptions) => BackendInitializer;
 
         td.when(
             this.createBackend(td.matchers.isA(Object)))
-            .thenReturn(this.backend);
+            .thenReturn(this.backendInitializer);
         td.when(
-            this.backend.initialize())
+            this.backendInitializer.initialize(td.callback))
             .thenCallback(null, this.backend);
         this.authdbClient = fakeAuthdb.createClient();
         this.authdbClient.addAccount("valid-token", {
@@ -175,10 +177,19 @@ class Test {
             transport
         };
 
-        userApis.initialize(() => {
-            userApis.addRoutes(PREFIX, server as unknown as restify.Server);
-            server.listen(port++, done);
-        }, this);
+        try {
+            userApis.initialize((err) => {
+                if (err) {
+                    console.error("Failed to initialize usersApi", err);
+                    return done(err);
+                }
+                userApis.addRoutes(PREFIX, server as unknown as restify.Server);
+                server.listen(port, done);
+            }, this);
+        }
+        catch (err) {
+            done(err);
+        }
     }
 }
 
@@ -190,12 +201,24 @@ const serverTools = () => {
 
 
     function prepareServer(done) {
+        ++port;
         server = restify.createServer();
         server.use(restify.plugins.bodyParser());
         server.use(restify.plugins.queryParser());
 
         // test = new Test();
-        test.initialize(server, port, done);
+        test.initialize(server, port, (err) => {
+            if (err) {
+                console.error(err);
+                if (port < 32000) // try all ports up to 32000...
+                    prepareServer(done);
+                else
+                    done(err);
+            }
+            else {
+                done();
+            }
+        });
     }
 
     function closeServer(done) {
@@ -223,10 +246,11 @@ describe('email-confirmation', () => {
 
     describe('Post confirm-email', () => {
 
-        it('add routes to the restify server, with the given prefix', () => {
+        it('add routes to the restify server, with the given prefix', (done) => {
             const server = fakeRestify.createServer();
             userApis.addRoutes(PREFIX, server as unknown as restify.Server);
             expect(server.routes.post[`/${PREFIX}/auth/:authToken/confirm-email`], 'get /users/v1/auth/:authToken/confirm-email route').to.be.ok;
+            done();
         });
 
         it('should respond and accept a valid token', (done) => {
@@ -270,9 +294,7 @@ describe('email-confirmation', () => {
                             expect(typeof reply, 'confirmed on').to.be.equals('string');
                             expect(reply, 'confirmed on').to.be.not.equals('');
                             const obj = JSON.parse(reply as string);
-                            expect(obj['alice@test.com'], 'confirmed on alice').to.be.not.equals('');
-                            expect(obj['alice@test.com'], 'confirmed on alice').to.be.not.undefined;
-                            expect(obj['alice@test.com'], 'confirmed on alice').to.be.not.null;
+                            expect(obj['alice@test.com'], 'confirmed on alice').to.be.a('Number');
                             done();
                         }
                     );
@@ -294,7 +316,8 @@ describe('email-confirmation', () => {
                 password: data.createAccount.valid.password
             };
             td.when(backend.createAccount(
-                td.matchers.contains(createAccountData)))
+                td.matchers.contains(createAccountData),
+                td.callback))
                 .thenCallback(null, data.createAccount.valid);
 
             superagent
@@ -401,7 +424,7 @@ describe('email-confirmation', () => {
                 });
         });
 
-        it('doesnt matter if other emails confirmation exists before.', (done) => {
+        it('does not matter if other emails confirmation exists before.', (done) => {
 
             sTools.test?.centralUsermetaClient.set({ username: 'alice' },
                 CONFIRMED_META_KEY, JSON.stringify({ 'before@test.com': +new Date() }), () => { });

@@ -7,7 +7,7 @@
  * before sending an email, we will check if we already confirmed before using the usermeta key.
  */
 import { Next, Request, Response } from "restify";
-import { UsermetaClient, UsermetaClientOptions } from "../usermeta";
+import { UsermetaClient, UsermetaClientSingleOptions } from "../usermeta";
 import { sendError } from "../utils/send-error";
 import restifyErrors from "restify-errors";
 import totp from './totp';
@@ -29,7 +29,7 @@ export class EmailConfirmation {
         this.sendEmailConfirmation = this.sendEmailConfirmation.bind(this);
     }
 
-    sendEmailConfirmation(params: UsermetaClientOptions, username: string, email: string,
+    sendEmailConfirmation(params: UsermetaClientSingleOptions, username: string, email: string,
         checkIfConfirmed: boolean = false) {
         //send email functionality
         const sendMail = () => {
@@ -90,7 +90,7 @@ export class EmailConfirmation {
         }
 
         //prepare usermeta params for the set method.
-        const params: UsermetaClientOptions = {
+        const params: UsermetaClientSingleOptions = {
             username: req.params.user.username,
             authToken: req.params.authToken || (req as any).context.authToken,
             apiSecret: req.params.apiSecret,
