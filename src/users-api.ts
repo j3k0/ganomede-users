@@ -15,7 +15,7 @@ let log = logMod.child({ module: "users-api" });
 import helpers from "ganomede-helpers";
 import ganomedeDirectory from "ganomede-directory";
 const serviceConfig = helpers.links.ServiceEnv.config;
-import usermeta, { UsermetaClientBulkOptions, UsermetaClientOptions } from "./usermeta";
+import usermeta, { UsermetaClientBulkOptions, UsermetaClientSingleOptions } from "./usermeta";
 import { UsermetaClient } from "./usermeta";
 import aliases, { AliasesClient } from "./aliases";
 import fullnames from "./fullnames";
@@ -279,7 +279,7 @@ const postMetadata = function (req, res, next) {
 
 // Get metadata
 const getMetadata = function (req, res, next) {
-  const params: UsermetaClientOptions = {
+  const params: UsermetaClientSingleOptions = {
     req_id: req.id(),
     authToken: req.params?.authToken || req.context?.authToken,
     username: req.params?.username
@@ -303,12 +303,28 @@ const getMetadata = function (req, res, next) {
 
 
 // Get multi metadata
-const getMultiMetadata = function (req, res, next) {
+const getMultiMetadata = function (req:Request, res:Response, next:Next) {
   const params: UsermetaClientBulkOptions = {
+    apiSecret: req.query?.secret,
+    req_id: req.id(),
+    usernames: (req.params?.userIds?.split(',')?.filter(x => x)) || [],
+  };
+  const keys = req.params.keys.split(',').filter(x => x);
+  return rootUsermetaClient!.getBulk(params, keys, function (err, reply) {
+    if (err) {
+      log.error({ err, reply }, 'Failed to get bulk usermeta.');
+      return next(err);
+    }
+    res.send(reply);
+    next();
+  });
+};
+
+const getUserMultiMetadata = function (req, res, next) {
+  const params: UsermetaClientSingleOptions = {
     req_id: req.id(),
     authToken: req.params?.authToken || req.context?.authToken,
     username: req.params?.username,
-    usernames: req.params?.userIds ? req.params?.userIds.split(',').filter(x => x) : req.params?.username ? [req.params?.username] : []
   };
   // fill in already loaded info when we have them
   if (req.params.user) {
@@ -316,46 +332,19 @@ const getMultiMetadata = function (req, res, next) {
     params.tag = req.params.user.tag;
     params.name = req.params.user.name;
     params.email = req.params.user.email;
-    params.usernames = [params.username];
   }
 
   const keys = req.params.keys.split(',').filter(x => x);
-  return rootUsermetaClient!.getBulk(params, keys, function (err, reply) {
+  return rootUsermetaClient!.getBulkForUser(params, keys, function (err, reply) {
     if (err) {
-      log.error({
-        err,
-        reply
-      });
+      log.error({ err, reply }, 'Failed to get user\' bulk usermeta.');
+      return next(err);
     }
     res.send(reply);
-    return next();
+    next();
   });
 };
 
-
-// Set multi metadata
-const postMultiMetadata = function (req, res, next) {
-  // send who is the calling user, or null if not known
-  // (so GanomedeUsermeta can check access rights)
-  const params = {
-    username: req.params.user.username,
-    usernames: [],
-    authToken: req.params.authToken || (req as any).context.authToken,
-    apiSecret: req.params.apiSecret,
-    req_id: req.id()
-  };
-
-  return rootUsermetaClient!.setBulk(params, req.body, function (err, reply) {
-    if (err) {
-      log.error({
-        err,
-        reply
-      });
-    }
-    res.send({ ok: !err });
-    return next();
-  });
-};
 
 // Initialize the module
 const initialize = function (cb, options: UsersApiOptions = {}) {
@@ -645,12 +634,10 @@ const addRoutes = function (prefix: string, server: restify.Server): void {
   // access to metadata for multi-users
   server.get(`/${prefix}/multi/metadata/:userIds/:keys`,
     getMultiMetadata);
+
   // access to protected multi metadata
   server.get(`/${prefix}/auth/:authToken/multi/metadata/:keys`,
-    authMiddleware, getMultiMetadata);
-  // Change multiple users' custom data.
-  server.post(`/${prefix}/auth/:authToken/multi/metadata`,
-    jsonBody, authMiddleware, postMultiMetadata);
+    authMiddleware, getUserMultiMetadata);
 
   server.post(`/${prefix}/auth/:authToken/confirm-email`,
     jsonBody, authMiddleware, emailConfirmation!.confirmEmailCode);

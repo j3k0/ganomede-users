@@ -49,6 +49,7 @@ function eventData(req_id: string | undefined, userId: string, aliases?: Directo
 export interface DirectoryIdRequest {
   id: string;
   req_id?: string;
+  secret?: string;
 }
 
 export interface DirectoryAliasRequest {
@@ -148,6 +149,7 @@ const createClient = function(options): DirectoryClient {
     const jsonOptions = {
       path: options.path,
       headers: options.headers,
+      query: options.query,
       log: log.child({ req_id: (options.headers != null ? options.headers['x-request-id'] : undefined) }),
     };
     jsonClientR.get(jsonOptions, function (err, req, res, body) {
@@ -165,15 +167,19 @@ const createClient = function(options): DirectoryClient {
 
   const endpoint = subpath => pathname + subpath;
 
-  const jsonOptions = function({ path, req_id }): {
+  const jsonOptions = function({ path, req_id, secret }: { path: string, req_id?: string, secret?: string }): {
     path: string;
-    headers?: any;
+    headers?: object;
+    query?: object;
   } {
     const options: any =
       {path: endpoint(path)};
     if (req_id) {
       options.headers =
         {"x-request-id": req_id};
+    }
+    if (secret) {
+      options.query = { ...(options.query || {}), secret };
     }
     return options;
   };
@@ -354,10 +360,11 @@ const createClient = function(options): DirectoryClient {
   };
 
   // callback(err, DirectoryAccount)
-  const byId = function({ id, req_id }: DirectoryIdRequest, callback) {
+  const byId = function({ id, req_id, secret }: DirectoryIdRequest, callback) {
 
     const options = jsonOptions({
       path: "/users/id/" + encodeURIComponent(id),
+      secret,
       req_id
     });
     return jsonGet(options, processGetResponse(callback));

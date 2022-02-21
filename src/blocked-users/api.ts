@@ -4,7 +4,7 @@ import restifyErrors from "restify-errors";
 import { RequestHandler, Request, Response, Next } from "restify";
 
 import log from "../log";
-import { UsermetaClient, UsermetaClientOptions } from "../usermeta";
+import { UsermetaClient, UsermetaClientSingleOptions } from "../usermeta";
 import { DirectoryClient } from "../directory-client";
 import parseTagMod from '../middlewares/mw-parse-tag';
 import { EventSender } from "../event-sender";
@@ -102,7 +102,7 @@ export class BlockedUsersApi {
         return next(new restifyErrors.InternalServerError("no username for provided auth token"));
 
       // prepare the usermeta request to load the list of blocked users
-      const params: UsermetaClientOptions = {
+      const params: UsermetaClientSingleOptions = {
         req_id: req.id(),
         apiSecret: config.secret,
         authToken: req.params.authToken || (req as any).context.authToken,
@@ -142,7 +142,7 @@ export class BlockedUsersApi {
       }
 
       // load the list of blocked users for the originating user
-      const params: UsermetaClientOptions = {
+      const params: UsermetaClientSingleOptions = {
         req_id: req.id(),
         apiSecret: config.secret,
         authToken: req.params.authToken || (req as any).context.authToken,
@@ -189,7 +189,7 @@ export class BlockedUsersApi {
           code: 'BadRequestError',
         }, "no username specified in request"));
       }
-      const params: UsermetaClientOptions = {
+      const params: UsermetaClientSingleOptions = {
         req_id: req.id(),
         apiSecret: config.secret,
         authToken: req.params.authToken || (req as any).context.authToken,

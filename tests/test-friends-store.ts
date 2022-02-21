@@ -19,6 +19,7 @@ describe("friends", function() {
   let friendsClient: any = null;
   before(function() {
     const fakeUsermetaClient = {
+      type: 'fakeUsermetaClient',
       meta: {},
       isValid(key) { return true; },
       get(username, key, cb) {
@@ -32,9 +33,9 @@ describe("friends", function() {
       getBulk(username, keys, cb) {
         return cb(null, null); //TODO
       },
-      setBulk(username, keyValues, cb) {
+      getBulkForUser(params, keys, cb) {
         return cb(null, null); //TODO
-      }
+      },
     };
     friendsClient = friendsStore.createClient({
       usermetaClient: fakeUsermetaClient,

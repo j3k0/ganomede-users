@@ -202,10 +202,13 @@ describe("usermeta", function() {
     let usermetaClient: any = null;
     beforeEach(function() {
       jsonClient = td.object(['get', 'post']);
+      jsonClient.url = "https://fovea.cc"
       return usermetaClient = usermeta.create({ganomedeClient: jsonClient});
     });
 
-    it("is created from a ganomedeClient", () => assert.equal("GanomedeUsermeta", usermetaClient.type));
+    it("is created from a ganomedeClient", () => {
+      assert.equal("GanomedeUsermeta@" + jsonClient.url, usermetaClient.type);
+    });
 
     describe(".get", function() {
       it("delegates to the jsonClient", function() {
@@ -239,6 +242,13 @@ describe("usermeta", function() {
         usermetaClient.getBulk({ usernames: ["username1", "username2"] }, ["age"], td.function('callback'));
         return td.verify(jsonClient.get(
           td.matchers.contains({ path: '/usermeta/v1/username1%2Cusername2/age' }),
+          td.callback));
+      });
+
+      it("delegates to the jsonClient", function () {
+        usermetaClient.getBulk({ usernames: ["username1", "username2"] }, ["age", "country"], td.function('callback'));
+        return td.verify(jsonClient.get(
+          td.matchers.contains({ path: '/usermeta/v1/username1%2Cusername2/age%2Ccountry' }),
           td.callback));
       });
 

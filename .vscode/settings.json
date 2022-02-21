@@ -1,0 +1,9 @@
+{
+    "makefile.extensionOutputFolder": "./.vscode",
+    "mochaExplorer.files": "tests/**/test-*.ts",
+    "mochaExplorer.require": "ts-node/register",
+    "mochaExplorer.env": {
+        "API_SECRET": "42",
+        "APP_NAME": "app"
+    }
+}

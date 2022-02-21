@@ -5,7 +5,7 @@
  */
 import Logger from 'bunyan';
 import logMod from './log';
-import { UsermetaClient, UsermetaClientOptions } from './usermeta';
+import { UsermetaClient, UsermetaClientSingleOptions } from './usermeta';
 
  const uniq = function(a:string[]) {
   const has = {};
@@ -26,10 +26,10 @@ export interface FriendsStoreOptions {
 }
 
 export interface FriendsClient {
-  add(account: string | UsermetaClientOptions, newFriends: string[], cb: FriendsClientCallback);
-  del(account: string | UsermetaClientOptions, removeFriend: string, cb: FriendsClientCallback);
-  get(account: string | UsermetaClientOptions, cb: FriendsClientCallback);
-  set(account: string | UsermetaClientOptions, friends: string[], cb: FriendsClientCallback);
+  add(account: string | UsermetaClientSingleOptions, newFriends: string[], cb: FriendsClientCallback);
+  del(account: string | UsermetaClientSingleOptions, removeFriend: string, cb: FriendsClientCallback);
+  get(account: string | UsermetaClientSingleOptions, cb: FriendsClientCallback);
+  set(account: string | UsermetaClientSingleOptions, friends: string[], cb: FriendsClientCallback);
 }
 
 export type FriendsClientCallback = (err?: any, friends?: string[] | null) => void;
