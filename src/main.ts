@@ -18,7 +18,7 @@ const addRoutes = function(prefix, server) {
   aboutApi.addRoutes(prefix, server);
 
   // About
-  return usersApi.addRoutes(prefix, server);
+  usersApi.addRoutes(prefix, server);
 };
 
 const initialize = function(callback) {

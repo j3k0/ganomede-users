@@ -12,6 +12,7 @@ import { totpConfig } from '../config';
  * @returns totp object responsible for generation and verification.
  */
 const prepareTOTPoptions = (period?: number, digits?: number) => {
+    // NOTE: the `totp.options` object is not extensible.
     let options = Object.assign({}, totp.options);
     options.step = period || totpConfig.period;
     options.digits = digits || totpConfig.digits;
