@@ -34,7 +34,7 @@ export class EmailConfirmation {
     }
 
     sendEmailConfirmation(params: UsermetaClientSingleOptions, username: string, email: string,
-        checkIfConfirmed: boolean = false) {
+        checkIfConfirmed: boolean, callback: (err: HttpError | undefined, info: SendMailInfo) => void) {
         //send email functionality
         const sendMail = () => {
             //generate token from the user email address.
@@ -44,13 +44,16 @@ export class EmailConfirmation {
             const content = this.confirmEmailTemplate?.render(templateValues) as Record<string, any>;
             content.to = email;
             content.req_id = params.req_id;
-            this.mailerTransport?.sendMail(content, () => { });
+            this.mailerTransport?.sendMail(content, () => {
+                callback(undefined, { sent: true });
+            });
         };
 
         //if without confirmation, means its a new account registration
         //we send email directly.
-        if (!checkIfConfirmed)
+        if (!checkIfConfirmed) {
             return sendMail();
+        }
 
         //we get the usermeta to check if it was confirmed or no before.
         this.usermetaClient.get(params, CONFIRMED_META_KEY, (err, reply) => {
@@ -61,8 +64,12 @@ export class EmailConfirmation {
                     if (!thisEmailConfirmation) {
                         return sendMail();
                     }
+                    else {
+                        return callback(undefined, { sent:false, alreadyConfirmed: true });
+                    }
                 } catch (ex) {
                     log.warn({ req_id: params.req_id, ex }, "error when processing send email confirmation");
+                    callback(new InternalServerError((ex as Error)?.message), { sent: false });
                 }
             }//no value found, so send email confirmation with a token.
             else {

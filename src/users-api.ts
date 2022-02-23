@@ -45,7 +45,7 @@ import reportedUsersApi from './reported-users/api';
 import { createReportedUsersProcessor, ProcessReportedUsers } from './reported-users/events-processor';
 import getBlocksApi from './blocked-users/get-blocks-api';
 import postUserReviews from './blocked-users/reviews-api';
-import { EmailConfirmation } from './email-confirmation/api';
+import { EmailConfirmation, SendMailInfo } from './email-confirmation/api';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -143,7 +143,13 @@ const createAccount = function (req, res, next) {
       }
 
       if (!emails.isGuestEmail(account.email) && !emails.isNoEmail(account.email)) {
-        emailConfirmation?.sendEmailConfirmation(params, account.username, account.email);
+        emailConfirmation?.sendEmailConfirmation(params, account.username, account.email, false, confirmationEmailStatus);
+        function confirmationEmailStatus(err: HttpError | undefined, info: SendMailInfo) {
+          if (err) {
+            req.log.warn({ info, err }, "Failed to send confirmation email");
+            return;
+          }
+        }
       }
 
       // Make sure aliases are not set (createAccount already did)
@@ -263,18 +269,23 @@ const postMetadata = function (req, res, next) {
     value
   } = req.body;
   return rootUsermetaClient!.set(params, key, value, function (err, reply) {
-    let needEmailConfirmation = false;
     if (err) {
-      log.error({
-        err,
-        reply
-      });
-    } else if (key === 'email' && req.params.user.email && !emails.isGuestEmail(value) && !emails.isNoEmail(value)) {
-      needEmailConfirmation = true;
-      emailConfirmation?.sendEmailConfirmation(params, params.username, value, true);
+      req.log.warn({ reply }, `Failed to set usermeta "${key}" to "${value}": ERROR ${err.name}: ${err.message}`);
+      res.send(err);
+      return next();
     }
-    res.send({ ok: !err, needEmailConfirmation });
-    return next();
+    if (key === 'email' && req.params.user.email && !emails.isGuestEmail(value) && !emails.isNoEmail(value)) {
+      emailConfirmation?.sendEmailConfirmation(params, params.username, value, true, (err, info) => {
+        if (err) {
+        }
+        res.send({ ok: !err, needEmailConfirmation: info.sent });
+        next();
+      });
+    }
+    else {
+      res.send({ ok: true });
+      next();
+    }
   });
 };
 

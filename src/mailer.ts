@@ -107,18 +107,15 @@ const createTransport: CreateMailerTransport = function (obj: MailerOptions = {}
   if (authMethod) { options.authMethod = authMethod; }
   options.logger = log;
 
-  const defaults = { from, subject, text, html };
+  const defaults: MailerSendOptions = { from, subject, text, html };
   log.debug({options}, 'nodemailer.createTransport');
   const transport = nodemailer.createTransport(options);
 
   return {
     defaults,
-    sendMail(options, cb) {
-      let req_id = undefined;
-      if (options.req_id) {
-        ({
-          req_id
-        } = options);
+    sendMail(options: MailerSendOptions, cb: (err: any, info: any) => void) {
+      const req_id = options.req_id;
+      if (req_id) {
         delete options.req_id;
       }
       const mailOptions = _.extend({}, defaults, options);

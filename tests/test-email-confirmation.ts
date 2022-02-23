@@ -306,7 +306,7 @@ describe('email-confirmation', () => {
 
     describe('Send TOTP on new email', () => {
 
-        it('send confirmation on new account', (done) => {
+        it('send confirmation on new account with POST /accounts', (done) => {
 
             const { backend } = sTools.test;
             const createAccountData = {
@@ -344,11 +344,9 @@ describe('email-confirmation', () => {
 
                     return done();
                 });
-
-
         });
 
-        it('send confirmation email change', (done) => {
+        it('send confirmation email change with POST /metadata/email', (done) => {
             superagent
                 .post(sTools.endpoint('/auth/valid-token/metadata/email'))
                 .send({ value: 'new-email@test.com' })

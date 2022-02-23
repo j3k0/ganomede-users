@@ -193,12 +193,15 @@ Change users' custom data.
 (limited to 200 bytes)
 
 ### response [200] OK
-In the response we need to check for "needEmailConfirmation", the user will be receiving an email confirmation. So the account-email must be confirmed.
-``` 
+
+```
 {
-    "needEmailConfirmation": true or false
+    "ok": true,
+    "needEmailConfirmation": false
 }
 ```
+
+**NOTE:** When using this endpoint with the `email` field, the response will include the `needEmailConfirmation` field. This field will be `true` if an email has been sent to the user with an `OTP` code to confirm their email address. See `/users/v1/auth/:authToken/confirm-email`
 
 ## /users/v1/:tag/metadata/:key [GET]
 
@@ -536,19 +539,17 @@ If the key doesn't exist or cannot be accessed, it will be omitted from the resu
 
 ## POST /users/v1/auth/:authToken/confirm-email
 
-confirm user's email by sending to this endpoint in 2 cases only:
+A confirmation email is sent:
+
 - on user account creation
 - on email change.
 
-then the usermeta will be updated by a new key "ConfirmedOn" will contains timestamps for each email confirmed (timestamp will be confirmed time):
+The email contains a TOTP access code that can be submitted to this endpoint for validation.
 
-the user token is required.
+An user metadata with key `$confirmedemails` contains the confirmation time of each email confirmed, like this:
 
 ```
-{
-    'alice@test.com': 12334235492, 
-    'alice2@test.com': 12343424242
-}
+{"alice@test.com",12334235492,"alice2@test.com":12343424242}
 ```
 
 ### body (application/json)
