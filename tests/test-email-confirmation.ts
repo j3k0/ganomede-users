@@ -412,17 +412,15 @@ describe('email-confirmation', () => {
                 });
         });
 
-        it('does not send confirmation email if its not valid', (done) => {
+        it('does not send confirmation email if the email is not valid', (done) => {
 
-            sTools.test?.centralUsermetaClient.set({ username: 'alice' },
-                CONFIRMED_META_KEY, JSON.stringify({}), () => { });
             superagent
                 .post(sTools.endpoint('/auth/valid-token/metadata/email'))
                 .send({ value: 'new-emailtestcom' })
                 .end(function (err, res) {
 
-                    expect(err, 'error change account').to.be.null;
-                    expect(res?.status, 'response status').to.equal(200);
+                    expect(err.status, 'error status').to.equal(400);
+                    expect(res?.body?.code, 'response status').to.equal('InvalidContent');
 
                     const { callback, nodemailerTransport } = sTools.test.mailer.mtest;
 
