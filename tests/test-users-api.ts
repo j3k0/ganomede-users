@@ -17,6 +17,7 @@ import { UsermetaClient } from "../src/usermeta";
 import { BackendOptions, BackendInitializer } from "../src/backend/directory";
 import Logger from "bunyan";
 import { DirectoryClient } from "../src/directory-client";
+import { CONFIRMED_META_KEY } from "../src/email-confirmation/api";
 const {contains} = td.matchers;
 
 const PREFIX = 'users/v1';
@@ -119,10 +120,10 @@ const restTest = function(done) {
   const centralUsermeta = fakeUsermeta.createClient();
   ret.bans = td.object(Bans.prototype);
 
-  localUsermeta.set(data.createAccount.valid, 'ConfirmedOn',
+  localUsermeta.set(data.createAccount.valid, CONFIRMED_META_KEY,
     JSON.stringify(confirmedOn),
     () => { });
-  centralUsermeta.set(data.createAccount.valid, 'ConfirmedOn',
+  centralUsermeta.set(data.createAccount.valid, CONFIRMED_META_KEY,
     JSON.stringify(confirmedOn),
     () => { });
 
@@ -231,7 +232,7 @@ describe('users-api', function() {
               country: null,
               yearofbirth: null,
               '$chatdisabled': null,
-              ConfirmedOn: confirmedOn
+              [CONFIRMED_META_KEY]: confirmedOn
             }
           });
           return done();

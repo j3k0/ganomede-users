@@ -16,7 +16,7 @@ import { RenderTemplate } from "../mail-template";
 import logMod from "../log";
 const log = logMod.child({ module: "api-confirm" });
 
-export const CONFIRMED_META_KEY = 'ConfirmedOn';
+export const CONFIRMED_META_KEY = '$confirmedemails';
 
 export class EmailConfirmation {
 
