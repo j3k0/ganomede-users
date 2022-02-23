@@ -261,6 +261,20 @@ describe('email-confirmation', () => {
                 .end((err, res) => {
                     expect(err, 'request error').to.be.null;
                     expect(res?.status, 'response status').to.equal(200);
+                    expect(res?.body, 'response body').to.eql({ok:true, isValid:true});
+                    done();
+                });
+        });
+                    
+        it('should reject an invalid token', (done) => {
+            const accessCode = totp.generate(alice_publicAccount.aliases.email);
+            superagent
+                .post(sTools.endpoint('/auth/valid-token/confirm-email'))
+                .send({ accessCode: 'this-is-not-a-valid-token' })
+                .end((err, res) => {
+                    expect(err, 'request error').to.be.null;
+                    expect(res?.status, 'response status').to.equal(200);
+                    expect(res?.body, 'response body').to.eql({ok:true, isValid:false});
                     done();
                 });
         });

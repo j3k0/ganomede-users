@@ -140,17 +140,14 @@ export class EmailConfirmation {
                     }
 
                     //success, send response.
-                    res.send(200);
-                    return next();
+                    res.send(200, { ok: true, isValid });
+                    next();
                 });
             });
-
         }
-
-        //if the verification was not successful, then send an error.
-        return sendError(req, new restifyErrors.InvalidContentError({
-            code: 'InvalidAccessCode',
-            message: "Failed to validate the token"
-        }), next);
+        else {
+            res.send(200, { ok: true, isValid });
+            next();
+        }
     }
 }

@@ -560,6 +560,17 @@ An user metadata with key `$confirmedemails` contains the confirmation time of e
 
 ### response [200] OK
 
+The system was able to verify the access code (successfully or not).
+
+    {
+        "ok": true,
+        "isValid": false
+    }
+
+`ok` is true when the system was able to process the request, however you need to check `isValid` to see if the access code was actually a valid one.
+
+If the access code is valid, the email address will be added to `$confirmedemails` usermeta.
+
 ---
 
 
