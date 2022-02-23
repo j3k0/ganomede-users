@@ -9,22 +9,26 @@
 import { Next, Request, Response } from "restify";
 import { UsermetaClient, UsermetaClientSingleOptions } from "../usermeta";
 import { sendError } from "../utils/send-error";
-import restifyErrors from "restify-errors";
+import restifyErrors, { HttpError, InternalServerError } from "restify-errors";
 import totp from './totp';
-import { CreatedMailerTransportResult } from "../mailer";
+import { CreatedMailerTransportResult, MailerSendOptions } from "../mailer";
 import { RenderTemplate } from "../mail-template";
 import logMod from "../log";
 const log = logMod.child({ module: "api-confirm" });
 
 export const CONFIRMED_META_KEY = '$confirmedemails';
 
+export type SendMailInfo = {
+    sent: boolean;
+    alreadyConfirmed?: true;
+}
 export class EmailConfirmation {
 
     usermetaClient: UsermetaClient;
     mailerTransport?: CreatedMailerTransportResult;
-    confirmEmailTemplate?: RenderTemplate;
+    confirmEmailTemplate?: RenderTemplate<MailerSendOptions>;
 
-    constructor(usermetaClient: UsermetaClient, mailerTransport: CreatedMailerTransportResult, confirmEmailTemplate: RenderTemplate) {
+    constructor(usermetaClient: UsermetaClient, mailerTransport: CreatedMailerTransportResult, confirmEmailTemplate: RenderTemplate<MailerSendOptions>) {
         this.usermetaClient = usermetaClient;
         this.mailerTransport = mailerTransport;
         this.confirmEmailTemplate = confirmEmailTemplate;
@@ -112,7 +116,7 @@ export class EmailConfirmation {
         if (isValid) {
             //if is valid, then the set confirmation usermeta with current time.
             //we need to check first if exists confirmed key object.
-            return this.usermetaClient.get(params, CONFIRMED_META_KEY, (err, reply) => {
+            this.usermetaClient.get(params, CONFIRMED_META_KEY, (err, reply) => {
                 if (err) {
                     //if error setting the usermeta, then send error.
                     return sendError(req, new restifyErrors.InternalError({

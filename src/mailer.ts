@@ -13,14 +13,25 @@ export interface MailerModule {
   createTransport(transport?: SMTPTransport | SMTPTransport.Options | string, defaults?: SMTPTransport.Options): Transporter;
 }
 
+/** Options to the sendMail() function */
+export type MailerSendOptions = {
+  /** Origin address. Optional as there is a global default value. */
+  from?: string;
+  /** Destination address */
+  to?: string;
+  /** Input request identifier - for tracking the origin of emails */
+  req_id?: string;
+  /** Subject line */
+  subject?: string;
+  /** Content as plain text */
+  text?: string;
+  /** Content as html */
+  html?: string;
+}
+
 export type CreatedMailerTransportResult = {
-  defaults: {
-    from: string | undefined;
-    subject: string | undefined;
-    text: string | undefined;
-    html: string | undefined;
-  };
-  sendMail(options: any, cb: any): void;
+  defaults: MailerSendOptions;
+  sendMail(options: MailerSendOptions, cb: (err: any, info: any) => void): void;
 }
 
 export type CreateMailerTransport = (obj?: MailerOptions) => CreatedMailerTransportResult;
