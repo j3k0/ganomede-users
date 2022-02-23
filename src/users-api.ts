@@ -8,7 +8,7 @@ import _ from 'lodash';
 import async from "async";
 import authentication, { AuthdbClient, Authenticator } from "./authentication";
 import restifyClients from "restify-clients";
-import restifyErrors from "restify-errors";
+import restifyErrors, { HttpError } from "restify-errors";
 import restify, { Next, Request, Response } from "restify";
 import logMod from "./log";
 let log = logMod.child({ module: "users-api" });
@@ -24,7 +24,7 @@ import facebook, { FacebookClient } from "./facebook";
 import usernameValidator from "./username-validator";
 import { Bans } from './bans';
 import urllib from 'url';
-import mailer from './mailer';
+import mailer, { MailerSendOptions } from './mailer';
 import eventSender, { USERS_EVENTS_CHANNEL, EventSender } from './event-sender';
 import deferredEvents from './deferred-events';
 import emails from './emails';
@@ -45,6 +45,7 @@ import reportedUsersApi from './reported-users/api';
 import { createReportedUsersProcessor, ProcessReportedUsers } from './reported-users/events-processor';
 import getBlocksApi from './blocked-users/get-blocks-api';
 import postUserReviews from './blocked-users/reviews-api';
+import { EmailConfirmation, SendMailInfo } from './email-confirmation/api';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -67,6 +68,7 @@ export interface UsersApiOptions {
   // storeFacebookFriends: (options: any) => void | null;
   // sendEvent: EventSender|null;
   createBackend?: (options: BackendOptions) => BackendInitializer;
+  mailer?: any;
 };
 
 const stats = statsdWrapper.createClient();
@@ -96,6 +98,7 @@ let storeFacebookFriends: (options: any) => void | null;
 let sendEvent: EventSender | null = null;
 let eventsLatest: LatestEvents | null = null;
 let processReportedUsers: ProcessReportedUsers | null = null;
+let emailConfirmation: EmailConfirmation | null = null;
 
 // backend, once initialized
 let backend: any = null;
@@ -137,6 +140,16 @@ const createAccount = function (req, res, next) {
       });
       if (typeof metadata !== 'object') {
         metadata = {};
+      }
+
+      if (!emails.isGuestEmail(account.email) && !emails.isNoEmail(account.email)) {
+        emailConfirmation?.sendEmailConfirmation(params, account.username, account.email, false, confirmationEmailStatus);
+        function confirmationEmailStatus(err: HttpError | undefined, info: SendMailInfo) {
+          if (err) {
+            req.log.warn({ info, err }, "Failed to send confirmation email");
+            return;
+          }
+        }
       }
 
       // Make sure aliases are not set (createAccount already did)
@@ -257,13 +270,22 @@ const postMetadata = function (req, res, next) {
   } = req.body;
   return rootUsermetaClient!.set(params, key, value, function (err, reply) {
     if (err) {
-      log.error({
-        err,
-        reply
+      req.log.warn({ reply }, `Failed to set usermeta "${key}" to "${value}": ERROR ${err.name}: ${err.message}`);
+      res.send(err);
+      return next();
+    }
+    if (key === 'email' && req.params.user.email && !emails.isGuestEmail(value) && !emails.isNoEmail(value)) {
+      emailConfirmation?.sendEmailConfirmation(params, params.username, value, true, (err, info) => {
+        if (err) {
+        }
+        res.send({ ok: !err, needEmailConfirmation: info.sent });
+        next();
       });
     }
-    res.send({ ok: !err });
-    return next();
+    else {
+      res.send({ ok: true });
+      next();
+    }
   });
 };
 
@@ -406,6 +428,13 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
 
   bans = options.bans ?? new Bans({ usermetaClient: centralUsermetaClient });
   processReportedUsers = createReportedUsersProcessor(log, bans);
+  emailConfirmation = new EmailConfirmation(centralUsermetaClient!,
+    options.mailer ? options.mailer.createTransport() : mailer.createTransport(),
+    mailTemplate.createTemplate({
+      subject: process.env.MAILER_SEND_SUBJECT,
+      text: process.env.MAILER_SEND_TEXT,
+      html: process.env.MAILER_SEND_HTML
+    }));
 
   // Aliases
   aliasesClient = aliases.createClient({
@@ -621,6 +650,9 @@ const addRoutes = function (prefix: string, server: restify.Server): void {
   // access to protected multi metadata
   server.get(`/${prefix}/auth/:authToken/multi/metadata/:keys`,
     authMiddleware, getUserMultiMetadata);
+
+  server.post(`/${prefix}/auth/:authToken/confirm-email`,
+    jsonBody, authMiddleware, emailConfirmation!.confirmEmailCode);
 
   friendsApi?.addRoutes(prefix, server);
   blockedUsersApi?.addRoutes(prefix, server);

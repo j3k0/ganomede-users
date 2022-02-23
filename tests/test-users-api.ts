@@ -17,6 +17,7 @@ import { UsermetaClient } from "../src/usermeta";
 import { BackendOptions, BackendInitializer } from "../src/backend/directory";
 import Logger from "bunyan";
 import { DirectoryClient } from "../src/directory-client";
+import { CONFIRMED_META_KEY } from "../src/email-confirmation/api";
 const {contains} = td.matchers;
 
 const PREFIX = 'users/v1';
@@ -47,6 +48,9 @@ const data = {
     token: VALID_AUTH_TOKEN
   }]
 };
+
+const confirmedOn = { "test@test.com": 2345342342, "jeko@tttt.com": 4234213433 };
+
 const apiSecret = process.env.API_SECRET;
 
 const baseTest = function() {
@@ -115,6 +119,13 @@ const restTest = function(done) {
   const localUsermeta = fakeUsermeta.createClient();
   const centralUsermeta = fakeUsermeta.createClient();
   ret.bans = td.object(Bans.prototype);
+
+  localUsermeta.set(data.createAccount.valid, CONFIRMED_META_KEY,
+    JSON.stringify(confirmedOn),
+    () => { });
+  centralUsermeta.set(data.createAccount.valid, CONFIRMED_META_KEY,
+    JSON.stringify(confirmedOn),
+    () => { });
 
   data.tokens.forEach(info => ret.authdbClient.addAccount(info.token, {
     username: data.createAccount[info.createAccountKey].username
@@ -221,7 +232,9 @@ describe('users-api', function() {
               country: null,
               yearofbirth: null,
               '$chatdisabled': null,
-            }});
+              [CONFIRMED_META_KEY]: confirmedOn
+            }
+          });
           return done();
       });
     }));

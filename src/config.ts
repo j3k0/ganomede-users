@@ -39,8 +39,14 @@ export const blockedIndexerConfig = {
   blockedByTargetField: 'data.target'
 };
 
+export const totpConfig = {
+  digits: +(process.env.TOTP_DIGITS || 6),
+  secretKey: process.env.TOTP_SECRET_KEY,
+  period: +(process.env.TOTP_PERIOD_SECONDS || 600) //in seconds//default=10min.
+};
+
 export default {
-  name, api, secret, appName, events, reportedUsersApiConfig
+  name, api, secret, appName, events, reportedUsersApiConfig, totpConfig
 }
 
 if (!module.parent)

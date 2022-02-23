@@ -21,6 +21,7 @@ import { AliasesClient } from '../aliases';
 import { FriendsClient } from '../friends-store';
 import { FacebookClient } from '../facebook';
 import async from 'async';
+import { CONFIRMED_META_KEY } from '../email-confirmation/api';
 
 export interface ApiMeOptions {
     prefix: string;
@@ -115,12 +116,23 @@ export function addRoutes(options: ApiMeOptions) {
             'country': 1,
             'yearofbirth': 1,
             '$chatdisabled': 1,
-        }, function(_one, key, callback) {
+            [CONFIRMED_META_KEY]: 1
+        }, function (_one, key, callback) {
             options.rootUsermetaClient.get(params, key, callback);
         }, function(err, results) {
             if (err) {
                 req.log.warn({err}, 'Failed to fetch metadata');
             }
+
+            const confirmedEmails = results[CONFIRMED_META_KEY];
+            if (confirmedEmails) {
+                try {
+                    results[CONFIRMED_META_KEY] = JSON.parse(confirmedEmails);
+                } catch(err) {
+                    req.log.warn({ confirmedEmails }, 'Failed to parse confirmed emails: ' + (err as Error)?.message);
+                }
+            }
+
             req.params._store.account.metadata = results;
             return next();
         });

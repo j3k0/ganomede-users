@@ -194,6 +194,15 @@ Change users' custom data.
 
 ### response [200] OK
 
+```
+{
+    "ok": true,
+    "needEmailConfirmation": false
+}
+```
+
+**NOTE:** When using this endpoint with the `email` field, the response will include the `needEmailConfirmation` field. This field will be `true` if an email has been sent to the user with an `OTP` code to confirm their email address. See `/users/v1/auth/:authToken/confirm-email`
+
 ## /users/v1/:tag/metadata/:key [GET]
 
 Users' custom data, retrieved using the users `tag`.
@@ -524,6 +533,43 @@ Missing or unknown keys, and those you are not allowed to read will be omitted (
     }]
 
 If the key doesn't exist or cannot be accessed, it will be omitted from the result.
+
+---
+
+
+## POST /users/v1/auth/:authToken/confirm-email
+
+A confirmation email is sent:
+
+- on user account creation
+- on email change.
+
+The email contains a TOTP access code that can be submitted to this endpoint for validation.
+
+An user metadata with key `$confirmedemails` contains the confirmation time of each email confirmed, like this:
+
+```
+{"alice@test.com",12334235492,"alice2@test.com":12343424242}
+```
+
+### body (application/json)
+
+    { 
+        "accessCode": "234354"
+    }
+
+### response [200] OK
+
+The system was able to verify the access code (successfully or not).
+
+    {
+        "ok": true,
+        "isValid": false
+    }
+
+`ok` is true when the system was able to process the request, however you need to check `isValid` to see if the access code was actually a valid one.
+
+If the access code is valid, the email address will be added to `$confirmedemails` usermeta.
 
 ---
 
