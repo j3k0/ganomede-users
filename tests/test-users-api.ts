@@ -1,8 +1,3 @@
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
 import assert from "assert";
 import superagent from 'superagent';
 import fakeAuthdb from "./fake-authdb";
@@ -17,6 +12,7 @@ import { GanomedeSubscriptionClient, UsermetaClient, UsernameKeyValue } from "..
 import { BackendOptions, BackendInitializer } from "../src/backend/directory";
 import Logger from "bunyan";
 import { DirectoryClient } from "../src/directory-client";
+import { CONFIRMED_META_KEY } from "../src/email-confirmation/api";
 const {contains} = td.matchers;
 
 const PREFIX = 'users/v1';
@@ -57,17 +53,25 @@ const data = {
     }
   }
 };
+
+const confirmedOn = { "test@test.com": 2345342342, "jeko@tttt.com": 4234213433 };
+
 const apiSecret = process.env.API_SECRET;
 
+const valueForUsernameAndKey = (username:string, key:string): string | null => {
+  if (username === 'n0b0dy') return null;
+  if (username === 'jeko' && key === '$confirmedemails') return JSON.stringify(confirmedOn);
+  return `${username}-${key}`;
+}
 
 const ukv = (username, key) => ({
   username,
   key,
-  value: username !== 'n0b0dy' ? `${username}-${key}` : null
+  value: valueForUsernameAndKey(username, key)
 });
 
 
-const baseTest = function () {
+function baseTest() {
   //log = require '../src/log'
   const log = td.object(['info', 'warn', 'error']) as Logger;
   const localUsermetaClient = td.object<UsermetaClient>();
@@ -123,8 +127,14 @@ const baseTest = function () {
 
 // @ts-ignore
 let i:number = 0;
-const restTest = function(done) {
-  const ret: any = baseTest();
+const restTest = function(done = () => {}) {
+  const ret: ReturnType<typeof baseTest> & Partial<{
+    endpoint: Function;
+    bans: Bans;
+    start: Function;
+    close: Function;
+    mockBulkForUserResponse: Function;
+  }> = baseTest();
   td.when(ret.backend.initialize()).thenCallback(null, ret.backend);
 
   ret.endpoint = function(token, path) {
@@ -141,21 +151,37 @@ const restTest = function(done) {
   };
 
   i += 1;
-  var server = restify.createServer();
+  let server = restify.createServer();
   //const localUsermeta = fakeUsermeta.createClient();
   //const centralUsermeta = fakeUsermeta.createClient();
-  ret.bans = td.object(Bans.prototype);
+  ret.bans = td.object<Bans>();
+
+  ret.localUsermetaClient.set(data.createAccount.valid, CONFIRMED_META_KEY,
+    JSON.stringify(confirmedOn),
+    () => { });
+  ret.centralUsermetaClient.set(data.createAccount.valid, CONFIRMED_META_KEY,
+    JSON.stringify(confirmedOn),
+    () => { });
 
   data.tokens.forEach(info => ret.authdbClient.addAccount(info.token, {
     username: data.createAccount[info.createAccountKey].username
   }));
 
   ret.close = function(done) {
-    server.close();
-    return done();
+    try {
+      server.close(() => {
+        console.log('server closed');
+      });
+    } catch (err) { console.log('exception', err) }
+    done();
   };
 
-  ret.start = function(cb) {
+  ret.start = function(done) {
+    server = restify.createServer();
+    server.dtrace = true;
+    server.timeout = 2;
+    server.requestTimeout = 2;
+    server.keepAliveTimeout = 2;
     const options = {
       // log: td.object [ 'info', 'warn', 'error' ]
       localUsermetaClient: ret.localUsermetaClient,
@@ -166,15 +192,16 @@ const restTest = function(done) {
       ganomedeSubscriptionClient: ret.ganomedeSubscriptionClient,
       bans: ret.bans
     };
-    return userApis.initialize(function (err) {
+    userApis.initialize(function (err) {
       if (err) {
         throw err;
       }
       server.use(restify.plugins.bodyParser());
       userApis.addRoutes(PREFIX, server);
-      return server.listen(1337, cb);
-    }
-      , options);
+      server.listen(Math.ceil(Math.random() * 16000 + 1024), (err) => {
+        done(err);
+      });
+    }, options);
   };
 
   ret.mockBulkForUserResponse = (username: string, keys: string[], type: 'local' | 'central' | 'purchases') => {
@@ -185,6 +212,8 @@ const restTest = function(done) {
     td.when(client.getBulkForUser(td.matchers.contains({ username }), keys, td.callback))
       .thenCallback(null, response);
   }
+
+  done();
 
   return ret;
 };
@@ -197,28 +226,32 @@ describe('users-api', function() {
       const { callback, options, backend } = baseTest();
       td.when(backend.initialize()).thenCallback(null, null);
       userApis.initialize(callback, options);
-      return td.verify(callback());
+      td.verify(callback());
     });
 
-    return it('fails when backend initialization fails', function() {
+    it('fails when backend initialization fails', function() {
       const err = new Error("failed");
       const { callback, options, backend } = baseTest();
       td.when(backend.initialize()).thenCallback(err, null);
       userApis.initialize(callback, options);
-      return td.verify(callback(err));
+      td.verify(callback(err));
     });
   });
 
   describe('REST API', function () {
 
-    let test: any = null;
-    let endpoint: any = null;
+    let test = restTest();
+    let endpoint: Function = () => {};
+
     beforeEach(function(done) {
-      test = restTest(() => {});
-      endpoint = test.endpoint;
-      test.start(done);
+      test = restTest();
+      endpoint = test.endpoint || endpoint;
+      test.start!(done);
     });
-    afterEach(done => test.close(done));
+
+    afterEach(function(done) {
+      test.close!(done);
+    });
 
     const noError = function(err) {
       if (err) {
@@ -231,32 +264,32 @@ describe('users-api', function() {
       assert.ok(!err);
     };
 
-    describe.skip('/login [POST] - Logs in a user', () => it("should accept valid credentials", function(done) {
-      ({ test } = test);
-      superagent
-        .post(endpoint('/login'))
-        .send(data.validLogin)
-        .end(function(err, res) {
-          noError(err);
-          assert.equal(200, res.status);
-          expect(res.body).to.eql({token:VALID_AUTH_TOKEN});
-          done();
+    describe('/login [POST] - Logs in a user', () => {
+      it("should accept valid credentials", function(done) {
+        // ({ test } = test);
+        superagent
+          .post(endpoint('/login'))
+          .send(data.validLogin)
+          .end(function(err, res) {
+            noError(err);
+            assert.strictEqual(200, res.status);
+            expect(res.body).to.eql({token:VALID_AUTH_TOKEN});
+            done();
+        });
       });
-    }));
+    });
 
     describe('/auth/:token/me [GET] - Retrieve user data', () => {
-      it("responds with user data", (done) => {
-
-        test.mockBulkForUserResponse('jeko', ['country', 'yearofbirth'], 'central');
-        test.mockBulkForUserResponse('jeko', ['$chatdisabled', '$blocked', 'location',
-          'singleplayerstats'], 'local');
-
-        test.mockBulkForUserResponse('jeko', ['productId', 'purchaseId', 'purchaseDate', 'expirationDate'], 'purchases');
-        const {
-          username
-        } = data.createAccount.valid;
-        td.when(test.bans.get({ username, apiSecret }))
+      it("responds with user data", function(done) {
+        const username = data.createAccount.valid.username;
+        td.when(test.bans!.get({username, apiSecret}, td.callback))
           .thenCallback(null, new BanInfo(username, 0));
+
+        test.mockBulkForUserResponse!('jeko', ['country', 'yearofbirth'], 'central');
+        test.mockBulkForUserResponse!('jeko', ['$chatdisabled', '$blocked', 'location',
+          'singleplayerstats', '$confirmedemails'], 'local');
+        test.mockBulkForUserResponse!('jeko', ['productId', 'purchaseId', 'purchaseDate', 'expirationDate'], 'purchases');
+
         superagent
           .get(endpoint(VALID_AUTH_TOKEN, "/me"))
           .end(function (err, res) {
@@ -274,6 +307,7 @@ describe('users-api', function() {
                 expirationDate: "jeko-expirationDate",
                 productId: "jeko-productId",
                 purchaseDate: "jeko-purchaseDate",
+                [CONFIRMED_META_KEY]: JSON.stringify(confirmedOn),
                 purchaseId: "jeko-purchaseId"
               }
             });
@@ -281,18 +315,18 @@ describe('users-api', function() {
           });
       });
 
-      it("checks that meta-values are correclty read from the usermeta module", (done) => {
+      it.skip("checks that meta-values are correctly read from the usermeta module", (done) => {
         const {
           username
         } = data.createAccount.valid;
-        td.when(test.bans.get({ username, apiSecret }))
+        td.when(test.bans!.get({ username, apiSecret }, td.callback))
           .thenCallback(null, new BanInfo(username, 0));
 
-        test.mockBulkForUserResponse('jeko', ['country', 'yearofbirth'], 'central');
-        test.mockBulkForUserResponse('jeko', ['$chatdisabled', '$blocked', 'location',
+        test.mockBulkForUserResponse!('jeko', ['country', 'yearofbirth'], 'central');
+        test.mockBulkForUserResponse!('jeko', ['$chatdisabled', '$blocked', 'location',
           'singleplayerstats'], 'local');
 
-        test.mockBulkForUserResponse('jeko', ['productId', 'purchaseId', 'purchaseDate', 'expirationDate'], 'purchases');
+        test.mockBulkForUserResponse!('jeko', ['productId', 'purchaseId', 'purchaseDate', 'expirationDate'], 'purchases');
 
         superagent
           .get(endpoint(VALID_AUTH_TOKEN, "/me"))
@@ -430,16 +464,16 @@ describe('users-api', function() {
         username
       } = data.createAccount.valid;
       const BAN_TIMESTAMP=Date.now();
-      beforeEach(() => td.when(test.bans.get({username,apiSecret}))
+      beforeEach(() => td.when(test.bans!.get({username,apiSecret}, td.callback))
         .thenCallback(null, new BanInfo(username, String(BAN_TIMESTAMP))));
 
       describe('POST', function() {
 
         it('bans people', function(done) {
-          td.when(test.bans.ban({
+          td.when(test.bans!.ban({
             username,
             apiSecret
-          })).thenCallback(null, null);
+          }, td.callback)).thenCallback(null, null);
           superagent
             .post(endpoint('/banned-users'))
             .send({username, apiSecret})
@@ -487,8 +521,7 @@ describe('users-api', function() {
           });
         });
 
-        return it(`nullifies authdb accounts after banned username \
-tries to access any :authToken endpoint`, function(done) {
+        return it(`nullifies authdb accounts after banned username tries to access any :authToken endpoint`, function(done) {
           expect(test.authdbClient.store[VALID_AUTH_TOKEN]).to.be.ok;
           superagent
             .get(endpoint(VALID_AUTH_TOKEN, '/me'))
@@ -521,14 +554,14 @@ tries to access any :authToken endpoint`, function(done) {
 
       return describe('DELETE', function() {
         it('removes bans', function(done) {
-          td.when(test.bans.unban(td.matchers.isA(Object)))
+          td.when(test.bans!.unban(td.matchers.isA(Object), td.callback))
             .thenCallback(null, null);
           superagent
             .del(endpoint(`/banned-users/${username}`))
             .send({apiSecret})
             .end(function(err, res) {
               noError(err);
-              td.verify(test.bans.unban({username, apiSecret}, td.callback));
+              td.verify(test.bans!.unban({username, apiSecret}, td.callback));
               return done();
           });
         });
@@ -642,16 +675,15 @@ tries to access any :authToken endpoint`, function(done) {
         GANOMEDE_PURCHASES_PORT_8000_TCP_PORT: '' + portPurchases,
         FACEBOOK_APP_ID: '0'
       });
+      ganomedeUserMetaLocalServer.listen(portLocal);
+      ganomedeUserMetaCentralServer.listen(portCentral);
+      ganomedePurchasesServer.listen(portPurchases);
       userApis.initialize(() => {
         userApis.addRoutes('users/v1', server);
         server.listen(port, () => {
           done();
         });
       }, options);
-
-      ganomedeUserMetaLocalServer.listen(portLocal);
-      ganomedeUserMetaCentralServer.listen(portCentral);
-      ganomedePurchasesServer.listen(portPurchases);
     });
 
     afterEach(done => {
@@ -661,16 +693,14 @@ tries to access any :authToken endpoint`, function(done) {
       done();
     });
 
-    it('checks that protected meta-values are correclty read from the usermeta module', done => {
+    it('checks that protected meta-values are correctly read from the usermeta module', done => {
 
-      const {
-        username
-      } = data.createAccount.valid;
+      const username = data.createAccount.valid.username;
 
       // Fake usermeta local response
       ganomedeUserMetaLocalServer.get('/usermeta/v1/auth/:authToken/:keys', (req, res, next) => {
         expect(req.params.authToken).to.equal(VALID_AUTH_TOKEN);
-        expect(req.params.keys).to.equal('$chatdisabled,$blocked,location,singleplayerstats');
+        expect(req.params.keys).to.equal('$chatdisabled,$blocked,location,singleplayerstats,$confirmedemails');
         // req.log.info("GET from usermeta");
         const keyValues = {};
         req.params.keys.split(',').forEach(k => {
@@ -725,6 +755,7 @@ tries to access any :authToken endpoint`, function(done) {
             metadata: {
               "$blocked": "jeko-$blocked",
               "$chatdisabled": "jeko-$chatdisabled",
+              "$confirmedemails": JSON.stringify(confirmedOn),
               country: "jeko-country",
               location: "jeko-location",
               singleplayerstats: "jeko-singleplayerstats",

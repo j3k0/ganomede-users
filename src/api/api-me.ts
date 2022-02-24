@@ -21,6 +21,7 @@ import { AliasesClient } from '../aliases';
 import { FriendsClient } from '../friends-store';
 import { FacebookClient } from '../facebook';
 import async from 'async';
+import { CONFIRMED_META_KEY } from '../email-confirmation/api';
 
 export interface ApiMeOptions {
     prefix: string;
@@ -112,17 +113,29 @@ export function addRoutes(options: ApiMeOptions) {
             params.email = account.email;
         }
         const keys: string[] = ['country', 'yearofbirth', '$chatdisabled', '$blocked', 'location',
-            'singleplayerstats', 'productId', 'purchaseId', 'purchaseDate', 'expirationDate'];
+            'singleplayerstats', 'productId', 'purchaseId', 'purchaseDate', 'expirationDate', CONFIRMED_META_KEY];
         options.rootUsermetaClient.getBulkForUser(params, keys, (err2, reply2) => {
             if (err2) {
                 req.log.warn({ err2 }, 'Failed to fetch metadata');
             }
-            const results = reply2?.reduce((acc, usemeta) => {
-                return {
-                    [usemeta.key]: usemeta.value,
-                    ...acc
-                };
-            }, {});
+
+            const emptyRecord:Record<string, string|undefined> = {};
+            const results:Record<string, string|undefined> = reply2?.reduce((acc, usermeta) => ({
+                [usermeta.key]: usermeta.value,
+                ...acc
+            } as Record<string, string | undefined>), emptyRecord) || emptyRecord;
+
+            // Suggestion by Hussein to return confirmedemails as an object, but it might break code that
+            // expects all metadata to be strings.
+            // const confirmedEmails = results[CONFIRMED_META_KEY];
+            // if (confirmedEmails) {
+            //     try {
+            //         results[CONFIRMED_META_KEY] = JSON.parse(confirmedEmails);
+            //     } catch(err) {
+            //         req.log.warn({ confirmedEmails }, 'Failed to parse confirmed emails: ' + (err as Error)?.message);
+            //     }
+            // }
+
             req.params._store.account.metadata = results;
             return next();
         });

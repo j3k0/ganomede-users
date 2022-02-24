@@ -206,6 +206,15 @@ Change users' custom data.
 
 ### response [200] OK
 
+```
+{
+    "ok": true,
+    "needEmailConfirmation": false
+}
+```
+
+**NOTE:** When using this endpoint with the `email` field, the response will include the `needEmailConfirmation` field. This field will be `true` if an email has been sent to the user with an `OTP` code to confirm their email address. See `/users/v1/auth/:authToken/confirm-email`
+
 ## /users/v1/:tag/metadata/:key [GET]
 
 Users' custom data, retrieved using the users `tag`.
@@ -269,6 +278,13 @@ Returns `BanInfo` object describing account standing of `:tag`.
 ```
 
 ## Ban user `/users/v1/banned-users/ [POST]`
+
+Ban a user from using the game.
+
+Create an event that indicates that the user has been banned in the "blocked-users" channel.
+
+ * Type: `"USER_REVIEW"`
+ * The action taken: `data.action = "BAN"`
 
 ### body (application/json)
 
@@ -533,13 +549,49 @@ If the key doesn't exist or cannot be accessed, it will be omitted from the resu
 ---
 
 
+## POST /users/v1/auth/:authToken/confirm-email
+
+A confirmation email is sent:
+
+- on user account creation
+- on email change.
+
+The email contains a TOTP access code that can be submitted to this endpoint for validation.
+
+An user metadata with key `$confirmedemails` contains the confirmation time of each email confirmed, like this:
+
+```
+{"alice@test.com",12334235492,"alice2@test.com":12343424242}
+```
+
+### body (application/json)
+
+    { 
+        "accessCode": "234354"
+    }
+
+### response [200] OK
+
+The system was able to verify the access code (successfully or not).
+
+    {
+        "ok": true,
+        "isValid": false
+    }
+
+`ok` is true when the system was able to process the request, however you need to check `isValid` to see if the access code was actually a valid one.
+
+If the access code is valid, the email address will be added to `$confirmedemails` usermeta.
+
+---
+
+
 ## POST /users/v1/admin/user-reviews
 
 Create an event that indicates that the user has been reviewed in the "blocked-users" channel.
 
-- Type: "USER_REVIEW"
-- The action taken: `data.action = "CLEAN"`
-
+ * Type: `"USER_REVIEW"`
+ * The action taken: `data.action = "CLEAN"`
 
 ### body (application/json)
 
@@ -548,5 +600,6 @@ Create an event that indicates that the user has been reviewed in the "blocked-u
     }
 
 ### response [200] OK
+
 ---
  

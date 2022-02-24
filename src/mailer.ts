@@ -13,6 +13,29 @@ export interface MailerModule {
   createTransport(transport?: SMTPTransport | SMTPTransport.Options | string, defaults?: SMTPTransport.Options): Transporter;
 }
 
+/** Options to the sendMail() function */
+export type MailerSendOptions = {
+  /** Origin address. Optional as there is a global default value. */
+  from?: string;
+  /** Destination address */
+  to?: string;
+  /** Input request identifier - for tracking the origin of emails */
+  req_id?: string;
+  /** Subject line */
+  subject?: string;
+  /** Content as plain text */
+  text?: string;
+  /** Content as html */
+  html?: string;
+}
+
+export type CreatedMailerTransportResult = {
+  defaults: MailerSendOptions;
+  sendMail(options: MailerSendOptions, cb: (err: any, info: any) => void): void;
+}
+
+export type CreateMailerTransport = (obj?: MailerOptions) => CreatedMailerTransportResult;
+
 export interface MailerOptions {
   nodemailer?: MailerModule;
   from?: string;
@@ -35,7 +58,7 @@ export interface MailerOptions {
 };
 
 // create reusable transporter object using the SMTP transport
-const createTransport = function(obj:MailerOptions = {}) {
+const createTransport: CreateMailerTransport = function (obj: MailerOptions = {}) {
 
   const nodemailer = obj.nodemailer || nodemailerMod;
   const from = obj.from ?? process.env.MAILER_SEND_FROM;
@@ -95,18 +118,15 @@ const createTransport = function(obj:MailerOptions = {}) {
   if (authMethod) { options.authMethod = authMethod; }
   options.logger = log;
 
-  const defaults = { from, subject, text, html };
+  const defaults: MailerSendOptions = { from, subject, text, html };
   log.debug({options}, 'nodemailer.createTransport');
   const transport = nodemailer.createTransport(options);
 
   return {
     defaults,
-    sendMail(options, cb) {
-      let req_id = undefined;
-      if (options.req_id) {
-        ({
-          req_id
-        } = options);
+    sendMail(options: MailerSendOptions, cb: (err: any, info: any) => void) {
+      const req_id = options.req_id;
+      if (req_id) {
         delete options.req_id;
       }
       const mailOptions = _.extend({}, defaults, options);
