@@ -11,8 +11,11 @@ import { BackendInitializer, BackendOptions } from "../src/backend/directory";
 import Logger from "bunyan";
 import logMod from '../src/log';
 import { RestError } from "restify-errors";
-import { GanomedeSubscriptionClient, UsermetaClient, 
-    UsermetaClientSingleOptions, UsernameKeyValue } from "../src/usermeta";
+import {
+    GanomedeSubscriptionClient, UsermetaClient,
+    UsermetaClientSingleOptions, UsernameKeyValue
+} from "../src/usermeta";
+import { EventSender } from "../src/event-sender";
 
 // shortcuts for readability
 const { anything, contains } = td.matchers;
@@ -81,6 +84,7 @@ class Test {
     backend: DoubledObjectWithKey<string>;
     createBackend: (options: BackendOptions) => BackendInitializer;
     authdbClient: AuthdbClient;
+    sendEvent: EventSender = td.function('sendEvent') as EventSender;
 
     constructor() {
         // Some mocks so we can initialize the `users` module.
@@ -665,11 +669,11 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
 
     describe('integrated tests', () => {
 
-        let server = restify.createServer();
+        let server: restify.Server | null;// = restify.createServer();
         let port = 12911;
 
         function endpoint(path: string): string {
-            return `http://localhost:${server.address().port}${path}`;
+            return `http://localhost:${server!.address().port}${path}`;
         }
 
         beforeEach(function (done) {
@@ -684,34 +688,45 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                 email: accounts.alice.aliases.email
             });
 
+            const backend = td.object(['initialize']);
+            const createBackend = td.function('createBackend') as (options: BackendOptions) => BackendInitializer;
+            td.when(
+                createBackend(td.matchers.isA(Object)))
+                .thenReturn(backend);
+            td.when(
+                backend.initialize())
+                .thenCallback(null, backend);
+
             const options: UsersApiOptions = {
                 log: td.object<Logger>(),
                 directoryClient: td.object<DirectoryClient>(),
-                authdbClient
+                authdbClient,
+                createBackend
             };
             Object.assign(process.env, {
                 CENTRAL_USERMETA_PORT_8000_TCP_ADDR: 'localhost',
                 CENTRAL_USERMETA_PORT_8000_TCP_PORT: '' + port,
                 LOCAL_USERMETA_PORT_8000_TCP_ADDR: 'localhost',
                 LOCAL_USERMETA_PORT_8000_TCP_PORT: '' + port,
+                GANOMEDE_PURCHASES_PORT_8000_TCP_ADDR: 'localhost',
+                GANOMEDE_PURCHASES_PORT_8000_TCP_PORT: '' + port,
                 FACEBOOK_APP_ID: '0'
             });
             userApis.initialize(() => {
-                userApis.addRoutes('users/v1', server);
-                server.listen(port, () => {
-                    done();
-                });
+                userApis.addRoutes('users/v1', server!);
+                server!.listen(port, done);
             }, options);
         });
 
         afterEach(done => {
-            server.close();
+            server!.close();
+            server = null;
             done();
         });
 
         it('does works with a single user - issue #76', done => {
             // Fake usermeta response
-            server.get('/usermeta/v1/:usernames/:keys', (req, res, next) => {
+            server!.get('/usermeta/v1/:usernames/:keys', (req, res, next) => {
                 expect(req.params.usernames).to.equal('user1');
                 expect(req.params.keys).to.equal('key1,key2');
                 // req.log.info("GET from usermeta");
@@ -743,7 +758,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
 
         it('does not fail with multiple users - issue #76', done => {
             // Fake usermeta response
-            server.get('/usermeta/v1/:usernames/:keys', (req, res, next) => {
+            server!.get('/usermeta/v1/:usernames/:keys', (req, res, next) => {
                 expect(req.params.usernames).to.equal('user1,user2');
                 expect(req.params.keys).to.equal('key1,key2');
                 // req.log.info("GET from usermeta");
@@ -788,7 +803,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
         it('does not use multiple get request with single user', done => {
             // Fake usermeta response
             let timesGetCall = 0;
-            server.get('/usermeta/v1/auth/:authToken/:keys', (req, res, next) => {
+            server!.get('/usermeta/v1/auth/:authToken/:keys', (req, res, next) => {
                 console.log(req.params.authToken, req.params.keys);
                 expect(req.params.authToken).to.equal('valid-token');
                 expect(req.params.keys).to.equal('key1,key2');

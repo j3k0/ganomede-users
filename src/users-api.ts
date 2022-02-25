@@ -138,6 +138,7 @@ const createAccount = function (req, res, next) {
         if (err) {
           req.log.warn({ key, value, err }, "failed to set metadata");
         }
+        next();
         return callback();
       });
       if (typeof metadata !== 'object') {
@@ -149,7 +150,7 @@ const createAccount = function (req, res, next) {
         function confirmationEmailStatus(err: HttpError | undefined, info: SendMailInfo) {
           if (err) {
             req.log.warn({ info, err }, "Failed to send confirmation email");
-            return;
+            return next();
           }
         }
       }
@@ -440,8 +441,6 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
       text: process.env.MAILER_SEND_TEXT,
       html: process.env.MAILER_SEND_HTML
     }));
-
-  ganomedeSubscriptionClient = options.ganomedeSubscriptionClient ?? GanomedeSubscriptionClient.createClient({});
 
   // Aliases
   aliasesClient = aliases.createClient({

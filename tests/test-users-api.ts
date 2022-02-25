@@ -13,7 +13,9 @@ import { BackendOptions, BackendInitializer } from "../src/backend/directory";
 import Logger from "bunyan";
 import { DirectoryClient } from "../src/directory-client";
 import { CONFIRMED_META_KEY } from "../src/email-confirmation/api";
-const {contains} = td.matchers;
+import { EventSender } from "../src/event-sender";
+
+const { contains } = td.matchers;
 
 const PREFIX = 'users/v1';
 const VALID_AUTH_TOKEN = 'deadbeef';
@@ -80,6 +82,7 @@ function baseTest() {
   centralUsermetaClient.type = 'GanomedeUsermeta@central';
   const ganomedeSubscriptionClient = td.object<GanomedeSubscriptionClient>();
   ganomedeSubscriptionClient.type = 'GanomedeSubscriptionClient';
+  const sendEvent: EventSender = td.function('sendEvent') as EventSender;
 
   const backend = td.object([
     'initialize',
@@ -99,8 +102,8 @@ function baseTest() {
   td.when(backend.loginAccount(td.matchers.anything()))
   // @ts-ignore
     .thenCallback(new restifyErrors.InvalidCredentialsError());
-  td.when(backend.loginAccount(data.validLogin))
-    .thenCallback(null, {token:VALID_AUTH_TOKEN});
+  td.when(backend.loginAccount(td.matchers.contains(data.validLogin)))
+    .thenCallback(null, { token: VALID_AUTH_TOKEN });
 
   const directoryClient = td.object(['editAccount', 'byId', 'byToken', 'byAlias']) as DirectoryClient;
   td.when(directoryClient.byAlias(
@@ -116,12 +119,14 @@ function baseTest() {
   const authdbClient = fakeAuthdb.createClient();
   const options = {
     log, localUsermetaClient, centralUsermetaClient,
-    createBackend, authdbClient, authenticator, directoryClient, ganomedeSubscriptionClient
+    createBackend, authdbClient, authenticator, directoryClient, ganomedeSubscriptionClient, 
+    sendEvent
   };
   return {
     callback, options,
     createBackend, backend, localUsermetaClient, centralUsermetaClient,
-    authdbClient, directoryClient, ganomedeSubscriptionClient
+    authdbClient, directoryClient, ganomedeSubscriptionClient, 
+    sendEvent
   };
 };
 
@@ -190,7 +195,8 @@ const restTest = function(done = () => {}) {
       createBackend: ret.createBackend,
       directoryClient: ret.directoryClient,
       ganomedeSubscriptionClient: ret.ganomedeSubscriptionClient,
-      bans: ret.bans
+      bans: ret.bans, 
+      sendEvent: ret.sendEvent
     };
     userApis.initialize(function (err) {
       if (err) {
@@ -265,7 +271,13 @@ describe('users-api', function() {
     };
 
     describe('/login [POST] - Logs in a user', () => {
-      it("should accept valid credentials", function(done) {
+      it("should accept valid credentials", function (done) {
+        td.when(test.bans!.get({ username: data.validLogin.username, apiSecret }, td.callback))
+          .thenCallback(null, new BanInfo(data.validLogin.username, 0));
+
+        td.when(test.centralUsermetaClient.get(data.validLogin.username, td.matchers.anything(), td.callback))
+          .thenCallback(null, null);
+
         // ({ test } = test);
         superagent
           .post(endpoint('/login'))
@@ -585,7 +597,7 @@ describe('users-api', function() {
     let ganomedeUserMetaLocalServer = restify.createServer();
     let ganomedeUserMetaCentralServer = restify.createServer();
     let ganomedePurchasesServer = restify.createServer();
-    let port = 12911;
+    let port = 13911;
     let portLocal = 15911;
     let portCentral = 15311;
     let portPurchases = 18311;
@@ -630,6 +642,7 @@ describe('users-api', function() {
       td.when(createBackend(td.matchers.argThat(missAuthenticator)))
         .thenThrow(new Error());
 
+        const sendEvent: EventSender = td.function('sendEvent') as EventSender;
 
       td.when(backend.loginAccount(td.matchers.anything()))
         // @ts-ignore
@@ -663,7 +676,8 @@ describe('users-api', function() {
         createBackend,
         authdbClient,
         directoryClient,
-        bans
+        bans, 
+        sendEvent
       };
 
       Object.assign(process.env, {
@@ -713,6 +727,10 @@ describe('users-api', function() {
         });
         next();
       });
+      ganomedeUserMetaLocalServer.post('/usermeta/v1/auth/:authToken/auth', (req, res, next) => {
+        res.json({ });
+        next();
+      });
 
       // Fake usermeta central response
       ganomedeUserMetaCentralServer.get('/usermeta/v1/auth/:authToken/:keys', (req, res, next) => {
@@ -728,6 +746,10 @@ describe('users-api', function() {
         res.json({
           [username]: keyValues
         });
+        next();
+      });
+      ganomedeUserMetaCentralServer.post('/usermeta/v1/auth/:authToken/auth', (req, res, next) => {
+        res.json({ });
         next();
       });
 
