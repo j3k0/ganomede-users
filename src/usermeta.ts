@@ -541,7 +541,7 @@ class RedisUsermeta extends BulkedUsermetaClient implements RestrictedUsermetaCl
 }
 
 const endpoint = (subpath: string) => `/usermeta/v1${subpath}`;
-const jsonOptions = function ({ path, req_id }, anotherEndpoint?: (t: string) => string) {
+export const jsonOptions = function ({ path, req_id }, anotherEndpoint?: (t: string) => string) {
   const options: {
     path: string;
     headers?: any;

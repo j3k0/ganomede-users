@@ -46,6 +46,9 @@ import { createReportedUsersProcessor, ProcessReportedUsers } from './reported-u
 import getBlocksApi from './blocked-users/get-blocks-api';
 import postUserReviews from './blocked-users/reviews-api';
 import { EmailConfirmation, SendMailInfo } from './email-confirmation/api';
+import { GanomedeDataClient } from './data-client';
+import { UserLocale } from './user-locale';
+import { Translate, translation } from './translation';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -69,6 +72,9 @@ export interface UsersApiOptions {
   // sendEvent: EventSender|null;
   createBackend?: (options: BackendOptions) => BackendInitializer;
   ganomedeSubscriptionClient?: GanomedeSubscriptionClient;
+  ganomedeDataClient?: GanomedeDataClient;
+  userLocale?: UserLocale;
+  translate?: Translate;
   mailer?: any;
 };
 
@@ -100,7 +106,10 @@ let sendEvent: EventSender | null = null;
 let eventsLatest: LatestEvents | null = null;
 let processReportedUsers: ProcessReportedUsers | null = null;
 let ganomedeSubscriptionClient: GanomedeSubscriptionClient | null = null;
+let ganomedeDataClient: GanomedeDataClient | null = null;
 let emailConfirmation: EmailConfirmation | null = null;
+let userLocale: UserLocale | null = null;
+let translate: Translate | null = null;
 
 // backend, once initialized
 let backend: any = null;
@@ -146,7 +155,7 @@ const createAccount = function (req, res, next) {
       }
 
       if (!emails.isGuestEmail(account.email) && !emails.isNoEmail(account.email)) {
-        emailConfirmation?.sendEmailConfirmation(params, account.username, account.email, false, confirmationEmailStatus);
+        emailConfirmation?.sendEmailConfirmation(params, account.username, account.email, false, translate as Translate, confirmationEmailStatus);
         function confirmationEmailStatus(err: HttpError | undefined, info: SendMailInfo) {
           if (err) {
             req.log.warn({ info, err }, "Failed to send confirmation email");
@@ -278,7 +287,7 @@ const postMetadata = function (req, res, next) {
       return next();
     }
     if (key === 'email' && req.params.user.email && !emails.isGuestEmail(value) && !emails.isNoEmail(value)) {
-      emailConfirmation?.sendEmailConfirmation(params, params.username, value, true, (err, info) => {
+      emailConfirmation?.sendEmailConfirmation(params, params.username, value, true, translate as Translate, (err, info) => {
         if (err) {
         }
         res.send({ ok: !err, needEmailConfirmation: info.sent });
@@ -400,6 +409,7 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
   });
 
   ganomedeSubscriptionClient = options.ganomedeSubscriptionClient || GanomedeSubscriptionClient.createClient({});
+  ganomedeDataClient = options.ganomedeDataClient || GanomedeDataClient.createClient({});
 
   const createGanomedeUsermetaClient = function (name, ganomedeEnv) {
     const ganomedeConfig = serviceConfig(ganomedeEnv, 8000);
@@ -431,6 +441,9 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
       ganomedeSubscription: ganomedeSubscriptionClient
     }
   });
+
+  userLocale = options.userLocale ?? new UserLocale(rootUsermetaClient);
+  translate = options.translate ?? translation(userLocale, ganomedeDataClient as GanomedeDataClient);
 
   bans = options.bans ?? new Bans({ usermetaClient: centralUsermetaClient });
   processReportedUsers = createReportedUsersProcessor(log, bans);
@@ -489,7 +502,8 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
     facebookFriends,
     friendsClient,
     authenticator,
-    stats
+    stats,
+    translate
   };
 
   const prepareDirectoryBackend = function () {
@@ -617,7 +631,10 @@ const addRoutes = function (prefix: string, server: restify.Server): void {
     friendsClient: friendsClient!,
     rootUsermetaClient: rootUsermetaClient!,
     facebookClient,
-    subscriptionClient: ganomedeSubscriptionClient as GanomedeSubscriptionClient
+    subscriptionClient: ganomedeSubscriptionClient as GanomedeSubscriptionClient,
+    ganomedeDataCLient: ganomedeDataClient as GanomedeDataClient,
+    userLocale: userLocale as UserLocale,
+    translate: translate as Translate
   };
 
   apiLogin.addRoutes(apiOptions);

@@ -29,6 +29,9 @@ import Logger from "bunyan";
 import { DeferredEvents } from "../deferred-events";
 import { AuthdbClient } from "../authentication";
 import { validateIdentityToken } from "./apple-identity-token";
+import { Translate } from "../translation";
+import { DataKeys, DocumentContent } from "../data-client";
+import mailTemplate from "../mail-template";
 
 export type BackendInitializerCallback =(err?: HttpError|null, backend?: Backend) => void;
 
@@ -53,6 +56,7 @@ export interface BackendOptions {
   facebookAppId?: string;
   generatePassword?: any;
   mailerTransport?: any;
+  translate: Translate;
   passwordResetTemplate?: any;
   tagizer?: any;
   allowCreate?: any;
@@ -64,35 +68,36 @@ const createBackend = function(options: BackendOptions): BackendInitializer {
 
   let legacyError;
   let val = options.facebookAppId,
-      facebookAppId = val != null ? val : process.env.FACEBOOK_APP_ID,
-      directoryClient: DirectoryClient = options.directoryClient!,
-      {
-        authenticator,
-        aliasesClient,
-        usermetaClient,
-        friendsClient,
-        facebookClient,
-        // checkBan,
-        facebookFriends,
-        mailerTransport,
-        deferredEvents
-      } = options,
-      val1 = options.tagizer,
-      tagizer = val1 != null ? val1 : tagizerMod,
-      val2 = options.log,
-      log = val2 != null ? val2 : logMod,
-      {
-        fbgraphClient
-      } = options,
-      val3 = options.emails,
-      emails = val3 != null ? val3 : emailsMod,
-      val4 = options.generatePassword,
-      generatePassword = val4 != null ? val4 : passwordGeneratorMod.bind(null,8),
-      {
-        passwordResetTemplate
-      } = options,
-      val5 = options.allowCreate,
-      allowCreate = val5 != null ? val5 : true;
+    facebookAppId = val != null ? val : process.env.FACEBOOK_APP_ID,
+    directoryClient: DirectoryClient = options.directoryClient!,
+    {
+      authenticator,
+      aliasesClient,
+      usermetaClient,
+      friendsClient,
+      facebookClient,
+      // checkBan,
+      facebookFriends,
+      mailerTransport,
+      deferredEvents,
+      translate
+    } = options,
+    val1 = options.tagizer,
+    tagizer = val1 != null ? val1 : tagizerMod,
+    val2 = options.log,
+    log = val2 != null ? val2 : logMod,
+    {
+      fbgraphClient
+    } = options,
+    val3 = options.emails,
+    emails = val3 != null ? val3 : emailsMod,
+    val4 = options.generatePassword,
+    generatePassword = val4 != null ? val4 : passwordGeneratorMod.bind(null, 8),
+    {
+      passwordResetTemplate
+    } = options,
+    val5 = options.allowCreate,
+    allowCreate = val5 != null ? val5 : true;
   if (!directoryClient) {
     throw new Error("directoryClient missing");
   }
@@ -771,14 +776,21 @@ const createBackend = function(options: BackendOptions): BackendInitializer {
         password = generatePassword();
         email = email || (account.aliases != null ? account.aliases.email : undefined);
         name = account.aliases != null ? account.aliases.name : undefined;
-        return directoryClient.editAccount({id: id!, password: password!, req_id}, cb);
+        return directoryClient.editAccount({ id: id!, password: password!, req_id }, cb);
+      },
+
+      // localize email content
+      function (result, cb) {
+        cb = cb || result;
+        return translate(DataKeys.resetPassword, { username: id!, req_id }, passwordResetTemplate.template, (content) => {
+          cb(null, content);
+        });
       },
 
       // Send the new password by email
-      function(result, cb) {
-        cb = cb || result;
-        const templateValues = {id, name, email, password};
-        const content = passwordResetTemplate.render(templateValues);
+      function (localizedContent, cb) {
+        const templateValues = { id, name, email, password };
+        const content = (localizedContent ? mailTemplate.createTemplate(localizedContent) : passwordResetTemplate).render(templateValues);
         content.to = `${id} <${email}>`;
         content.to = email;
         content.req_id = req_id;

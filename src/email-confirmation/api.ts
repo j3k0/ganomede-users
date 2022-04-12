@@ -14,6 +14,9 @@ import totp from './totp';
 import { CreatedMailerTransportResult, MailerSendOptions } from "../mailer";
 import { RenderTemplate } from "../mail-template";
 import logMod from "../log";
+import { Translate } from "../translation";
+import { DataKeys, DocumentContent } from "../data-client";
+import mailTemplate from '../mail-template';
 const log = logMod.child({ module: "api-confirm" });
 
 export const CONFIRMED_META_KEY = '$confirmedemails';
@@ -38,19 +41,22 @@ export class EmailConfirmation {
     }
 
     sendEmailConfirmation(params: UsermetaClientSingleOptions, username: string, email: string,
-        checkIfConfirmed: boolean, callback: (err: HttpError | undefined, info: SendMailInfo) => void) {
+        checkIfConfirmed: boolean, translate: Translate, callback: (err: HttpError | undefined, info: SendMailInfo) => void) {
         //send email functionality
         const sendMail = () => {
             //generate token from the user email address.
             const token = totp.generate(email);
-
             const templateValues = { username, email, token };
-            const content = this.confirmEmailTemplate?.render(templateValues) as Record<string, any>;
-            content.to = email;
-            content.req_id = params.req_id;
-            this.mailerTransport?.sendMail(content, () => {
-                callback(undefined, { sent: true });
-            });
+            translate(DataKeys.emailConfirmation, params, this.confirmEmailTemplate?.template as DocumentContent,
+                (localizedContent: DocumentContent) => {
+                    const _confirmEmailTemplate = mailTemplate.createTemplate(localizedContent);
+                    const content = _confirmEmailTemplate.render(templateValues) as Record<string, any>;
+                    content.to = email;
+                    content.req_id = params.req_id;
+                    this.mailerTransport?.sendMail(content, () => {
+                        callback(undefined, { sent: true });
+                    });
+                });
         };
 
         //if without confirmation, means its a new account registration
