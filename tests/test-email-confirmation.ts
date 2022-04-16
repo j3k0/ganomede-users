@@ -19,6 +19,9 @@ import { CONFIRMED_META_KEY } from "../src/email-confirmation/api";
 import bunyan from 'bunyan';
 import * as _ from 'lodash';
 import mailer from '../src/mailer';
+import { GanomedeDataClient } from "../src/data-client";
+import { Localize, localizedTemplates } from "../src/localizedTemplates";
+import { UserLocale } from "../src/user-locale";
 
 const PREFIX = "users/v1";
 
@@ -111,6 +114,9 @@ class Test {
     backendInitializer: TestDouble<BackendInitializer>// DoubledObjectWithKey<string>;
     createBackend: (options: BackendOptions) => BackendInitializer;
     authdbClient: AuthdbClient;
+    ganomedeDataClient: GanomedeDataClient;
+    userLocale: UserLocale;
+    localize: Localize;
     mailer: any;
 
     constructor() {
@@ -145,6 +151,12 @@ class Test {
         this.backendInitializer = td.object<BackendInitializer>();
         this.backend = td.object<Backend>();
         this.createBackend = td.function('createBackend') as (options: BackendOptions) => BackendInitializer;
+        this.ganomedeDataClient = td.object<GanomedeDataClient>();
+        td.when(this.ganomedeDataClient.get(td.matchers.anything(), td.callback))
+            .thenCallback(null, {});
+
+        this.userLocale = new UserLocale(this.localUsermetaClient);
+        this.localize = localizedTemplates(this.userLocale, this.ganomedeDataClient);
 
         td.when(
             this.createBackend(td.matchers.isA(Object)))
@@ -334,6 +346,11 @@ describe('email-confirmation', () => {
                 td.callback))
                 .thenCallback(null, data.createAccount.valid);
 
+            sTools.test?.localUsermetaClient.set({ username: 'jeko' },
+                'locale', 'en', () => { });
+            sTools.test?.localUsermetaClient.set({ username: 'jeko' },
+                'location', 'us', () => { });
+
             superagent
                 .post(sTools.endpoint("/accounts"))
                 .send(data.createAccount.valid)
@@ -354,6 +371,11 @@ describe('email-confirmation', () => {
                         callback), calledOnce
                     );
 
+                    verify(sTools.test.ganomedeDataClient.get(contains({
+                        username: 'jeko',
+                        docId: "EMAIL_CONFIRMATION_TEMPLATE:en"
+                    }), td.matchers.anything()), calledOnce);
+
                     verify(callback(), calledOnce);
 
                     return done();
@@ -361,6 +383,11 @@ describe('email-confirmation', () => {
         });
 
         it('send confirmation email change with POST /metadata/email', (done) => {
+            sTools.test?.localUsermetaClient.set({ username: 'alice' },
+                'locale', 'en', () => { });
+            sTools.test?.localUsermetaClient.set({ username: 'alice' },
+                'location', 'us', () => { });
+
             superagent
                 .post(sTools.endpoint('/auth/valid-token/metadata/email'))
                 .send({ value: 'new-email@test.com' })
@@ -381,6 +408,12 @@ describe('email-confirmation', () => {
                         }),
                         callback), calledOnce
                     );
+
+                    verify(sTools.test.ganomedeDataClient.get(contains({
+                        username: 'alice',
+                        docId: "EMAIL_CONFIRMATION_TEMPLATE:en"
+                    }), td.matchers.anything()), calledOnce);
+
 
                     verify(callback(), calledOnce);
 

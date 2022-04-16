@@ -24,6 +24,9 @@ import { EXISTING_USER, SECONDARY_USER, TERNARY_USER, NEW_USER, APP_ID,
   directoryAccount, directoryAliasesObj,
   facebookLogin, randomUser
 } from './directory-data';
+import { UserLocale } from '../src/user-locale';
+import { GanomedeDataClient } from '../src/data-client';
+import { localizedTemplates } from '../src/localizedTemplates';
 
 // testdouble for the directory client
 const directoryClientTD = function() {
@@ -147,10 +150,13 @@ const aliasesClientTD = function() {
 };
 
 const usermetaClientTD = function() {
-  const ret = td.object([ 'set' ]);
+  const ret = td.object(['set', 'getBulkForUser' ]);
   td.when(ret.set(contains({apiSecret:process.env.API_SECRET}),
     anything(), anything()))
     .thenCallback(null, {ok:true});
+  td.when(ret.getBulkForUser(anything(), anything(), td.callback))
+    .thenCallback(null, [{ username: '', key: 'locale', value: 'en' }, 
+    { username: '', key: 'location', value: 'us' }]);
   const addUser = user => td.when(ret.set(contains({token:user.token}), anything(), anything()))
     .thenCallback(null, {ok:true});
   [ EXISTING_USER, SECONDARY_USER, TERNARY_USER, NEW_USER ].forEach(addUser);
@@ -195,6 +201,14 @@ const generatePasswordTD = function() {
   return gp;
 };
 
+const generateLocalizeTD = (usermetaClient)=>{
+  const userLocale = new UserLocale(usermetaClient);
+  const ganomedeDataClient = td.object(['get']) as GanomedeDataClient;
+  td.when(ganomedeDataClient.get(anything(), td.callback))
+    .thenCallback(null, {});
+  return localizedTemplates(userLocale, ganomedeDataClient as GanomedeDataClient);
+};
+
 const baseTest = function(user?: any) {
   const log = td.object([ 'debug', 'info', 'warn', 'error' ]);
   // const log = logMod;
@@ -210,15 +224,16 @@ const baseTest = function(user?: any) {
   const deferredEvents = deferredEventsTD();
   const passwordResetTemplate = passwordResetTemplateTD();
   const generatePassword = generatePasswordTD();
+  const localize = generateLocalizeTD(usermetaClient);
   const backend = directory.createBackend({
     log, authenticator, directoryClient, fbgraphClient, deferredEvents,
     facebookAppId: APP_ID, aliasesClient,
     usermetaClient, friendsClient, facebookFriends, facebookClient,
-    passwordResetTemplate, mailerTransport, generatePassword } as BackendOptions);
+    passwordResetTemplate, mailerTransport, generatePassword, localize } as BackendOptions);
   const callback = td.function('callback');
   return { callback, directoryClient, backend, aliasesClient, deferredEvents,
     usermetaClient, friendsClient, facebookFriends,
-    facebookClient };
+    facebookClient, localize };
 };
 
 const backendTest = function(user?: any) {
