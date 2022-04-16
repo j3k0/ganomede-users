@@ -14,7 +14,7 @@ import totp from './totp';
 import { CreatedMailerTransportResult, MailerSendOptions } from "../mailer";
 import { RenderTemplate } from "../mail-template";
 import logMod from "../log";
-import { Translate } from "../translation";
+import { Localize } from "../localizedTemplates";
 import { DataKeys, DocumentContent } from "../data-client";
 import mailTemplate from '../mail-template';
 const log = logMod.child({ module: "api-confirm" });
@@ -41,13 +41,13 @@ export class EmailConfirmation {
     }
 
     sendEmailConfirmation(params: UsermetaClientSingleOptions, username: string, email: string,
-        checkIfConfirmed: boolean, translate: Translate, callback: (err: HttpError | undefined, info: SendMailInfo) => void) {
+        checkIfConfirmed: boolean, localize: Localize, callback: (err: HttpError | undefined, info: SendMailInfo) => void) {
         //send email functionality
         const sendMail = () => {
             //generate token from the user email address.
             const token = totp.generate(email);
             const templateValues = { username, email, token };
-            translate(DataKeys.emailConfirmation, params, this.confirmEmailTemplate?.template as DocumentContent,
+            localize(DataKeys.emailConfirmation, params, this.confirmEmailTemplate?.template as DocumentContent,
                 (localizedContent: DocumentContent) => {
                     const _confirmEmailTemplate = mailTemplate.createTemplate(localizedContent);
                     const content = _confirmEmailTemplate.render(templateValues) as Record<string, any>;

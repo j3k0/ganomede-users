@@ -29,7 +29,7 @@ import Logger from "bunyan";
 import { DeferredEvents } from "../deferred-events";
 import { AuthdbClient } from "../authentication";
 import { validateIdentityToken } from "./apple-identity-token";
-import { Translate } from "../translation";
+import { Localize } from "../localizedTemplates";
 import { DataKeys, DocumentContent } from "../data-client";
 import mailTemplate from "../mail-template";
 
@@ -56,7 +56,7 @@ export interface BackendOptions {
   facebookAppId?: string;
   generatePassword?: any;
   mailerTransport?: any;
-  translate: Translate;
+  localize: Localize;
   passwordResetTemplate?: any;
   tagizer?: any;
   allowCreate?: any;
@@ -80,7 +80,7 @@ const createBackend = function(options: BackendOptions): BackendInitializer {
       facebookFriends,
       mailerTransport,
       deferredEvents,
-      translate
+      localize
     } = options,
     val1 = options.tagizer,
     tagizer = val1 != null ? val1 : tagizerMod,
@@ -782,7 +782,7 @@ const createBackend = function(options: BackendOptions): BackendInitializer {
       // localize email content
       function (result, cb) {
         cb = cb || result;
-        return translate(DataKeys.resetPassword, { username: id!, req_id }, passwordResetTemplate.template, (content) => {
+        return localize(DataKeys.resetPassword, { username: id!, req_id }, passwordResetTemplate.template, (content) => {
           cb(null, content);
         });
       },

@@ -48,7 +48,7 @@ import postUserReviews from './blocked-users/reviews-api';
 import { EmailConfirmation, SendMailInfo } from './email-confirmation/api';
 import { GanomedeDataClient } from './data-client';
 import { UserLocale } from './user-locale';
-import { Translate, translation } from './translation';
+import { Localize, localizedTemplates } from './localizedTemplates';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -74,7 +74,7 @@ export interface UsersApiOptions {
   ganomedeSubscriptionClient?: GanomedeSubscriptionClient;
   ganomedeDataClient?: GanomedeDataClient;
   userLocale?: UserLocale;
-  translate?: Translate;
+  localize?: Localize;
   mailer?: any;
 };
 
@@ -109,7 +109,7 @@ let ganomedeSubscriptionClient: GanomedeSubscriptionClient | null = null;
 let ganomedeDataClient: GanomedeDataClient | null = null;
 let emailConfirmation: EmailConfirmation | null = null;
 let userLocale: UserLocale | null = null;
-let translate: Translate | null = null;
+let localize: Localize | null = null;
 
 // backend, once initialized
 let backend: any = null;
@@ -155,7 +155,7 @@ const createAccount = function (req, res, next) {
       }
 
       if (!emails.isGuestEmail(account.email) && !emails.isNoEmail(account.email)) {
-        emailConfirmation?.sendEmailConfirmation(params, account.username, account.email, false, translate as Translate, confirmationEmailStatus);
+        emailConfirmation?.sendEmailConfirmation(params, account.username, account.email, false, localize as Localize, confirmationEmailStatus);
         function confirmationEmailStatus(err: HttpError | undefined, info: SendMailInfo) {
           if (err) {
             req.log.warn({ info, err }, "Failed to send confirmation email");
@@ -287,7 +287,7 @@ const postMetadata = function (req, res, next) {
       return next();
     }
     if (key === 'email' && req.params.user.email && !emails.isGuestEmail(value) && !emails.isNoEmail(value)) {
-      emailConfirmation?.sendEmailConfirmation(params, params.username, value, true, translate as Translate, (err, info) => {
+      emailConfirmation?.sendEmailConfirmation(params, params.username, value, true, localize as Localize, (err, info) => {
         if (err) {
         }
         res.send({ ok: !err, needEmailConfirmation: info.sent });
@@ -443,7 +443,7 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
   });
 
   userLocale = options.userLocale ?? new UserLocale(rootUsermetaClient);
-  translate = options.translate ?? translation(userLocale, ganomedeDataClient as GanomedeDataClient);
+  localize = options.localize ?? localizedTemplates(userLocale, ganomedeDataClient as GanomedeDataClient);
 
   bans = options.bans ?? new Bans({ usermetaClient: centralUsermetaClient });
   processReportedUsers = createReportedUsersProcessor(log, bans);
@@ -503,7 +503,7 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
     friendsClient,
     authenticator,
     stats,
-    translate
+    localize
   };
 
   const prepareDirectoryBackend = function () {
@@ -634,7 +634,7 @@ const addRoutes = function (prefix: string, server: restify.Server): void {
     subscriptionClient: ganomedeSubscriptionClient as GanomedeSubscriptionClient,
     ganomedeDataCLient: ganomedeDataClient as GanomedeDataClient,
     userLocale: userLocale as UserLocale,
-    translate: translate as Translate
+    localize: localize as Localize
   };
 
   apiLogin.addRoutes(apiOptions);
