@@ -47,13 +47,13 @@ export class UserLocale {
                     return callback('en');
                 }
                 const locale = reply?.find(x => x.key == 'locale');
-                if (locale) {
+                if (locale && locale.value) {
                     const formattedLocal = formatLocale(locale.value);
                     log.debug(`user locale [fetched]: ${params.username} = "${formattedLocal}"`);
                     return callback(formattedLocal);
                 }
                 const location = reply?.find(x => x.key == 'location');
-                if (location) {
+                if (location && location.value) {
                     const formattedLocal = localeFromLocation(location.value as string);
                     log.debug(`user locale [fetched]: ${params.username} = "${formattedLocal}" from location`);
                     return callback(formattedLocal);
