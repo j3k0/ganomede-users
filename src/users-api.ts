@@ -141,6 +141,7 @@ const createAccount = function (req, res, next) {
       if (typeof metadata !== 'object') {
         metadata = {};
       }
+      metadata["$chatdisabled"] = "true";
 
       if (!emails.isGuestEmail(account.email) && !emails.isNoEmail(account.email)) {
         emailConfirmation?.sendEmailConfirmation(params, account.username, account.email, false, confirmationEmailStatus);
