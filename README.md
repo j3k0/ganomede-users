@@ -32,6 +32,10 @@ Link with the facebook API.
 Link with apple (for Sign In with Apple).
  * `IOS_BUNDLE_ID` - The bundle identifier of the ios application.
 
+Link with the ganomede-data service. Note that this service is used to localize email templates.
+ * `GANOMEDE_DATA_PORT_8000_TCP_[ADDR|PORT|PROTOCOL]` - IP|port|protocol of the ganomede data service
+
+
 Config:
  * `LEGACY_ERROR_CODES` - Use stormpath compatible error codes.
  * `LOG_LEVEL` - See [bunyan levels](https://github.com/trentm/node-bunyan#levels) (default: info)
@@ -65,6 +69,10 @@ Statsd options (used for monitoring).
  * `STATSD_PORT` - port to connect to statsd server
  * `STATSD_PREFIX` - prefix for data stored in stats (default to `ganomede.users.`)
 
+Data Keys fo the templates (used to translate email templates from the ganomede-data service). Note also that those keys are combined with the user locale ex: key:en, key:fr.
+
+ * `EMAIL_CONFIRMATION_TEMPLATE` - document key for the confirmation email template
+ * `EMAIL_RESET_PASSWORD_TEMPLATE` - document key for the reset password email template 
 
 API
 ---
@@ -111,7 +119,19 @@ API
 ### response [200] OK
 
     {
-        "username": "tk421"
+        "username": "tk421",
+        "metadata": {
+            "$blocked": "blocked-value",
+            "$chatdisabled": "disabled-value",
+            country: "country-value",
+            location: "location-value",
+            singleplayerstats: "singleplayerstats-value",
+            yearofbirth: "yearofbirth-value",
+            expirationDate: "expirationDate-value",
+            productId: "productId-value",
+            purchaseDate: "purchaseDate-value",
+            purchaseId: "purchaseId-value",
+        }
     }
 
 ## /users/v1/login [POST]

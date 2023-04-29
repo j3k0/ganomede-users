@@ -15,7 +15,7 @@ let log = logMod.child({ module: "users-api" });
 import helpers from "ganomede-helpers";
 import ganomedeDirectory from "ganomede-directory";
 const serviceConfig = helpers.links.ServiceEnv.config;
-import usermeta, { UsermetaClientBulkOptions, UsermetaClientSingleOptions } from "./usermeta";
+import usermeta, { GanomedeSubscriptionClient, UsermetaClientBulkOptions, UsermetaClientSingleOptions } from "./usermeta";
 import { UsermetaClient } from "./usermeta";
 import aliases, { AliasesClient } from "./aliases";
 import fullnames from "./fullnames";
@@ -46,6 +46,9 @@ import { createReportedUsersProcessor, ProcessReportedUsers } from './reported-u
 import getBlocksApi from './blocked-users/get-blocks-api';
 import postUserReviews from './blocked-users/reviews-api';
 import { EmailConfirmation, SendMailInfo } from './email-confirmation/api';
+import { GanomedeDataClient } from './data-client';
+import { UserLocale } from './user-locale';
+import { Localize, localizedTemplates } from './localizedTemplates';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -68,6 +71,10 @@ export interface UsersApiOptions {
   // storeFacebookFriends: (options: any) => void | null;
   // sendEvent: EventSender|null;
   createBackend?: (options: BackendOptions) => BackendInitializer;
+  ganomedeSubscriptionClient?: GanomedeSubscriptionClient;
+  ganomedeDataClient?: GanomedeDataClient;
+  userLocale?: UserLocale;
+  localize?: Localize;
   mailer?: any;
 };
 
@@ -98,7 +105,11 @@ let storeFacebookFriends: (options: any) => void | null;
 let sendEvent: EventSender | null = null;
 let eventsLatest: LatestEvents | null = null;
 let processReportedUsers: ProcessReportedUsers | null = null;
+let ganomedeSubscriptionClient: GanomedeSubscriptionClient | null = null;
+let ganomedeDataClient: GanomedeDataClient | null = null;
 let emailConfirmation: EmailConfirmation | null = null;
+let userLocale: UserLocale | null = null;
+let localize: Localize | null = null;
 
 // backend, once initialized
 let backend: any = null;
@@ -136,6 +147,7 @@ const createAccount = function (req, res, next) {
         if (err) {
           req.log.warn({ key, value, err }, "failed to set metadata");
         }
+        next();
         return callback();
       });
       if (typeof metadata !== 'object') {
@@ -144,11 +156,11 @@ const createAccount = function (req, res, next) {
       metadata["$chatdisabled"] = "true";
 
       if (!emails.isGuestEmail(account.email) && !emails.isNoEmail(account.email)) {
-        emailConfirmation?.sendEmailConfirmation(params, account.username, account.email, false, confirmationEmailStatus);
+        emailConfirmation?.sendEmailConfirmation(params, account.username, account.email, false, localize as Localize, confirmationEmailStatus);
         function confirmationEmailStatus(err: HttpError | undefined, info: SendMailInfo) {
           if (err) {
             req.log.warn({ info, err }, "Failed to send confirmation email");
-            return;
+            return next();
           }
         }
       }
@@ -276,7 +288,7 @@ const postMetadata = function (req, res, next) {
       return next();
     }
     if (key === 'email' && req.params.user.email && !emails.isGuestEmail(value) && !emails.isNoEmail(value)) {
-      emailConfirmation?.sendEmailConfirmation(params, params.username, value, true, (err, info) => {
+      emailConfirmation?.sendEmailConfirmation(params, params.username, value, true, localize as Localize, (err, info) => {
         if (err) {
         }
         res.send({ ok: !err, needEmailConfirmation: info.sent });
@@ -397,13 +409,16 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
     jsonClient: directoryJsonClient, log, apiSecret
   });
 
+  ganomedeSubscriptionClient = options.ganomedeSubscriptionClient || GanomedeSubscriptionClient.createClient({});
+  ganomedeDataClient = options.ganomedeDataClient || GanomedeDataClient.createClient({});
+
   const createGanomedeUsermetaClient = function (name, ganomedeEnv) {
     const ganomedeConfig = serviceConfig(ganomedeEnv, 8000);
     if (options[name]) {
       return options[name];
     } else if (ganomedeConfig.exists) {
       log.info({ ganomedeConfig }, `usermeta[${name}]`);
-      return usermeta.create({ ganomedeConfig });
+      return usermeta.create({ ganomedeConfig, ganomedeEnv });
     } else {
       log.warn(`cant create usermeta client, no ${ganomedeEnv} config`);
       return null;
@@ -423,9 +438,13 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
         directoryClient, authdbClient
       }),
       ganomedeLocal: localUsermetaClient,
-      ganomedeCentral: centralUsermetaClient
+      ganomedeCentral: centralUsermetaClient,
+      ganomedeSubscription: ganomedeSubscriptionClient
     }
   });
+
+  userLocale = options.userLocale ?? new UserLocale(rootUsermetaClient);
+  localize = options.localize ?? localizedTemplates(userLocale, ganomedeDataClient as GanomedeDataClient);
 
   bans = options.bans ?? new Bans({ usermetaClient: centralUsermetaClient });
   processReportedUsers = createReportedUsersProcessor(log, bans);
@@ -484,7 +503,8 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
     facebookFriends,
     friendsClient,
     authenticator,
-    stats
+    stats,
+    localize
   };
 
   const prepareDirectoryBackend = function () {
@@ -612,6 +632,10 @@ const addRoutes = function (prefix: string, server: restify.Server): void {
     friendsClient: friendsClient!,
     rootUsermetaClient: rootUsermetaClient!,
     facebookClient,
+    subscriptionClient: ganomedeSubscriptionClient as GanomedeSubscriptionClient,
+    ganomedeDataCLient: ganomedeDataClient as GanomedeDataClient,
+    userLocale: userLocale as UserLocale,
+    localize: localize as Localize
   };
 
   apiLogin.addRoutes(apiOptions);

@@ -112,26 +112,29 @@ export function addRoutes(options: ApiMeOptions) {
             params.name = account.name;
             params.email = account.email;
         }
-        async.mapValues<1, string | null>({
-            'country': 1,
-            'yearofbirth': 1,
-            '$chatdisabled': 1,
-            [CONFIRMED_META_KEY]: 1
-        }, function (_one, key, callback) {
-            options.rootUsermetaClient.get(params, key, callback);
-        }, function(err, results) {
-            if (err) {
-                req.log.warn({err}, 'Failed to fetch metadata');
+        const keys: string[] = ['country', 'yearofbirth', '$chatdisabled', '$blocked', 'location',
+            'singleplayerstats', 'productId', 'purchaseId', 'purchaseDate', 'expirationDate', CONFIRMED_META_KEY];
+        options.rootUsermetaClient.getBulkForUser(params, keys, (err2, reply2) => {
+            if (err2) {
+                req.log.warn({ err2 }, 'Failed to fetch metadata');
             }
 
-            const confirmedEmails = results[CONFIRMED_META_KEY];
-            if (confirmedEmails) {
-                try {
-                    results[CONFIRMED_META_KEY] = JSON.parse(confirmedEmails);
-                } catch(err) {
-                    req.log.warn({ confirmedEmails }, 'Failed to parse confirmed emails: ' + (err as Error)?.message);
-                }
-            }
+            const emptyRecord:Record<string, string|undefined> = {};
+            const results:Record<string, string|undefined> = reply2?.reduce((acc, usermeta) => ({
+                [usermeta.key]: usermeta.value,
+                ...acc
+            } as Record<string, string | undefined>), emptyRecord) || emptyRecord;
+
+            // Suggestion by Hussein to return confirmedemails as an object, but it might break code that
+            // expects all metadata to be strings.
+            // const confirmedEmails = results[CONFIRMED_META_KEY];
+            // if (confirmedEmails) {
+            //     try {
+            //         results[CONFIRMED_META_KEY] = JSON.parse(confirmedEmails);
+            //     } catch(err) {
+            //         req.log.warn({ confirmedEmails }, 'Failed to parse confirmed emails: ' + (err as Error)?.message);
+            //     }
+            // }
 
             req.params._store.account.metadata = results;
             return next();

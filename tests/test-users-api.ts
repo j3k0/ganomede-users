@@ -1,24 +1,21 @@
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
 import assert from "assert";
 import superagent from 'superagent';
 import fakeAuthdb from "./fake-authdb";
 import fakeUsermeta from "./fake-usermeta";
 import restify from 'restify';
 import restifyErrors from 'restify-errors';
-import api from '../src/users-api';
+import userApis, { UsersApiOptions } from '../src/users-api';
 import { expect } from 'chai';
 import { Bans, BanInfo } from '../src/bans';
 import td from 'testdouble';
-import { UsermetaClient } from "../src/usermeta";
+import { GanomedeSubscriptionClient, UsermetaClient, UsernameKeyValue } from "../src/usermeta";
 import { BackendOptions, BackendInitializer } from "../src/backend/directory";
 import Logger from "bunyan";
 import { DirectoryClient } from "../src/directory-client";
 import { CONFIRMED_META_KEY } from "../src/email-confirmation/api";
-const {contains} = td.matchers;
+import { EventSender } from "../src/event-sender";
+
+const { contains } = td.matchers;
 
 const PREFIX = 'users/v1';
 const VALID_AUTH_TOKEN = 'deadbeef';
@@ -46,18 +43,46 @@ const data = {
   tokens: [{
     createAccountKey: 'valid',
     token: VALID_AUTH_TOKEN
-  }]
+  }],
+  accounts: {
+    jeko: {
+      id: "jeko",
+      aliases: {
+        name: "jeko-name",
+        tag: "jeko-tag",
+        email: "jeko@fovea.cc"
+      }
+    }
+  }
 };
 
 const confirmedOn = { "test@test.com": 2345342342, "jeko@tttt.com": 4234213433 };
 
 const apiSecret = process.env.API_SECRET;
 
-const baseTest = function() {
+const valueForUsernameAndKey = (username:string, key:string): string | null => {
+  if (username === 'n0b0dy') return null;
+  if (username === 'jeko' && key === '$confirmedemails') return JSON.stringify(confirmedOn);
+  return `${username}-${key}`;
+}
+
+const ukv = (username, key) => ({
+  username,
+  key,
+  value: valueForUsernameAndKey(username, key)
+});
+
+
+function baseTest() {
   //log = require '../src/log'
-  const log = td.object([ 'info', 'warn', 'error' ]) as Logger;
-  const localUsermetaClient = td.object([ 'get', 'set' ]) as UsermetaClient;
-  const centralUsermetaClient = td.object([ 'get', 'set' ]) as UsermetaClient;
+  const log = td.object(['info', 'warn', 'error']) as Logger;
+  const localUsermetaClient = td.object<UsermetaClient>();
+  localUsermetaClient.type = 'GanomedeUsermeta@local';
+  const centralUsermetaClient = td.object<UsermetaClient>();
+  centralUsermetaClient.type = 'GanomedeUsermeta@central';
+  const ganomedeSubscriptionClient = td.object<GanomedeSubscriptionClient>();
+  ganomedeSubscriptionClient.type = 'GanomedeSubscriptionClient';
+  const sendEvent: EventSender = td.function('sendEvent') as EventSender;
 
   const backend = td.object([
     'initialize',
@@ -77,28 +102,44 @@ const baseTest = function() {
   td.when(backend.loginAccount(td.matchers.anything()))
   // @ts-ignore
     .thenCallback(new restifyErrors.InvalidCredentialsError());
-  td.when(backend.loginAccount(data.validLogin))
-    .thenCallback(null, {token:VALID_AUTH_TOKEN});
+  td.when(backend.loginAccount(td.matchers.contains(data.validLogin)))
+    .thenCallback(null, { token: VALID_AUTH_TOKEN });
 
   const directoryClient = td.object(['editAccount', 'byId', 'byToken', 'byAlias']) as DirectoryClient;
   td.when(directoryClient.byAlias(
     td.matchers.contains({type: "tag"}),
     td.matchers.isA(Function)))
-      .thenDo((alias, cb) => cb(null, {id: alias.value}));
+    .thenDo((alias, cb) => cb(null, { id: alias.value }));
+
+  td.when(directoryClient.byId(
+    td.matchers.contains({ id: data.accounts.jeko.id }), td.callback))
+    .thenCallback(null, data.accounts.jeko);
 
   const callback = td.function('callback');
   const authdbClient = fakeAuthdb.createClient();
-  const options = { log, localUsermetaClient, centralUsermetaClient,
-    createBackend, authdbClient, authenticator, directoryClient };
-  return { callback, options,
+  const options = {
+    log, localUsermetaClient, centralUsermetaClient,
+    createBackend, authdbClient, authenticator, directoryClient, ganomedeSubscriptionClient, 
+    sendEvent
+  };
+  return {
+    callback, options,
     createBackend, backend, localUsermetaClient, centralUsermetaClient,
-    authdbClient, directoryClient };
+    authdbClient, directoryClient, ganomedeSubscriptionClient, 
+    sendEvent
+  };
 };
 
 // @ts-ignore
 let i:number = 0;
-const restTest = function(done) {
-  const ret: any = baseTest();
+const restTest = function(done = () => {}) {
+  const ret: ReturnType<typeof baseTest> & Partial<{
+    endpoint: Function;
+    bans: Bans;
+    start: Function;
+    close: Function;
+    mockBulkForUserResponse: Function;
+  }> = baseTest();
   td.when(ret.backend.initialize()).thenCallback(null, ret.backend);
 
   ret.endpoint = function(token, path) {
@@ -115,15 +156,15 @@ const restTest = function(done) {
   };
 
   i += 1;
-  var server = restify.createServer();
-  const localUsermeta = fakeUsermeta.createClient();
-  const centralUsermeta = fakeUsermeta.createClient();
-  ret.bans = td.object(Bans.prototype);
+  let server = restify.createServer();
+  //const localUsermeta = fakeUsermeta.createClient();
+  //const centralUsermeta = fakeUsermeta.createClient();
+  ret.bans = td.object<Bans>();
 
-  localUsermeta.set(data.createAccount.valid, CONFIRMED_META_KEY,
+  ret.localUsermetaClient.set(data.createAccount.valid, CONFIRMED_META_KEY,
     JSON.stringify(confirmedOn),
     () => { });
-  centralUsermeta.set(data.createAccount.valid, CONFIRMED_META_KEY,
+  ret.centralUsermetaClient.set(data.createAccount.valid, CONFIRMED_META_KEY,
     JSON.stringify(confirmedOn),
     () => { });
 
@@ -132,30 +173,53 @@ const restTest = function(done) {
   }));
 
   ret.close = function(done) {
-    server.close();
-    return done();
+    try {
+      server.close(() => {
+        console.log('server closed');
+      });
+    } catch (err) { console.log('exception', err) }
+    done();
   };
 
-  ret.start = function(cb) {
+  ret.start = function(done) {
+    server = restify.createServer();
+    server.dtrace = true;
+    server.timeout = 2;
+    server.requestTimeout = 2;
+    server.keepAliveTimeout = 2;
     const options = {
       // log: td.object [ 'info', 'warn', 'error' ]
-      localUsermetaClient: localUsermeta,
-      centralUsermetaClient: centralUsermeta,
+      localUsermetaClient: ret.localUsermetaClient,
+      centralUsermetaClient: ret.centralUsermetaClient,
       authdbClient: ret.authdbClient,
       createBackend: ret.createBackend,
       directoryClient: ret.directoryClient,
-      bans: ret.bans
+      ganomedeSubscriptionClient: ret.ganomedeSubscriptionClient,
+      bans: ret.bans, 
+      sendEvent: ret.sendEvent
     };
-    return api.initialize(function(err) {
+    userApis.initialize(function (err) {
       if (err) {
         throw err;
       }
       server.use(restify.plugins.bodyParser());
-      api.addRoutes(PREFIX, server);
-      return server.listen(1337, cb);
-    }
-    , options);
+      userApis.addRoutes(PREFIX, server);
+      server.listen(Math.ceil(Math.random() * 16000 + 1024), (err) => {
+        done(err);
+      });
+    }, options);
   };
+
+  ret.mockBulkForUserResponse = (username: string, keys: string[], type: 'local' | 'central' | 'purchases') => {
+    const client = type === 'purchases' ? ret.ganomedeSubscriptionClient : type === 'local' ? ret.localUsermetaClient : ret.centralUsermetaClient;
+    const response: UsernameKeyValue[] = [username].reduce((acc: UsernameKeyValue[], username: string) => {
+      return [...acc, ...keys.map(key => ukv(username, key))];
+    }, []);
+    td.when(client.getBulkForUser(td.matchers.contains({ username }), keys, td.callback))
+      .thenCallback(null, response);
+  }
+
+  done();
 
   return ret;
 };
@@ -167,29 +231,33 @@ describe('users-api', function() {
     it('callbacks when done', function() {
       const { callback, options, backend } = baseTest();
       td.when(backend.initialize()).thenCallback(null, null);
-      api.initialize(callback, options);
-      return td.verify(callback());
+      userApis.initialize(callback, options);
+      td.verify(callback());
     });
 
-    return it('fails when backend initialization fails', function() {
+    it('fails when backend initialization fails', function() {
       const err = new Error("failed");
       const { callback, options, backend } = baseTest();
       td.when(backend.initialize()).thenCallback(err, null);
-      api.initialize(callback, options);
-      return td.verify(callback(err));
+      userApis.initialize(callback, options);
+      td.verify(callback(err));
     });
   });
 
-  return describe('REST API', function() {
+  describe('REST API', function () {
 
-    let test: any = null;
-    let endpoint: any = null;
+    let test = restTest();
+    let endpoint: Function = () => {};
+
     beforeEach(function(done) {
-      test = restTest(() => {});
-      endpoint = test.endpoint;
-      test.start(done);
+      test = restTest();
+      endpoint = test.endpoint || endpoint;
+      test.start!(done);
     });
-    afterEach(done => test.close(done));
+
+    afterEach(function(done) {
+      test.close!(done);
+    });
 
     const noError = function(err) {
       if (err) {
@@ -202,44 +270,127 @@ describe('users-api', function() {
       assert.ok(!err);
     };
 
-    describe.skip('/login [POST] - Logs in a user', () => it("should accept valid credentials", function(done) {
-      ({ test } = test);
-      superagent
-        .post(endpoint('/login'))
-        .send(data.validLogin)
-        .end(function(err, res) {
-          noError(err);
-          assert.equal(200, res.status);
-          expect(res.body).to.eql({token:VALID_AUTH_TOKEN});
-          done();
-      });
-    }));
+    describe('/login [POST] - Logs in a user', () => {
+      it("should accept valid credentials", function (done) {
+        td.when(test.bans!.get({ username: data.validLogin.username, apiSecret }, td.callback))
+          .thenCallback(null, new BanInfo(data.validLogin.username, 0));
 
-    describe('/auth/:token/me [GET] - Retrieve user data', () => it("responds with user data", function(done) {
-      const {
-        username
-      } = data.createAccount.valid;
-      td.when(test.bans.get({username,apiSecret}))
-        .thenCallback(null, new BanInfo(username, 0));
-      superagent
-        .get(endpoint(VALID_AUTH_TOKEN, "/me"))
-        .end(function(err, res) {
-          noError(err);
-          assert.strictEqual(200, res.status);
-          expect(res.body).to.eql({
-            username,
-            metadata: {
-              country: null,
-              yearofbirth: null,
-              '$chatdisabled': null,
-              [CONFIRMED_META_KEY]: confirmedOn
-            }
+        td.when(test.centralUsermetaClient.get(data.validLogin.username, td.matchers.anything(), td.callback))
+          .thenCallback(null, null);
+
+        // ({ test } = test);
+        superagent
+          .post(endpoint('/login'))
+          .send(data.validLogin)
+          .end(function(err, res) {
+            noError(err);
+            assert.strictEqual(200, res.status);
+            expect(res.body).to.eql({token:VALID_AUTH_TOKEN});
+            done();
+        });
+      });
+    });
+
+    describe('/auth/:token/me [GET] - Retrieve user data', () => {
+      it("responds with user data", function(done) {
+        const username = data.createAccount.valid.username;
+        td.when(test.bans!.get({username, apiSecret}, td.callback))
+          .thenCallback(null, new BanInfo(username, 0));
+
+        test.mockBulkForUserResponse!('jeko', ['country', 'yearofbirth'], 'central');
+        test.mockBulkForUserResponse!('jeko', ['$chatdisabled', '$blocked', 'location',
+          'singleplayerstats', '$confirmedemails'], 'local');
+        test.mockBulkForUserResponse!('jeko', ['productId', 'purchaseId', 'purchaseDate', 'expirationDate'], 'purchases');
+
+        superagent
+          .get(endpoint(VALID_AUTH_TOKEN, "/me"))
+          .end(function (err, res) {
+            noError(err);
+            assert.strictEqual(200, res.status);
+            expect(res.body).to.eql({
+              username,
+              metadata: {
+                "$blocked": "jeko-$blocked",
+                "$chatdisabled": "jeko-$chatdisabled",
+                country: "jeko-country",
+                location: "jeko-location",
+                singleplayerstats: "jeko-singleplayerstats",
+                yearofbirth: "jeko-yearofbirth",
+                expirationDate: "jeko-expirationDate",
+                productId: "jeko-productId",
+                purchaseDate: "jeko-purchaseDate",
+                [CONFIRMED_META_KEY]: JSON.stringify(confirmedOn),
+                purchaseId: "jeko-purchaseId"
+              }
+            });
+            done();
           });
-          return done();
       });
-    }));
 
-    describe('/passwordResetEmail [POST] - Reset password', () => it("should send an email", function(done) {
+      it.skip("checks that meta-values are correctly read from the usermeta module", (done) => {
+        const {
+          username
+        } = data.createAccount.valid;
+        td.when(test.bans!.get({ username, apiSecret }, td.callback))
+          .thenCallback(null, new BanInfo(username, 0));
+
+        test.mockBulkForUserResponse!('jeko', ['country', 'yearofbirth'], 'central');
+        test.mockBulkForUserResponse!('jeko', ['$chatdisabled', '$blocked', 'location',
+          'singleplayerstats'], 'local');
+
+        test.mockBulkForUserResponse!('jeko', ['productId', 'purchaseId', 'purchaseDate', 'expirationDate'], 'purchases');
+
+        superagent
+          .get(endpoint(VALID_AUTH_TOKEN, "/me"))
+          .end(function (err, res) {
+            noError(err);
+            assert.strictEqual(200, res.status);
+
+            td.verify(test.centralUsermetaClient.getBulkForUser(
+              td.matchers.contains({ username: 'jeko' }), ['country', 'yearofbirth'], td.matchers.anything()),
+              { times: 1 });
+
+            td.verify(test.localUsermetaClient.getBulkForUser(
+              td.matchers.contains({ username: 'jeko' }), ['$chatdisabled', '$blocked', 'location',
+              'singleplayerstats'], td.matchers.anything()),
+              { times: 1 });
+
+            td.verify(test.ganomedeSubscriptionClient.getBulkForUser(
+              td.matchers.contains({ username: 'jeko' }), ['productId', 'purchaseId',
+              'purchaseDate', 'expirationDate'], td.matchers.anything()),
+              { times: 1 });
+
+            td.verify(test.centralUsermetaClient.get(
+              td.matchers.contains({ username: 'jeko' }), td.matchers.anything(), td.matchers.anything()),
+              { times: 0 });
+
+            td.verify(test.localUsermetaClient.get(
+              td.matchers.contains({ username: 'jeko' }), td.matchers.anything(), td.matchers.anything()),
+              { times: 0 });
+
+            expect(res.body).to.eql({
+              username,
+              metadata: {
+                "$blocked": "jeko-$blocked",
+                "$chatdisabled": "jeko-$chatdisabled",
+                country: "jeko-country",
+                location: "jeko-location",
+                singleplayerstats: "jeko-singleplayerstats",
+                yearofbirth: "jeko-yearofbirth",
+                expirationDate: "jeko-expirationDate",
+                productId: "jeko-productId",
+                purchaseDate: "jeko-purchaseDate",
+                purchaseId: "jeko-purchaseId"
+              }
+            });
+            done();
+          });
+      });
+
+    });
+
+
+    describe('/passwordResetEmail [POST] - Reset password', () => it("should send an email", function (done) {
       const { backend } = test;
       td.when(backend.sendPasswordResetEmail(
         contains({email:data.passwordReset.email})))
@@ -325,16 +476,16 @@ describe('users-api', function() {
         username
       } = data.createAccount.valid;
       const BAN_TIMESTAMP=Date.now();
-      beforeEach(() => td.when(test.bans.get({username,apiSecret}))
+      beforeEach(() => td.when(test.bans!.get({username,apiSecret}, td.callback))
         .thenCallback(null, new BanInfo(username, String(BAN_TIMESTAMP))));
 
       describe('POST', function() {
 
         it('bans people', function(done) {
-          td.when(test.bans.ban({
+          td.when(test.bans!.ban({
             username,
             apiSecret
-          })).thenCallback(null, null);
+          }, td.callback)).thenCallback(null, null);
           superagent
             .post(endpoint('/banned-users'))
             .send({username, apiSecret})
@@ -382,8 +533,7 @@ describe('users-api', function() {
           });
         });
 
-        return it(`nullifies authdb accounts after banned username \
-tries to access any :authToken endpoint`, function(done) {
+        return it(`nullifies authdb accounts after banned username tries to access any :authToken endpoint`, function(done) {
           expect(test.authdbClient.store[VALID_AUTH_TOKEN]).to.be.ok;
           superagent
             .get(endpoint(VALID_AUTH_TOKEN, '/me'))
@@ -416,14 +566,14 @@ tries to access any :authToken endpoint`, function(done) {
 
       return describe('DELETE', function() {
         it('removes bans', function(done) {
-          td.when(test.bans.unban(td.matchers.isA(Object)))
+          td.when(test.bans!.unban(td.matchers.isA(Object), td.callback))
             .thenCallback(null, null);
           superagent
             .del(endpoint(`/banned-users/${username}`))
             .send({apiSecret})
             .end(function(err, res) {
               noError(err);
-              td.verify(test.bans.unban({username, apiSecret}, td.callback));
+              td.verify(test.bans!.unban({username, apiSecret}, td.callback));
               return done();
           });
         });
@@ -439,6 +589,209 @@ tries to access any :authToken endpoint`, function(done) {
         });
       });
     });
+  });
+
+  describe('integrated tests', () => {
+
+    let server = restify.createServer();
+    let ganomedeUserMetaLocalServer = restify.createServer();
+    let ganomedeUserMetaCentralServer = restify.createServer();
+    let ganomedePurchasesServer = restify.createServer();
+    let port = 13911;
+    let portLocal = 15911;
+    let portCentral = 15311;
+    let portPurchases = 18311;
+
+    function endpoint(token, path) {
+      if (!path) {
+        path = token;
+        token = null;
+      }
+      const host = `http://localhost:${server.address().port}`;
+      if (token) {
+        return `${host}/${PREFIX}/auth/${token}${path}`;
+      } else {
+        return `${host}/${PREFIX}${path}`;
+      }
+    };
+
+    beforeEach(function (done) {
+      ++port;
+      ++portLocal;
+      ++portCentral;
+      ++portPurchases;
+      server = restify.createServer();
+      ganomedeUserMetaLocalServer = restify.createServer();
+      ganomedeUserMetaCentralServer = restify.createServer();
+      ganomedePurchasesServer = restify.createServer();
+      [server, ganomedeUserMetaLocalServer, ganomedeUserMetaCentralServer, ganomedePurchasesServer].forEach((s) => {
+        s.use(restify.plugins.bodyParser());
+        s.use(restify.plugins.queryParser());
+      });
+
+      const backend = td.object([
+        'initialize',
+        'loginAccount',
+        'createAccount',
+        'sendPasswordResetEmail'
+      ]);
+      const createBackend = td.function('createBackend') as (options: BackendOptions) => BackendInitializer;
+      td.when(createBackend(td.matchers.isA(Object)))
+        .thenReturn(backend);
+      const missAuthenticator = ({ authenticator }) => !authenticator;
+      td.when(createBackend(td.matchers.argThat(missAuthenticator)))
+        .thenThrow(new Error());
+
+        const sendEvent: EventSender = td.function('sendEvent') as EventSender;
+
+      td.when(backend.loginAccount(td.matchers.anything()))
+        // @ts-ignore
+        .thenCallback(new restifyErrors.InvalidCredentialsError());
+      td.when(backend.loginAccount(data.validLogin))
+        .thenCallback(null, { token: VALID_AUTH_TOKEN });
+
+      const directoryClient = td.object(['editAccount', 'byId', 'byToken', 'byAlias']) as DirectoryClient;
+      td.when(directoryClient.byAlias(
+        td.matchers.contains({ type: "tag" }),
+        td.matchers.isA(Function)))
+        .thenDo((alias, cb) => cb(null, { id: alias.value }));
+
+      td.when(directoryClient.byId(
+        td.matchers.contains({ id: data.accounts.jeko.id }), td.callback))
+        .thenCallback(null, data.accounts.jeko);
+
+      td.when(backend.initialize()).thenCallback(null, backend);
+      const authdbClient = fakeAuthdb.createClient();
+      const bans = td.object(Bans.prototype);
+
+      td.when(bans.get(td.matchers.anything(), td.callback))
+        .thenCallback(null, new BanInfo('jeko', 0));
+
+      data.tokens.forEach(info => authdbClient.addAccount(info.token, {
+        username: data.createAccount[info.createAccountKey].username
+      }));
+
+      const options: UsersApiOptions = {
+        log: td.object<Logger>(),
+        createBackend,
+        authdbClient,
+        directoryClient,
+        bans, 
+        sendEvent
+      };
+
+      Object.assign(process.env, {
+        CENTRAL_USERMETA_PORT_8000_TCP_ADDR: 'localhost',
+        CENTRAL_USERMETA_PORT_8000_TCP_PORT: '' + portCentral,
+        LOCAL_USERMETA_PORT_8000_TCP_ADDR: 'localhost',
+        LOCAL_USERMETA_PORT_8000_TCP_PORT: '' + portLocal,
+        GANOMEDE_PURCHASES_PORT_8000_TCP_ADDR: 'localhost',
+        GANOMEDE_PURCHASES_PORT_8000_TCP_PORT: '' + portPurchases,
+        FACEBOOK_APP_ID: '0'
+      });
+      ganomedeUserMetaLocalServer.listen(portLocal);
+      ganomedeUserMetaCentralServer.listen(portCentral);
+      ganomedePurchasesServer.listen(portPurchases);
+      userApis.initialize(() => {
+        userApis.addRoutes('users/v1', server);
+        server.listen(port, () => {
+          done();
+        });
+      }, options);
+    });
+
+    afterEach(done => {
+      [server, ganomedeUserMetaLocalServer, ganomedeUserMetaCentralServer, ganomedePurchasesServer].forEach((s) => {
+        s.close();
+      });
+      done();
+    });
+
+    it('checks that protected meta-values are correctly read from the usermeta module', done => {
+
+      const username = data.createAccount.valid.username;
+
+      // Fake usermeta local response
+      ganomedeUserMetaLocalServer.get('/usermeta/v1/auth/:authToken/:keys', (req, res, next) => {
+        expect(req.params.authToken).to.equal(VALID_AUTH_TOKEN);
+        expect(req.params.keys).to.equal('$chatdisabled,$blocked,location,singleplayerstats,$confirmedemails');
+        // req.log.info("GET from usermeta");
+        const keyValues = {};
+        req.params.keys.split(',').forEach(k => {
+          const kv = ukv(username, k);
+          keyValues[kv.key] = kv.value
+        });
+
+        res.json({
+          [username]: keyValues
+        });
+        next();
+      });
+      ganomedeUserMetaLocalServer.post('/usermeta/v1/auth/:authToken/auth', (req, res, next) => {
+        res.json({ });
+        next();
+      });
+
+      // Fake usermeta central response
+      ganomedeUserMetaCentralServer.get('/usermeta/v1/auth/:authToken/:keys', (req, res, next) => {
+        expect(req.params.authToken).to.equal(VALID_AUTH_TOKEN);
+        expect(req.params.keys).to.equal('country,yearofbirth');
+        // req.log.info("GET from usermeta");
+        const keyValues = {};
+        req.params.keys.split(',').forEach(k => {
+          const kv = ukv(username, k);
+          keyValues[kv.key] = kv.value
+        });
+
+        res.json({
+          [username]: keyValues
+        });
+        next();
+      });
+      ganomedeUserMetaCentralServer.post('/usermeta/v1/auth/:authToken/auth', (req, res, next) => {
+        res.json({ });
+        next();
+      });
+
+      // Fake ganomede purchases response
+      ganomedePurchasesServer.get('/purchases/v1/auth/:authToken/subscription', (req, res, next) => {
+        expect(req.params.authToken).to.equal(VALID_AUTH_TOKEN);
+        const keys = ['productId', 'purchaseId', 'purchaseDate', 'expirationDate'];
+        // req.log.info("GET from usermeta");
+        const keyValues = {};
+        keys.forEach(k => {
+          const kv = ukv(username, k);
+          keyValues[kv.key] = kv.value
+        });
+        res.json(keyValues);
+        next();
+      });
+
+      superagent
+        .get(endpoint(VALID_AUTH_TOKEN, "/me"))
+        .end((err, res) => {
+          expect(err, 'response error').to.be.null;
+          expect(res?.status, 'response status').to.equal(200);
+          expect(res?.body, 'response').to.eql({
+            username,
+            metadata: {
+              "$blocked": "jeko-$blocked",
+              "$chatdisabled": "jeko-$chatdisabled",
+              "$confirmedemails": JSON.stringify(confirmedOn),
+              country: "jeko-country",
+              location: "jeko-location",
+              singleplayerstats: "jeko-singleplayerstats",
+              yearofbirth: "jeko-yearofbirth",
+              expirationDate: "jeko-expirationDate",
+              productId: "jeko-productId",
+              purchaseDate: "jeko-purchaseDate",
+              purchaseId: "jeko-purchaseId",
+            }
+          });
+          done();
+        });
+    });
+
   });
 });
 
