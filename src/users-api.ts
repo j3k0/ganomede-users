@@ -15,7 +15,7 @@ let log = logMod.child({ module: "users-api" });
 import helpers from "ganomede-helpers";
 import ganomedeDirectory from "ganomede-directory";
 const serviceConfig = helpers.links.ServiceEnv.config;
-import usermeta, { UsermetaClientBulkOptions, UsermetaClientSingleOptions } from "./usermeta";
+import usermeta, { GanomedeSubscriptionClient, UsermetaClientBulkOptions, UsermetaClientSingleOptions } from "./usermeta";
 import { UsermetaClient } from "./usermeta";
 import aliases, { AliasesClient } from "./aliases";
 import fullnames from "./fullnames";
@@ -68,6 +68,7 @@ export interface UsersApiOptions {
   // storeFacebookFriends: (options: any) => void | null;
   // sendEvent: EventSender|null;
   createBackend?: (options: BackendOptions) => BackendInitializer;
+  ganomedeSubscriptionClient?: GanomedeSubscriptionClient;
   mailer?: any;
 };
 
@@ -98,6 +99,7 @@ let storeFacebookFriends: (options: any) => void | null;
 let sendEvent: EventSender | null = null;
 let eventsLatest: LatestEvents | null = null;
 let processReportedUsers: ProcessReportedUsers | null = null;
+let ganomedeSubscriptionClient: GanomedeSubscriptionClient | null = null;
 let emailConfirmation: EmailConfirmation | null = null;
 
 // backend, once initialized
@@ -136,6 +138,7 @@ const createAccount = function (req, res, next) {
         if (err) {
           req.log.warn({ key, value, err }, "failed to set metadata");
         }
+        next();
         return callback();
       });
       if (typeof metadata !== 'object') {
@@ -148,7 +151,7 @@ const createAccount = function (req, res, next) {
         function confirmationEmailStatus(err: HttpError | undefined, info: SendMailInfo) {
           if (err) {
             req.log.warn({ info, err }, "Failed to send confirmation email");
-            return;
+            return next();
           }
         }
       }
@@ -397,13 +400,15 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
     jsonClient: directoryJsonClient, log, apiSecret
   });
 
+  ganomedeSubscriptionClient = options.ganomedeSubscriptionClient || GanomedeSubscriptionClient.createClient({});
+
   const createGanomedeUsermetaClient = function (name, ganomedeEnv) {
     const ganomedeConfig = serviceConfig(ganomedeEnv, 8000);
     if (options[name]) {
       return options[name];
     } else if (ganomedeConfig.exists) {
       log.info({ ganomedeConfig }, `usermeta[${name}]`);
-      return usermeta.create({ ganomedeConfig });
+      return usermeta.create({ ganomedeConfig, ganomedeEnv });
     } else {
       log.warn(`cant create usermeta client, no ${ganomedeEnv} config`);
       return null;
@@ -423,7 +428,8 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
         directoryClient, authdbClient
       }),
       ganomedeLocal: localUsermetaClient,
-      ganomedeCentral: centralUsermetaClient
+      ganomedeCentral: centralUsermetaClient,
+      ganomedeSubscription: ganomedeSubscriptionClient
     }
   });
 
@@ -612,6 +618,7 @@ const addRoutes = function (prefix: string, server: restify.Server): void {
     friendsClient: friendsClient!,
     rootUsermetaClient: rootUsermetaClient!,
     facebookClient,
+    subscriptionClient: ganomedeSubscriptionClient as GanomedeSubscriptionClient
   };
 
   apiLogin.addRoutes(apiOptions);

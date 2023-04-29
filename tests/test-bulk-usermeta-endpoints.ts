@@ -11,7 +11,11 @@ import { BackendInitializer, BackendOptions } from "../src/backend/directory";
 import Logger from "bunyan";
 import logMod from '../src/log';
 import { RestError } from "restify-errors";
-import { UsermetaClient, UsernameKeyValue } from "../src/usermeta";
+import {
+    GanomedeSubscriptionClient, UsermetaClient,
+    UsermetaClientSingleOptions, UsernameKeyValue
+} from "../src/usermeta";
+import { EventSender } from "../src/event-sender";
 
 // shortcuts for readability
 const { anything, contains } = td.matchers;
@@ -65,7 +69,7 @@ const BY_TAGS = Object.values(accounts).reduce((acc, value) => {
 const ukv = (username, key) => ({
     username,
     key,
-    value: username !== 'n0b0dy' ? `${username}-${key}` : undefined
+    value: username !== 'n0b0dy' ? `${username}-${key}` : null
 });
 
 let nextPort = 31109;
@@ -76,9 +80,11 @@ class Test {
     log: Logger;
     localUsermetaClient: DoubledObject<UsermetaClient>;
     centralUsermetaClient: DoubledObject<UsermetaClient>;
+    ganomedeSubscriptionClient: DoubledObject<GanomedeSubscriptionClient>;
     backend: DoubledObjectWithKey<string>;
     createBackend: (options: BackendOptions) => BackendInitializer;
     authdbClient: AuthdbClient;
+    sendEvent: EventSender = td.function('sendEvent') as EventSender;
 
     constructor() {
         // Some mocks so we can initialize the `users` module.
@@ -114,6 +120,7 @@ class Test {
         this.localUsermetaClient.type = 'GanomedeUsermeta@local';
         this.centralUsermetaClient = td.object<UsermetaClient>();
         this.centralUsermetaClient.type = 'GanomedeUsermeta@central';
+        this.ganomedeSubscriptionClient = td.object<GanomedeSubscriptionClient>();
 
         this.backend = td.object(['initialize']);
         this.createBackend = td.function('createBackend') as (options: BackendOptions) => BackendInitializer;
@@ -147,8 +154,8 @@ class Test {
             .thenCallback(null, response);
     }
 
-    mockBulkForUserResponse(username: string, keys: string[], type: 'local' | 'central') {
-        const client = type === 'local' ? this.localUsermetaClient : this.centralUsermetaClient;
+    mockBulkForUserResponse(username: string, keys: string[], type: 'local' | 'central' | 'purchases') {
+        const client = type === 'purchases' ? this.ganomedeSubscriptionClient : type === 'local' ? this.localUsermetaClient : this.centralUsermetaClient;
         const response: UsernameKeyValue[] = [username].reduce((acc: UsernameKeyValue[], username: string) => {
             return [...acc, ...keys.map(key => ukv(username, key))];
         }, []);
@@ -372,6 +379,59 @@ describe('GET /auth/:authToken/multi/metadata/:keys', () => {
             });
     });
 
+
+    describe('Subscription Virtual meta', () => {
+
+        it('create a subscription client', () => {
+            const subscriptionClient: GanomedeSubscriptionClient | null = GanomedeSubscriptionClient.createClient({ purchasesClient: {} });
+            expect(subscriptionClient).to.be.not.null;
+
+            const subscriptionClient2: GanomedeSubscriptionClient | null =
+                GanomedeSubscriptionClient.createClient({
+                    purchasesConfig: {
+                        protocol: 0,
+                        host: '',
+                        port: 111
+                    }
+                });
+            expect(subscriptionClient2).to.be.not.null;
+
+            const subscriptionClient3: GanomedeSubscriptionClient | null = GanomedeSubscriptionClient.createClient({});
+            expect(subscriptionClient3).to.be.null;
+
+        });
+
+        it('requires an authtoken', (done) => {
+            const subscriptionClient: GanomedeSubscriptionClient | null = GanomedeSubscriptionClient.createClient({ purchasesClient: { url: { path:'purchases/v1'}} });
+            subscriptionClient?.getBulkForUser({ username: 'alice' } as UsermetaClientSingleOptions, [], (err, res) => {
+                expect(err, 'error').to.be.not.null;
+                expect(err?.message, 'error').to.be.eql('Forbidden');
+                done();
+            });
+        });
+
+        it('fetches virtual metadata from the purchases', (done) => {
+            sTools.getTest().mockBulkForUserResponse('alice', ['productId', 'platform', 'purchaseId'], 'purchases');
+            superagent
+                .get(sTools.endpoint('/auth/valid-token/multi/metadata/productId,platform,purchaseId'))
+                .end((err, res) => {
+                    expect(res?.status, 'response status').to.equal(200);
+                    expect(res?.body, 'response body').to.eql([
+                        { username: 'alice', key: 'productId', value: 'alice-productId' },
+                        { username: 'alice', key: 'platform', value: 'alice-platform' },
+                        { username: 'alice', key: 'purchaseId', value: 'alice-purchaseId' }
+                    ]);
+
+                    td.verify(sTools.getTest().ganomedeSubscriptionClient.getBulkForUser(anything(), anything(), anything()), { times: 1 });
+                    done();
+                });
+        });
+
+
+    });
+
+
+
 });
 
 
@@ -516,7 +576,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
             .end((err, res) => {
                 expect(err, 'request error').to.be.null;
                 expect(res?.body).to.eql([
-                    { username: 'alice', key: 'email' }
+                    { username: 'alice', key: 'email', value: null }
                 ]);
                 done();
             });
@@ -594,14 +654,14 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                     { username: 'alice', key: 'yearofbirth', value: 'alice-yearofbirth' },
                     { username: 'bob', key: 'country', value: 'bob-country' },
                     { username: 'bob', key: 'yearofbirth', value: 'bob-yearofbirth' },
-                    { username: 'n0b0dy', key: 'country' },
-                    { username: 'n0b0dy', key: 'yearofbirth' },
+                    { username: 'n0b0dy', key: 'country', value: null },
+                    { username: 'n0b0dy', key: 'yearofbirth', value: null },
                     { username: 'alice', key: 'key1', value: 'alice-key1' },
                     { username: 'alice', key: 'key2', value: 'alice-key2' },
                     { username: 'bob', key: 'key1', value: 'bob-key1' },
                     { username: 'bob', key: 'key2', value: 'bob-key2' },
-                    { username: 'n0b0dy', key: 'key1' },
-                    { username: 'n0b0dy', key: 'key2' }
+                    { username: 'n0b0dy', key: 'key1', value: null},
+                    { username: 'n0b0dy', key: 'key2', value: null }
                 ]);
                 done();
             });
@@ -609,11 +669,11 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
 
     describe('integrated tests', () => {
 
-        let server = restify.createServer();
+        let server: restify.Server | null;// = restify.createServer();
         let port = 12911;
 
         function endpoint(path: string): string {
-            return `http://localhost:${server.address().port}${path}`;
+            return `http://localhost:${server!.address().port}${path}`;
         }
 
         beforeEach(function (done) {
@@ -628,34 +688,45 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
                 email: accounts.alice.aliases.email
             });
 
+            const backend = td.object(['initialize']);
+            const createBackend = td.function('createBackend') as (options: BackendOptions) => BackendInitializer;
+            td.when(
+                createBackend(td.matchers.isA(Object)))
+                .thenReturn(backend);
+            td.when(
+                backend.initialize())
+                .thenCallback(null, backend);
+
             const options: UsersApiOptions = {
                 log: td.object<Logger>(),
                 directoryClient: td.object<DirectoryClient>(),
-                authdbClient
+                authdbClient,
+                createBackend
             };
             Object.assign(process.env, {
                 CENTRAL_USERMETA_PORT_8000_TCP_ADDR: 'localhost',
                 CENTRAL_USERMETA_PORT_8000_TCP_PORT: '' + port,
                 LOCAL_USERMETA_PORT_8000_TCP_ADDR: 'localhost',
                 LOCAL_USERMETA_PORT_8000_TCP_PORT: '' + port,
+                GANOMEDE_PURCHASES_PORT_8000_TCP_ADDR: 'localhost',
+                GANOMEDE_PURCHASES_PORT_8000_TCP_PORT: '' + port,
                 FACEBOOK_APP_ID: '0'
             });
             userApis.initialize(() => {
-                userApis.addRoutes('users/v1', server);
-                server.listen(port, () => {
-                    done();
-                });
+                userApis.addRoutes('users/v1', server!);
+                server!.listen(port, done);
             }, options);
         });
 
         afterEach(done => {
-            server.close();
+            server!.close();
+            server = null;
             done();
         });
 
         it('does works with a single user - issue #76', done => {
             // Fake usermeta response
-            server.get('/usermeta/v1/:usernames/:keys', (req, res, next) => {
+            server!.get('/usermeta/v1/:usernames/:keys', (req, res, next) => {
                 expect(req.params.usernames).to.equal('user1');
                 expect(req.params.keys).to.equal('key1,key2');
                 // req.log.info("GET from usermeta");
@@ -687,7 +758,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
 
         it('does not fail with multiple users - issue #76', done => {
             // Fake usermeta response
-            server.get('/usermeta/v1/:usernames/:keys', (req, res, next) => {
+            server!.get('/usermeta/v1/:usernames/:keys', (req, res, next) => {
                 expect(req.params.usernames).to.equal('user1,user2');
                 expect(req.params.keys).to.equal('key1,key2');
                 // req.log.info("GET from usermeta");
@@ -732,7 +803,7 @@ describe('GET /multi/metadata/:userIds/:keys', () => {
         it('does not use multiple get request with single user', done => {
             // Fake usermeta response
             let timesGetCall = 0;
-            server.get('/usermeta/v1/auth/:authToken/:keys', (req, res, next) => {
+            server!.get('/usermeta/v1/auth/:authToken/:keys', (req, res, next) => {
                 console.log(req.params.authToken, req.params.keys);
                 expect(req.params.authToken).to.equal('valid-token');
                 expect(req.params.keys).to.equal('key1,key2');

@@ -203,11 +203,11 @@ describe("usermeta", function() {
     beforeEach(function() {
       jsonClient = td.object(['get', 'post']);
       jsonClient.url = "https://fovea.cc"
-      return usermetaClient = usermeta.create({ganomedeClient: jsonClient});
+      return usermetaClient = usermeta.create({ ganomedeClient: jsonClient, ganomedeEnv: 'LOCAL_USERMETA' });
     });
 
     it("is created from a ganomedeClient", () => {
-      assert.equal("GanomedeUsermeta@" + jsonClient.url, usermetaClient.type);
+      assert.equal("GanomedeUsermeta@" + 'LOCAL_USERMETA', usermetaClient.type);
     });
 
     describe(".get", function() {
