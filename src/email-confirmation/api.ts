@@ -48,7 +48,10 @@ export class EmailConfirmation {
             const content = this.confirmEmailTemplate?.render(templateValues) as Record<string, any>;
             content.to = email;
             content.req_id = params.req_id;
-            this.mailerTransport?.sendMail(content, () => {
+            if (!this.mailerTransport) {
+                return callback(undefined, { sent: false });
+            }
+            this.mailerTransport.sendMail(content, () => {
                 callback(undefined, { sent: true });
             });
         };
@@ -69,7 +72,7 @@ export class EmailConfirmation {
                         return sendMail();
                     }
                     else {
-                        return callback(undefined, { sent:false, alreadyConfirmed: true });
+                        return callback(undefined, { sent: false, alreadyConfirmed: true });
                     }
                 } catch (ex) {
                     log.warn({ req_id: params.req_id, ex }, "error when processing send email confirmation");
