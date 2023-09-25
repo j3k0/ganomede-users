@@ -119,6 +119,7 @@ class Test {
         process.env.MAILER_SEND_TEXT = '';
         process.env.MAILER_SEND_HTML = '';
         process.env.CONFIRM_EMAIL_FOR_APP_VERSION = '>=1.0.0';
+        process.env.ENABLE_OTP_CONFIRMATION = 'true';
         // Some mocks so we can initialize the `users` module.
         this.directoryClient = td.object<DirectoryClient>();
 
