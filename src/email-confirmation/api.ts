@@ -37,7 +37,7 @@ export class EmailConfirmation {
         this.sendEmailConfirmation = this.sendEmailConfirmation.bind(this);
     }
 
-    sendEmailConfirmation(params: UsermetaClientSingleOptions, username: string, email: string,
+    sendEmailConfirmation(params: UsermetaClientSingleOptions, username: string, name: string, email: string,
         checkIfConfirmed: boolean, callback: (err: HttpError | undefined, info: SendMailInfo) => void) {
         if (process.env.ENABLE_OTP_CONFIRMATION !== 'true') {
             return callback(undefined, { sent: false });
@@ -47,11 +47,14 @@ export class EmailConfirmation {
             //generate token from the user email address.
             const token = totp.generate(email);
 
-            const templateValues = { username, email, token, name: params.name || username };
+            const templateValues = { username, email, code: token, name: name || params.name || username };
             const content = this.confirmEmailTemplate?.render(templateValues) as Record<string, any>;
             content.to = email;
             content.req_id = params.req_id;
-            this.mailerTransport?.sendMail(content, () => {
+            if (!this.mailerTransport) {
+                return callback(undefined, { sent: false });
+            }
+            this.mailerTransport.sendMail(content, () => {
                 callback(undefined, { sent: true });
             });
         };
@@ -75,7 +78,7 @@ export class EmailConfirmation {
                         return sendMail();
                     }
                     else {
-                        return callback(undefined, { sent:false, alreadyConfirmed: true });
+                        return callback(undefined, { sent: false, alreadyConfirmed: true });
                     }
                 } catch (ex) {
                     log.warn({ req_id: params.req_id, ex }, "error when processing send email confirmation");

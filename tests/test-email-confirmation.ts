@@ -118,6 +118,7 @@ class Test {
         process.env.MAILER_SEND_SUBJECT = '';
         process.env.MAILER_SEND_TEXT = '';
         process.env.MAILER_SEND_HTML = '';
+        process.env.CONFIRM_EMAIL_FOR_APP_VERSION = '>=1.0.0';
         // Some mocks so we can initialize the `users` module.
         this.directoryClient = td.object<DirectoryClient>();
 
@@ -243,20 +244,75 @@ describe('email-confirmation', () => {
     beforeEach(sTools.prepareServer);
     afterEach(sTools.closeServer);
 
-
-    describe('Post confirm-email', () => {
+    describe('Post otp/request', () => {
 
         it('add routes to the restify server, with the given prefix', (done) => {
             const server = fakeRestify.createServer();
             userApis.addRoutes(PREFIX, server as unknown as restify.Server);
-            expect(server.routes.post[`/${PREFIX}/auth/:authToken/confirm-email`], 'get /users/v1/auth/:authToken/confirm-email route').to.be.ok;
+            expect(server.routes.post[`/${PREFIX}/auth/:authToken/otp/request`], 'get /users/v1/auth/:authToken/otp/request route').to.be.ok;
+            done();
+        });
+
+        it('should send an email when X-App-Version is statifies CONFIRM_EMAIL_FOR_APP_VERSION', (done) => {
+            // const accessCode = totp.generate(alice_publicAccount.aliases.email);
+            superagent
+                // add the header
+                .post(sTools.endpoint('/auth/valid-token/otp/request'))
+                .set('X-App-Version', '2.0.0')
+                .send({})
+                .end((err, res) => {
+                    expect(err, 'request error').to.be.null;
+                    expect(res?.status, 'response status').to.equal(200);
+                    expect(res?.body, 'response body').to.eql({ok:true, sent:true});
+                    const { callback, nodemailerTransport } = sTools.test.mailer.mtest;
+                    verify(nodemailerTransport.sendMail(td.matchers.anything(), callback), { times: 1 });
+                    done();
+                });
+        });
+
+        function expectNoEmailSent(err, res, done) {
+            expect(err, 'request error').to.be.null;
+            expect(res?.status, 'response status').to.equal(200);
+            expect(res?.body?.ok, 'response body.ok').to.eql(true);
+            expect(res?.body?.sent, 'response body.sent').to.eql(false);
+            const { callback, nodemailerTransport } = sTools.test.mailer.mtest;
+            verify(nodemailerTransport.sendMail(td.matchers.anything(), callback), { times: 0 });
+            done();
+        }
+
+        it('should NOT send an email when X-App-Version is smaller that env CONFIRM_EMAIL_FOR_APP_VERSION', (done) => {
+            // const accessCode = totp.generate(alice_publicAccount.aliases.email);
+            superagent
+                // add the header
+                .post(sTools.endpoint('/auth/valid-token/otp/request'))
+                .set('X-App-Version', '0.1.0')
+                .send({})
+                .end((err, res) => expectNoEmailSent(err, res, done));
+        });
+
+        it('should NOT send an email when X-App-Version not defined', (done) => {
+            // const accessCode = totp.generate(alice_publicAccount.aliases.email);
+            superagent
+                // add the header
+                .post(sTools.endpoint('/auth/valid-token/otp/request'))
+                .send({})
+                .end((err, res) => expectNoEmailSent(err, res, done));
+        });
+    });
+
+    describe('Post otp/submit', () => {
+
+        it('add routes to the restify server, with the given prefix', (done) => {
+            const server = fakeRestify.createServer();
+            userApis.addRoutes(PREFIX, server as unknown as restify.Server);
+            expect(server.routes.post[`/${PREFIX}/auth/:authToken/otp/submit`], 'get /users/v1/auth/:authToken/otp/submit route').to.be.ok;
             done();
         });
 
         it('should respond and accept a valid token', (done) => {
             const accessCode = totp.generate(alice_publicAccount.aliases.email);
             superagent
-                .post(sTools.endpoint('/auth/valid-token/confirm-email'))
+                .post(sTools.endpoint('/auth/valid-token/otp/submit'))
                 .send({ accessCode })
                 .end((err, res) => {
                     expect(err, 'request error').to.be.null;
@@ -269,7 +325,7 @@ describe('email-confirmation', () => {
         it('should reject an invalid token', (done) => {
             const accessCode = totp.generate(alice_publicAccount.aliases.email);
             superagent
-                .post(sTools.endpoint('/auth/valid-token/confirm-email'))
+                .post(sTools.endpoint('/auth/valid-token/otp/submit'))
                 .send({ accessCode: 'this-is-not-a-valid-token' })
                 .end((err, res) => {
                     expect(err, 'request error').to.be.null;
@@ -282,7 +338,7 @@ describe('email-confirmation', () => {
         it("requires a valid authToken", (done) => {
             const accessCode = totp.generate(alice_publicAccount.aliases.email);
             superagent
-                .post(sTools.endpoint('/auth/not-valid-token/confirm-email'))
+                .post(sTools.endpoint('/auth/not-valid-token/otp/submit'))
                 .send({ accessCode })
                 .end((err, res) => {
                     expect(err, 'request error').to.be.not.null;
@@ -295,7 +351,7 @@ describe('email-confirmation', () => {
             const accessCode = totp.generate(alice_publicAccount.aliases.email);
 
             superagent
-                .post(sTools.endpoint('/auth/valid-token/confirm-email'))
+                .post(sTools.endpoint('/auth/valid-token/otp/submit'))
                 .send({ accessCode })
                 .end((err, res) => {
                     expect(err, 'request error').to.be.null;
@@ -336,6 +392,7 @@ describe('email-confirmation', () => {
 
             superagent
                 .post(sTools.endpoint("/accounts"))
+                .set('X-App-Version', '2.0.0')
                 .send(data.createAccount.valid)
                 .end(function (err, res) {
 
@@ -363,6 +420,7 @@ describe('email-confirmation', () => {
         it('send confirmation email change with POST /metadata/email', (done) => {
             superagent
                 .post(sTools.endpoint('/auth/valid-token/metadata/email'))
+                .set('X-App-Version', '2.0.0')
                 .send({ value: 'new-email@test.com' })
                 .end(function (err, res) {
 
@@ -394,6 +452,7 @@ describe('email-confirmation', () => {
                 CONFIRMED_META_KEY, JSON.stringify({ 'new-email@test.com': +new Date() }), () => { });
             superagent
                 .post(sTools.endpoint('/auth/valid-token/metadata/email'))
+                .set('X-App-Version', '2.0.0')
                 .send({ value: 'new-email@test.com' })
                 .end(function (err, res) {
 
@@ -416,6 +475,7 @@ describe('email-confirmation', () => {
 
             superagent
                 .post(sTools.endpoint('/auth/valid-token/metadata/email'))
+                .set('X-App-Version', '2.0.0')
                 .send({ value: 'new-emailtestcom' })
                 .end(function (err, res) {
 
@@ -440,6 +500,7 @@ describe('email-confirmation', () => {
                 CONFIRMED_META_KEY, JSON.stringify({ 'before@test.com': +new Date() }), () => { });
             superagent
                 .post(sTools.endpoint('/auth/valid-token/metadata/email'))
+                .set('X-App-Version', '2.0.0')
                 .send({ value: 'new-email@test.com' })
                 .end(function (err, res) {
 

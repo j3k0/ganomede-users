@@ -44,9 +44,9 @@ Mailer options (for password reset emails)
  * `MAILER_SEND_TEXT` - Plain text of password reset email
  * `MAILER_SEND_HTML` - HTML text of password reset email
  * `ENABLE_OTP_CONFIRMATION` - Set tot `true` to enable OTP confirmation emails
- * `MAILER_SEND_OTP_CONFIRM_SUBJECT` - Subject of "totp confirmation" emails
- * `MAILER_SEND_OTP_CONFIRM_TEXT` - Plain text of "totp confirmation" emails
- * `MAILER_SEND_OTP_CONFIRM_HTML` - HTML text of "totp econfirmation" emails
+ * `MAILER_SEND_CONFIRMATION_SUBJECT` - Subject of email address OTP confirmation email
+ * `MAILER_SEND_CONFIRMATION_TEXT` - Plain text of email address OTP confirmation email
+ * `MAILER_SEND_CONFIRMATION_HTML` - HTML text of email address OTP confirmation email
  * `MAILER_PORT` - the port to connect to (defaults to 25 or 465)
  * `MAILER_HOST` - the hostname or IP address to connect to (defaults to 'localhost')
  * `MAILER_SECURE` - connection should use SSL (if `true`) or not (if `false`)
@@ -62,6 +62,7 @@ Mailer options (for password reset emails)
  * `MAILER_AUTH_METHOD` - defines preferred authentication method, eg. 'PLAIN'
  * `NO_EMAIL_DOMAIN` - fake domain to use for users without an email address (default "email-not-provided.local")
  * `GUEST_EMAIL_DOMAIN` - domain used for guest users email address (default none)
+ * `CONFIRM_EMAIL_FOR_APP_VERSION` - only require email confirmation for app version satisfying the given condition (app should sent it with the X-App-Version header). Example ">=1.0.0" (see https://github.com/npm/node-semver)
 
 Statsd options (used for monitoring).
 
@@ -74,6 +75,12 @@ API
 ---
 
 ## /users/v1/accounts [POST]
+
+Create a user account.
+
+### Email Confirmation with OTP
+
+If the email address isn't a guest email address, an email message containing the email confirmation OTP will be sent to the user. However, if the environment variable `CONFIRM_EMAIL_FOR_APP_VERSION` is defined, the server will only send this email if the client version is greater than the defined value. The client is expected to send its version in the `X-App-Version` header. When no version is defined by the user, no confirmation email is sent.
 
 ### body (application/json)
 
@@ -205,7 +212,7 @@ Change users' custom data.
 }
 ```
 
-**NOTE:** When using this endpoint with the `email` field, the response will include the `needEmailConfirmation` field. This field will be `true` if an email has been sent to the user with an `OTP` code to confirm their email address. See `/users/v1/auth/:authToken/confirm-email`
+**NOTE:** When using this endpoint with the `email` field, the response will include the `needEmailConfirmation` field. This field will be `true` if an email has been sent to the user with an `OTP` code to confirm their email address. See `/users/v1/auth/:authToken/otp/submit`. The same policy is used as with the "POST /account" endpoint, so that only app client newer than a given version will require the confirmation emails (see "Email Confirmation with OTP").
 
 ## /users/v1/:tag/metadata/:key [GET]
 
@@ -541,16 +548,17 @@ If the key doesn't exist or cannot be accessed, it will be omitted from the resu
 ---
 
 
-## POST /users/v1/auth/:authToken/confirm-email
+## POST /users/v1/auth/:authToken/otp/submit
 
 A confirmation email is sent:
 
 - on user account creation
-- on email change.
+- on email change
+- on user request
 
 The email contains a TOTP access code that can be submitted to this endpoint for validation.
 
-An user metadata with key `$confirmedemails` contains the confirmation time of each email confirmed, like this:
+A user metadata with key `$confirmedemails` contains the confirmation time of each email confirmed, like this:
 
 ```
 {"alice@test.com",12334235492,"alice2@test.com":12343424242}
@@ -577,6 +585,27 @@ If the access code is valid, the email address will be added to `$confirmedemail
 
 ---
 
+## POST /users/v1/auth/:authToken/otp/request
+
+A user requests an otp to confirm his/her email.
+
+The server sends him/her an email with the otp.
+
+### body (application/json)
+
+### response [200] OK
+
+The system replies whether it was able to send the email to the user.
+
+    {
+        "ok": true,
+        "sent": false
+    }
+
+`ok` is true when the system was able to process the request. Otherwise, `ok` is false.
+`sent` is false when the email wasn't sent for some reason.
+
+---
 
 ## POST /users/v1/admin/user-reviews
 

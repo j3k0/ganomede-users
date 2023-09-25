@@ -46,6 +46,7 @@ import { createReportedUsersProcessor, ProcessReportedUsers } from './reported-u
 import getBlocksApi from './blocked-users/get-blocks-api';
 import postUserReviews from './blocked-users/reviews-api';
 import { EmailConfirmation, SendMailInfo } from './email-confirmation/api';
+import * as semver from 'semver';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -132,7 +133,7 @@ const createAccount = function (req, res, next) {
       let {
         metadata
       } = req.body;
-      const add = (value, key, callback) => rootUsermetaClient!.set(params, key, value, function (err, reply) {
+      const add = (value, key, callback) => rootUsermetaClient!.set(params, key, '' + value, function (err, reply) {
         if (err) {
           req.log.warn({ key, value, err }, "failed to set metadata");
         }
@@ -143,13 +144,13 @@ const createAccount = function (req, res, next) {
       }
       metadata["$chatdisabled"] = "true";
 
-      if (!emails.isGuestEmail(account.email) && !emails.isNoEmail(account.email)) {
-        emailConfirmation?.sendEmailConfirmation(params, account.username, account.email, false,
-          function confirmationEmailStatus(err: HttpError | undefined, info: SendMailInfo) {
-            if (err) {
-              req.log.warn({ info, err }, "Failed to send confirmation email");
-            }
-          });
+      if (requiresEmailConfirmation(req) && !emails.isGuestEmail(account.email) && !emails.isNoEmail(account.email)) {
+        emailConfirmation?.sendEmailConfirmation(params, account.username, account.username, account.email, false, confirmationEmailStatus);
+        function confirmationEmailStatus(err: HttpError | undefined, info: SendMailInfo) {
+          if (err) {
+            req.log.warn({ info, err }, "Failed to send confirmation email");
+          }
+        }
       }
 
       // Make sure aliases are not set (createAccount already did)
@@ -274,8 +275,8 @@ const postMetadata = function (req, res, next) {
       res.send(err);
       return next();
     }
-    if (key === 'email' && req.params.user.email && !emails.isGuestEmail(value) && !emails.isNoEmail(value)) {
-      emailConfirmation?.sendEmailConfirmation(params, params.username, value, true, (err, info) => {
+    if (requiresEmailConfirmation(req) && key === 'email' && req.params.user.email && !emails.isGuestEmail(value) && !emails.isNoEmail(value)) {
+      emailConfirmation?.sendEmailConfirmation(params, params.username, req.params.user.name, value, true, (err, info) => {
         if (err) {
           req.log.warn({ reply }, `Failed to send confirmation email to ${params.username}: ERROR ${err.name}: ${err.message}`);
         }
@@ -358,7 +359,6 @@ const getUserMultiMetadata = function (req, res, next) {
   });
 };
 
-
 // Initialize the module
 const initialize = function (cb, options: UsersApiOptions = {}) {
 
@@ -432,9 +432,9 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
   emailConfirmation = new EmailConfirmation(centralUsermetaClient!,
     options.mailer ? options.mailer.createTransport() : mailer.createTransport(),
     mailTemplate.createTemplate({
-      subject: process.env.MAILER_SEND_OTP_CONFIRM_SUBJECT,
-      text: process.env.MAILER_SEND_OTP_CONFIRM_TEXT,
-      html: process.env.MAILER_SEND_OTP_CONFIRM_HTML
+      subject: process.env.MAILER_SEND_CONFIRMATION_SUBJECT,
+      text: process.env.MAILER_SEND_CONFIRMATION_TEXT,
+      html: process.env.MAILER_SEND_CONFIRMATION_HTML
     }));
 
   // Aliases
@@ -581,6 +581,45 @@ const banStatus = function (req, res, next) {
   });
 };
 
+const requiresEmailConfirmation = function (req) {
+  //  -- check req.headers['X-App-Version'] and process.env.CONFIRM_EMAIL_FOR_APP_VERSION
+  // if both defined, use the semver module to check that X-App-Version statisfies the process.env.CONFIRM_EMAIL_FOR_APP_VERSION condition
+  var userVersion: String = req.headers['x-app-version'];
+  if (process.env.CONFIRM_EMAIL_FOR_APP_VERSION && userVersion)
+    return semver.satisfies(userVersion, process.env.CONFIRM_EMAIL_FOR_APP_VERSION);
+  return false;
+}
+
+const postOtpRequest = function (req, res, next) {
+  const params = {
+    username: req.params.user.username,
+    email: req.params.user.email
+  };
+  if (requiresEmailConfirmation(req) && !emails.isGuestEmail(params.email) && !emails.isNoEmail(params.email)) {
+    emailConfirmation?.sendEmailConfirmation(params, params.username, req.params.user.name, params.email, false, confirmationEmailStatus);
+    function confirmationEmailStatus(err: HttpError | undefined, info: SendMailInfo) {
+      if (err) {
+        req.log.warn({ info, err }, "Failed to send confirmation email");
+        next(err);
+        return;
+      }
+      res.json({
+        ok: info.sent,
+        sent: info.sent
+      });
+      next();
+    }
+  }
+  else {
+    req.log.warn({
+      CONFIRM_EMAIL_FOR_APP_VERSION: process.env.CONFIRM_EMAIL_FOR_APP_VERSION,
+      appVersion: req.headers['x-app-version']
+    }, 'email confirmation not required');
+    res.json({ok: true, sent: false, message: "Email confirmation isn't required"});
+    next();
+  }
+}
+
 /**
  * Register routes in the server
  * 
@@ -652,8 +691,11 @@ const addRoutes = function (prefix: string, server: restify.Server): void {
   server.get(`/${prefix}/auth/:authToken/multi/metadata/:keys`,
     authMiddleware, getUserMultiMetadata);
 
-  server.post(`/${prefix}/auth/:authToken/confirm-email`,
+  server.post(`/${prefix}/auth/:authToken/otp/submit`,
     jsonBody, authMiddleware, emailConfirmation!.confirmEmailCode);
+
+  server.post(`/${prefix}/auth/:authToken/otp/request`,
+    jsonBody, authMiddleware, postOtpRequest);
 
   friendsApi?.addRoutes(prefix, server);
   blockedUsersApi?.addRoutes(prefix, server);
