@@ -1,6 +1,6 @@
 {
   "name": "ganomede-users",
-  "version": "2.6.2",
+  "version": "2.6.3",
   "api": "users/v1",
   "description": "users micro service",
   "main": "index.js",
