@@ -43,6 +43,10 @@ Mailer options (for password reset emails)
  * `MAILER_SEND_SUBJECT` - Subject of password reset email
  * `MAILER_SEND_TEXT` - Plain text of password reset email
  * `MAILER_SEND_HTML` - HTML text of password reset email
+ * `ENABLE_OTP_CONFIRMATION` - Set tot `true` to enable OTP confirmation emails
+ * `MAILER_SEND_OTP_CONFIRM_SUBJECT` - Subject of "totp confirmation" emails
+ * `MAILER_SEND_OTP_CONFIRM_TEXT` - Plain text of "totp confirmation" emails
+ * `MAILER_SEND_OTP_CONFIRM_HTML` - HTML text of "totp econfirmation" emails
  * `MAILER_PORT` - the port to connect to (defaults to 25 or 465)
  * `MAILER_HOST` - the hostname or IP address to connect to (defaults to 'localhost')
  * `MAILER_SECURE` - connection should use SSL (if `true`) or not (if `false`)

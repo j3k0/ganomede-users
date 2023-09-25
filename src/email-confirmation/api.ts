@@ -39,12 +39,15 @@ export class EmailConfirmation {
 
     sendEmailConfirmation(params: UsermetaClientSingleOptions, username: string, email: string,
         checkIfConfirmed: boolean, callback: (err: HttpError | undefined, info: SendMailInfo) => void) {
+        if (process.env.ENABLE_OTP_CONFIRMATION !== 'true') {
+            return callback(undefined, { sent: false });
+        }
         //send email functionality
         const sendMail = () => {
             //generate token from the user email address.
             const token = totp.generate(email);
 
-            const templateValues = { username, email, token };
+            const templateValues = { username, email, token, name: params.name || username };
             const content = this.confirmEmailTemplate?.render(templateValues) as Record<string, any>;
             content.to = email;
             content.req_id = params.req_id;
@@ -61,6 +64,9 @@ export class EmailConfirmation {
 
         //we get the usermeta to check if it was confirmed or no before.
         this.usermetaClient.get(params, CONFIRMED_META_KEY, (err, reply) => {
+            if (err) {
+                log.warn({err}, `failed to fetch ${CONFIRMED_META_KEY} for ${params.username}`);
+            }
             if (reply !== null && reply !== undefined && reply !== '') {
                 try {
                     const confirmations = JSON.parse(reply);

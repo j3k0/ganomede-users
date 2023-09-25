@@ -144,13 +144,12 @@ const createAccount = function (req, res, next) {
       metadata["$chatdisabled"] = "true";
 
       if (!emails.isGuestEmail(account.email) && !emails.isNoEmail(account.email)) {
-        emailConfirmation?.sendEmailConfirmation(params, account.username, account.email, false, confirmationEmailStatus);
-        function confirmationEmailStatus(err: HttpError | undefined, info: SendMailInfo) {
-          if (err) {
-            req.log.warn({ info, err }, "Failed to send confirmation email");
-            return;
-          }
-        }
+        emailConfirmation?.sendEmailConfirmation(params, account.username, account.email, false,
+          function confirmationEmailStatus(err: HttpError | undefined, info: SendMailInfo) {
+            if (err) {
+              req.log.warn({ info, err }, "Failed to send confirmation email");
+            }
+          });
       }
 
       // Make sure aliases are not set (createAccount already did)
@@ -278,8 +277,9 @@ const postMetadata = function (req, res, next) {
     if (key === 'email' && req.params.user.email && !emails.isGuestEmail(value) && !emails.isNoEmail(value)) {
       emailConfirmation?.sendEmailConfirmation(params, params.username, value, true, (err, info) => {
         if (err) {
+          req.log.warn({ reply }, `Failed to send confirmation email to ${params.username}: ERROR ${err.name}: ${err.message}`);
         }
-        res.send({ ok: !err, needEmailConfirmation: info.sent });
+        res.send({ ok: !err, needEmailConfirmation: !err && info.sent });
         next();
       });
     }
@@ -432,9 +432,9 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
   emailConfirmation = new EmailConfirmation(centralUsermetaClient!,
     options.mailer ? options.mailer.createTransport() : mailer.createTransport(),
     mailTemplate.createTemplate({
-      subject: process.env.MAILER_SEND_SUBJECT,
-      text: process.env.MAILER_SEND_TEXT,
-      html: process.env.MAILER_SEND_HTML
+      subject: process.env.MAILER_SEND_OTP_CONFIRM_SUBJECT,
+      text: process.env.MAILER_SEND_OTP_CONFIRM_TEXT,
+      html: process.env.MAILER_SEND_OTP_CONFIRM_HTML
     }));
 
   // Aliases
