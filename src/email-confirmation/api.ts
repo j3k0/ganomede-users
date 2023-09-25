@@ -14,6 +14,7 @@ import totp from './totp';
 import { CreatedMailerTransportResult, MailerSendOptions } from "../mailer";
 import { RenderTemplate } from "../mail-template";
 import logMod from "../log";
+import config from "../config";
 const log = logMod.child({ module: "api-confirm" });
 
 export const CONFIRMED_META_KEY = '$confirmedemails';
@@ -116,7 +117,7 @@ export class EmailConfirmation {
         const params: UsermetaClientSingleOptions = {
             username: req.params.user.username,
             //authToken: req.params.authToken || (req as any).context.authToken,
-            apiSecret: req.params.apiSecret,
+            apiSecret: config.secret,
             req_id: req.id()
         };
 
