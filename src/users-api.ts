@@ -133,7 +133,7 @@ const createAccount = function (req, res, next) {
       let {
         metadata
       } = req.body;
-      const add = (value, key, callback) => rootUsermetaClient!.set(params, key, value, function (err, reply) {
+      const add = (value, key, callback) => rootUsermetaClient!.set(params, key, '' + value, function (err, reply) {
         if (err) {
           req.log.warn({ key, value, err }, "failed to set metadata");
         }
@@ -145,7 +145,7 @@ const createAccount = function (req, res, next) {
       metadata["$chatdisabled"] = "true";
 
       if (requiresEmailConfirmation(req) && !emails.isGuestEmail(account.email) && !emails.isNoEmail(account.email)) {
-        emailConfirmation?.sendEmailConfirmation(params, account.username, account.email, false, confirmationEmailStatus);
+        emailConfirmation?.sendEmailConfirmation(params, account.username, account.username, account.email, false, confirmationEmailStatus);
         function confirmationEmailStatus(err: HttpError | undefined, info: SendMailInfo) {
           if (err) {
             req.log.warn({ info, err }, "Failed to send confirmation email");
@@ -277,7 +277,7 @@ const postMetadata = function (req, res, next) {
       return next();
     }
     if (requiresEmailConfirmation(req) && key === 'email' && req.params.user.email && !emails.isGuestEmail(value) && !emails.isNoEmail(value)) {
-      emailConfirmation?.sendEmailConfirmation(params, params.username, value, true, (err, info) => {
+      emailConfirmation?.sendEmailConfirmation(params, params.username, req.params.user.name, value, true, (err, info) => {
         if (err) {
         }
         res.send({ ok: !err, needEmailConfirmation: info.sent });
@@ -359,7 +359,6 @@ const getUserMultiMetadata = function (req, res, next) {
   });
 };
 
-
 // Initialize the module
 const initialize = function (cb, options: UsersApiOptions = {}) {
 
@@ -433,9 +432,9 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
   emailConfirmation = new EmailConfirmation(centralUsermetaClient!,
     options.mailer ? options.mailer.createTransport() : mailer.createTransport(),
     mailTemplate.createTemplate({
-      subject: process.env.MAILER_SEND_SUBJECT,
-      text: process.env.MAILER_SEND_TEXT,
-      html: process.env.MAILER_SEND_HTML
+      subject: process.env.MAILER_SEND_CONFIRMATION_SUBJECT,
+      text: process.env.MAILER_SEND_CONFIRMATION_TEXT,
+      html: process.env.MAILER_SEND_CONFIRMATION_HTML
     }));
 
   // Aliases
@@ -597,7 +596,7 @@ const postOtpRequest = function (req, res, next) {
     email: req.params.user.email
   };
   if (requiresEmailConfirmation(req) && !emails.isGuestEmail(params.email) && !emails.isNoEmail(params.email)) {
-    emailConfirmation?.sendEmailConfirmation(params, params.username, params.email, false, confirmationEmailStatus);
+    emailConfirmation?.sendEmailConfirmation(params, params.username, req.params.user.name, params.email, false, confirmationEmailStatus);
     function confirmationEmailStatus(err: HttpError | undefined, info: SendMailInfo) {
       if (err) {
         req.log.warn({ info, err }, "Failed to send confirmation email");

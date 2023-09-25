@@ -37,14 +37,14 @@ export class EmailConfirmation {
         this.sendEmailConfirmation = this.sendEmailConfirmation.bind(this);
     }
 
-    sendEmailConfirmation(params: UsermetaClientSingleOptions, username: string, email: string,
+    sendEmailConfirmation(params: UsermetaClientSingleOptions, username: string, name: string, email: string,
         checkIfConfirmed: boolean, callback: (err: HttpError | undefined, info: SendMailInfo) => void) {
         //send email functionality
         const sendMail = () => {
             //generate token from the user email address.
             const token = totp.generate(email);
 
-            const templateValues = { username, email, token };
+            const templateValues = { username, email, code: token, name };
             const content = this.confirmEmailTemplate?.render(templateValues) as Record<string, any>;
             content.to = email;
             content.req_id = params.req_id;

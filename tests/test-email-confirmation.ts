@@ -263,7 +263,7 @@ describe('email-confirmation', () => {
                 .end((err, res) => {
                     expect(err, 'request error').to.be.null;
                     expect(res?.status, 'response status').to.equal(200);
-                    expect(res?.body, 'response body').to.eql({ok:true});
+                    expect(res?.body, 'response body').to.eql({ok:true, sent:true});
                     const { callback, nodemailerTransport } = sTools.test.mailer.mtest;
                     verify(nodemailerTransport.sendMail(td.matchers.anything(), callback), { times: 1 });
                     done();

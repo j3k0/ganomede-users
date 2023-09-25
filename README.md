@@ -43,6 +43,9 @@ Mailer options (for password reset emails)
  * `MAILER_SEND_SUBJECT` - Subject of password reset email
  * `MAILER_SEND_TEXT` - Plain text of password reset email
  * `MAILER_SEND_HTML` - HTML text of password reset email
+ * `MAILER_SEND_CONFIRMATION_SUBJECT` - Subject of email address confirmaiton email
+ * `MAILER_SEND_CONFIRMATION_TEXT` - Plain text of email address confirmaiton email
+ * `MAILER_SEND_CONFIRMATION_HTML` - HTML text of email address confirmaiton email
  * `MAILER_PORT` - the port to connect to (defaults to 25 or 465)
  * `MAILER_HOST` - the hostname or IP address to connect to (defaults to 'localhost')
  * `MAILER_SECURE` - connection should use SSL (if `true`) or not (if `false`)
