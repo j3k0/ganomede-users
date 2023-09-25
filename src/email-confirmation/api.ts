@@ -45,7 +45,7 @@ export class EmailConfirmation {
         //send email functionality
         const sendMail = () => {
             //generate token from the user email address.
-            const token = totp.generate(email);
+            const token = totp.generate(email, undefined, 4);
 
             const templateValues = { username, email, code: token, name: name || params.name || username };
             const content = this.confirmEmailTemplate?.render(templateValues) as Record<string, any>;
@@ -121,7 +121,7 @@ export class EmailConfirmation {
         };
 
         //verify token corresponding to the user email address.
-        const isValid = totp.verify(email, accessCode);
+        const isValid = totp.verify(email, accessCode, undefined, 4);
         if (isValid) {
             //if is valid, then the set confirmation usermeta with current time.
             //we need to check first if exists confirmed key object.
