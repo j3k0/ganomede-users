@@ -589,14 +589,13 @@ const banStatus = function (req, res, next) {
 function postDeleteProfileRequest (req: Request, res: Response, next: Next) {
   const auth: UsermetaClientSingleOptions = {
     username: req.params.user.username,
-    email: req.params.user.email,
-    authToken: config.secret,
+    apiSecret: config.secret,
   };
   if (!auth.username || !auth.email) {
     return next(new BadRequestError());
   }
   req.log.info(auth, 'Deleting profile...');
-  bans?.ban(auth, function (err) {
+  bans!.ban(auth, function (err) {
     req.log.info(auth, 'User banned (from delete profile)');
     // send an email to the admin to finalize the deletion.
     const email = {
@@ -606,8 +605,8 @@ function postDeleteProfileRequest (req: Request, res: Response, next: Next) {
       subject: 'Delete account: ' + auth.username,
       text: 'Account deletion requested: ' + auth.username + ' email: ' + auth.email,
       html: `<p>Account deletion requested: <b>${auth.username}</b> email: <b>${auth.email}</b></p>
-        <p>Admin UI: <a href="https://prod.ggs.ovh/admin/v1/web/users/${auth.username}">here</p>
-        <p>TODO: remove the email from directory, delete avatar picture, clean the metadata, remove games in progress.</p>`,
+        <p>Admin UI: <a href="https://prod.ggs.ovh/admin/v1/web/users/${auth.username}">here</a></p>
+        <p>TODO:<br/>- remove the email from directory<br/>- delete avatar picture<br/>- clean the metadata<br/>- remove games in progress.</p>`,
     }
     mailerTransport?.sendMail(email, (err, info) => {
       if (err) {
