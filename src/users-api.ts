@@ -8,7 +8,7 @@ import _ from 'lodash';
 import async from "async";
 import authentication, { AuthdbClient, Authenticator } from "./authentication";
 import restifyClients from "restify-clients";
-import restifyErrors, { HttpError } from "restify-errors";
+import restifyErrors, { BadRequestError, HttpError } from "restify-errors";
 import restify, { Next, Request, Response } from "restify";
 import logMod from "./log";
 let log = logMod.child({ module: "users-api" });
@@ -24,7 +24,7 @@ import facebook, { FacebookClient } from "./facebook";
 import usernameValidator from "./username-validator";
 import { Bans } from './bans';
 import urllib from 'url';
-import mailer, { MailerSendOptions } from './mailer';
+import mailer, { CreatedMailerTransportResult, MailerSendOptions } from './mailer';
 import eventSender, { USERS_EVENTS_CHANNEL, EventSender } from './event-sender';
 import deferredEvents from './deferred-events';
 import emails from './emails';
@@ -47,6 +47,7 @@ import getBlocksApi from './blocked-users/get-blocks-api';
 import postUserReviews from './blocked-users/reviews-api';
 import { EmailConfirmation, SendMailInfo } from './email-confirmation/api';
 import * as semver from 'semver';
+import config from './config';
 
 export interface UsersApiOptions {
   log?: Logger;
@@ -92,7 +93,7 @@ let fullnamesClient: any = null;
 let friendsClient: FriendsClient | null = null;
 let friendsApi: FriendsApi | undefined = undefined;
 let blockedUsersApi: BlockedUsersApi | undefined = undefined;
-let bans: any = null;
+let bans: Bans | null = null;
 let authenticator: Authenticator | null = null;
 let directoryClient: DirectoryClient | undefined = undefined;
 let storeFacebookFriends: (options: any) => void | null;
@@ -100,6 +101,7 @@ let sendEvent: EventSender | null = null;
 let eventsLatest: LatestEvents | null = null;
 let processReportedUsers: ProcessReportedUsers | null = null;
 let emailConfirmation: EmailConfirmation | null = null;
+let mailerTransport: CreatedMailerTransportResult | null = null;
 
 // backend, once initialized
 let backend: any = null;
@@ -427,10 +429,12 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
     }
   });
 
-  bans = options.bans ?? new Bans({ usermetaClient: centralUsermetaClient });
+  bans = options.bans ?? new Bans({ usermetaClient: centralUsermetaClient! });
+  mailerTransport = options.mailer ? options.mailer.createTransport() : mailer.createTransport();
+
   processReportedUsers = createReportedUsersProcessor(log, bans);
   emailConfirmation = new EmailConfirmation(centralUsermetaClient!,
-    options.mailer ? options.mailer.createTransport() : mailer.createTransport(),
+    mailerTransport!,
     mailTemplate.createTemplate({
       subject: process.env.MAILER_SEND_CONFIRMATION_SUBJECT,
       text: process.env.MAILER_SEND_CONFIRMATION_TEXT,
@@ -499,7 +503,7 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
         text: process.env.MAILER_SEND_TEXT,
         html: process.env.MAILER_SEND_HTML
       });
-    return backendOpts.mailerTransport = mailer.createTransport();
+    return backendOpts.mailerTransport = mailerTransport;
   };
 
   let createBackend = options.createBackend;
@@ -539,7 +543,7 @@ const banAdd = function (req: Request, res: Response, next: Next) {
     username: req.body.username,
     apiSecret: req.body.apiSecret
   };
-  return bans.ban(params, function (err) {
+  return bans!.ban(params, function (err) {
     if (err) {
       log.error('banAdd() failed', { err, username: params.username });
       return next(err);
@@ -557,7 +561,7 @@ const banRemove = function (req, res, next) {
     username: req.params.username,
     apiSecret: req.body.apiSecret
   };
-  return bans.unban(params, function (err) {
+  return bans!.unban(params, function (err) {
     if (err) {
       log.error('banRemove() failed', { err, username: params.username });
       return next(err);
@@ -570,7 +574,7 @@ const banRemove = function (req, res, next) {
 
 const banStatus = function (req, res, next) {
   const { username } = req.params;
-  return bans.get({ username, apiSecret }, function (err, ban) {
+  return bans!.get({ username, apiSecret }, function (err, ban) {
     if (err) {
       log.error('banStatus() failed', { err, username });
       return next(err);
@@ -580,6 +584,46 @@ const banStatus = function (req, res, next) {
     return next();
   });
 };
+
+
+function postDeleteProfileRequest (req: Request, res: Response, next: Next) {
+  const params = {
+    username: req.params.user.username,
+    email: req.params.user.email
+  };
+  if (!params.username || !params.email) {
+    return next(new BadRequestError());
+  }
+  req.log.info(params, 'Deleting profile...');
+  bans?.ban(params, function (err) {
+    req.log.info(params, 'User banned (from delete profile)');
+    // send an email to the admin to finalize the deletion.
+    const email = {
+      from: process.env.MAILER_SEND_FROM,
+      to:  process.env.ADMIN_EMAIL || process.env.MAILER_SEND_FROM,
+      req_id: req.id(),
+      subject: 'Delete account: ' + params.username,
+      text: 'Account deletion requested: ' + params.username + ' email: ' + params.email,
+      html: `<p>Account deletion requested: <b>${params.username}</b> email: <b>${params.email}</b></p>
+        <p>Admin UI: <a href="https://prod.ggs.ovh/admin/v1/web/users/${params.username}">here</p>
+        <p>TODO: remove the email from directory, delete avatar picture, clean the metadata, remove games in progress.</p>`,
+    }
+    mailerTransport?.sendMail(email, (err, info) => {
+      if (err) {
+        req.log.warn({err, info, ...params, ...email}, 'Failed to send email to admin.');
+        bans?.unban(params, (err) => {
+          req.log.error(err, 'Failed to unban user.');
+          // ... nothing we can do
+        });
+        return next(err);
+      }
+      else {
+        req.log.info({info, ...params, ...email}, 'Email sent to admin.');
+        res.json({ok:true});
+      }
+    });    
+  });
+}
 
 const requiresEmailConfirmation = function (req) {
   //  -- check req.headers['X-App-Version'] and process.env.CONFIRM_EMAIL_FOR_APP_VERSION
@@ -690,6 +734,9 @@ const addRoutes = function (prefix: string, server: restify.Server): void {
   // access to protected multi metadata
   server.get(`/${prefix}/auth/:authToken/multi/metadata/:keys`,
     authMiddleware, getUserMultiMetadata);
+
+  server.post(`/${prefix}/auth/:authToken/deleteAccount`,
+    jsonBody, authMiddleware, postDeleteProfileRequest);
 
   server.post(`/${prefix}/auth/:authToken/otp/submit`,
     jsonBody, authMiddleware, emailConfirmation!.confirmEmailCode);

@@ -1,3 +1,5 @@
+import { UsermetaClient } from "./usermeta";
+
 /*
  * decaffeinate suggestions:
  * DS102: Remove unnecessary code created because of implicit returns
@@ -39,13 +41,13 @@ export class BanInfo {
 const wrapCallback = cb => err => cb(err);
 
 export interface BansOptions {
-  usermetaClient: any;
+  usermetaClient: UsermetaClient;
   prefix?: string;
 }
 
 export class Bans {
 
-  usermetaClient: any;
+  usermetaClient: UsermetaClient;
   prefix: string;
 
   constructor(options: BansOptions) {
@@ -74,6 +76,9 @@ export class Bans {
     return this.usermetaClient.getBulk(pparams, [this.prefix], function (err, reply) {
       if (err) {
         return cb(err);
+      }
+      if (!reply) {
+        return cb(new Error('No reply to usermeta.getBulk'));
       }
       let banInfos: { [key: string]: BanInfo } = {};
       let tempObj = {};

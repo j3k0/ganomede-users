@@ -37,9 +37,10 @@ Config:
  * `LOG_LEVEL` - See [bunyan levels](https://github.com/trentm/node-bunyan#levels) (default: info)
  * `AUDIT_REQUESTS` - Set to `force` to audit all requests.
 
-Mailer options (for password reset emails)
+Mailer options
 
- * `MAILER_SEND_FROM` - Sender of password reset email
+ * `ADMIN_EMAIL` - Email to send user deletion requests to
+ * `MAILER_SEND_FROM` - Sender of emails
  * `MAILER_SEND_SUBJECT` - Subject of password reset email
  * `MAILER_SEND_TEXT` - Plain text of password reset email
  * `MAILER_SEND_HTML` - HTML text of password reset email
@@ -621,6 +622,25 @@ Create an event that indicates that the user has been reviewed in the "blocked-u
     }
 
 ### response [200] OK
+
+---
+
+## POST /users/v1/auth/:authToken/deleteAccount
+
+ * Ban the user (so he can login and other users don't see him anymore).
+ * Send an email to the admin so user data is cleaned up.
+
+### body (application/json)
+
+### response [200] OK
+
+The system replies whether it was able to send the email to the user.
+
+    {
+        "ok": true
+    }
+
+`ok` is true when the system was able to process the request. Otherwise, `ok` is false.
 
 ---
  
