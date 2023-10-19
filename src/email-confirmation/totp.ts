@@ -13,10 +13,11 @@ import { totpConfig } from '../config';
  */
 const prepareTOTPoptions = (period?: number, digits?: number) => {
     // NOTE: the `totp.options` object is not extensible.
-    let options = Object.assign({}, totp.options);
-    options.step = period || totpConfig.period;
-    options.digits = digits || totpConfig.digits;
-    totp.options = options;
+    totp.options = Object.assign({}, totp.options, {
+        step: period || totpConfig.period,
+        digits: digits || totpConfig.digits,
+        window: 2,
+    });
     return totp;
 };
 

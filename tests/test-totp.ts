@@ -42,9 +42,9 @@ describe('totp generation and verification', () => {
         });
 
         it('fail to verify an old code', (done) => {
-            const token = totp.generate(email, 1, 8);
+            const token = totp.generate(email, 0.1, 8);
             setTimeout(() => {
-                const isValid = totp.verify(email, token, 1, 8);
+                const isValid = totp.verify(email, token, 0.1, 8);
                 expect(isValid).to.be.false;
                 done();
             }, 1200);
