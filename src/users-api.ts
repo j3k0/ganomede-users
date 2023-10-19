@@ -587,38 +587,39 @@ const banStatus = function (req, res, next) {
 
 
 function postDeleteProfileRequest (req: Request, res: Response, next: Next) {
-  const params = {
+  const auth: UsermetaClientSingleOptions = {
     username: req.params.user.username,
-    email: req.params.user.email
+    email: req.params.user.email,
+    authToken: config.secret,
   };
-  if (!params.username || !params.email) {
+  if (!auth.username || !auth.email) {
     return next(new BadRequestError());
   }
-  req.log.info(params, 'Deleting profile...');
-  bans?.ban(params, function (err) {
-    req.log.info(params, 'User banned (from delete profile)');
+  req.log.info(auth, 'Deleting profile...');
+  bans?.ban(auth, function (err) {
+    req.log.info(auth, 'User banned (from delete profile)');
     // send an email to the admin to finalize the deletion.
     const email = {
       from: process.env.MAILER_SEND_FROM,
       to:  process.env.ADMIN_EMAIL || process.env.MAILER_SEND_FROM,
       req_id: req.id(),
-      subject: 'Delete account: ' + params.username,
-      text: 'Account deletion requested: ' + params.username + ' email: ' + params.email,
-      html: `<p>Account deletion requested: <b>${params.username}</b> email: <b>${params.email}</b></p>
-        <p>Admin UI: <a href="https://prod.ggs.ovh/admin/v1/web/users/${params.username}">here</p>
+      subject: 'Delete account: ' + auth.username,
+      text: 'Account deletion requested: ' + auth.username + ' email: ' + auth.email,
+      html: `<p>Account deletion requested: <b>${auth.username}</b> email: <b>${auth.email}</b></p>
+        <p>Admin UI: <a href="https://prod.ggs.ovh/admin/v1/web/users/${auth.username}">here</p>
         <p>TODO: remove the email from directory, delete avatar picture, clean the metadata, remove games in progress.</p>`,
     }
     mailerTransport?.sendMail(email, (err, info) => {
       if (err) {
-        req.log.warn({err, info, ...params, ...email}, 'Failed to send email to admin.');
-        bans?.unban(params, (err) => {
+        req.log.warn({err, info, ...auth, ...email}, 'Failed to send email to admin.');
+        bans?.unban(auth, (err) => {
           req.log.error(err, 'Failed to unban user.');
           // ... nothing we can do
         });
         return next(err);
       }
       else {
-        req.log.info({info, ...params, ...email}, 'Email sent to admin.');
+        req.log.info({info, username: auth.username, ...email}, 'Email sent to admin.');
         res.json({ok:true});
       }
     });    

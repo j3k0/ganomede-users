@@ -1,4 +1,4 @@
-import { UsermetaClient } from "./usermeta";
+import { UsermetaClient, UsermetaClientSingleOptions } from "./usermeta";
 
 /*
  * decaffeinate suggestions:
@@ -103,13 +103,13 @@ export class Bans {
   }
 
   // callback(err)
-  ban(params, cb) {
+  ban(params: UsermetaClientSingleOptions, cb) {
     return this.usermetaClient.set(params, this.prefix,
       String(Date.now()), wrapCallback(cb));
   }
 
   // callback(err)
-  unban(params, cb) {
+  unban(params: UsermetaClientSingleOptions, cb) {
     return this.usermetaClient.set(params, this.prefix, '<no>', wrapCallback(cb));
   }
 }
