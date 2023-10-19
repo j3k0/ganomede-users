@@ -232,7 +232,7 @@ describe('users-api', function() {
               country: null,
               yearofbirth: null,
               '$chatdisabled': null,
-              [CONFIRMED_META_KEY]: confirmedOn
+              [CONFIRMED_META_KEY]: JSON.stringify(confirmedOn),
             }
           });
           return done();

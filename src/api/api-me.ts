@@ -124,15 +124,6 @@ export function addRoutes(options: ApiMeOptions) {
                 req.log.warn({err}, 'Failed to fetch metadata');
             }
 
-            const confirmedEmails = results[CONFIRMED_META_KEY];
-            if (confirmedEmails) {
-                try {
-                    results[CONFIRMED_META_KEY] = JSON.parse(confirmedEmails);
-                } catch(err) {
-                    req.log.warn({ confirmedEmails }, 'Failed to parse confirmed emails: ' + (err as Error)?.message);
-                }
-            }
-
             req.params._store.account.metadata = results;
             return next();
         });
