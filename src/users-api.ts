@@ -591,7 +591,7 @@ function postDeleteProfileRequest (req: Request, res: Response, next: Next) {
     username: req.params.user.username,
     apiSecret: config.secret,
   };
-  if (!auth.username || !auth.email) {
+  if (!auth.username) {
     return next(new BadRequestError());
   }
   req.log.info(auth, 'Deleting profile...');
