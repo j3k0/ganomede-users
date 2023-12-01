@@ -61,9 +61,7 @@ describe("GET /admin/reported-users", () => {
         server = fakeRestify.createServer();
         latestEvents = td.function('latestEvent');
         const log = td.object(['info', 'warn', 'error']) as Logger;
-        const bans = td.object(Bans.prototype);
-        td.when(bans.getBulk(td.matchers.anything(), td.callback)).thenCallback(null, {});
-        reportedApi.addRoutes("users/v1", latestEvents, createReportedUsersProcessor(log, bans), server as unknown as restify.Server)
+        reportedApi.addRoutes("users/v1", latestEvents, createReportedUsersProcessor(log), server as unknown as restify.Server)
     });
 
     afterEach(() => {

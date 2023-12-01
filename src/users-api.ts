@@ -432,7 +432,7 @@ const initialize = function (cb, options: UsersApiOptions = {}) {
   bans = options.bans ?? new Bans({ usermetaClient: centralUsermetaClient! });
   mailerTransport = options.mailer ? options.mailer.createTransport() : mailer.createTransport();
 
-  processReportedUsers = createReportedUsersProcessor(log, bans);
+  processReportedUsers = createReportedUsersProcessor(log);
   emailConfirmation = new EmailConfirmation(centralUsermetaClient!,
     mailerTransport!,
     mailTemplate.createTemplate({
