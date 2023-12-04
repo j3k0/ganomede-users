@@ -615,11 +615,14 @@ Create an event that indicates that the user has been reviewed in the "blocked-u
  * Type: `"USER_REVIEW"`
  * The action taken: `data.action = "CLEAN"`
 
+### query parameters
+
+ * secret: The API secret key.
+
 ### body (application/json)
 
     { 
-        "username": "user1",
-        "secret": "the-api-secret"
+        "username": "user1"
     }
 
 ### response [200] OK
