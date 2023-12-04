@@ -618,7 +618,8 @@ Create an event that indicates that the user has been reviewed in the "blocked-u
 ### body (application/json)
 
     { 
-        "username": "user1"
+        "username": "user1",
+        "secret": "the-api-secret"
     }
 
 ### response [200] OK
